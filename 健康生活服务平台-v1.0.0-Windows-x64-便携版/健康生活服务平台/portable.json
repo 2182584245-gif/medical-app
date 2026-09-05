@@ -1,0 +1,11 @@
+{
+  "application": "健康生活服务平台",
+  "version": "1.0.0",
+  "build_kind": "windows-x64-portable-onedir",
+  "database_included": true,
+  "database_state": "empty",
+  "database_schema_version": 4,
+  "api_key_persisted": false,
+  "executable_sha256": "24D3AE9ACD496CB25C2DA9F7B8EC240C00A772433C46E98EA5EADA6955CFF75B",
+  "assembled_at_utc": "2026-09-04T18:20:37.184013+00:00"
+}

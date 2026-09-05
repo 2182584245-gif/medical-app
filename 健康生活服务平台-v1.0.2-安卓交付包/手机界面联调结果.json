@@ -1,0 +1,120 @@
+{
+  "kind": "headless_chrome_mobile_ui_with_real_python_api_not_android_device",
+  "viewport": "390x844",
+  "timezone": "America/New_York",
+  "startedAt": "2026-09-05T03:25:31.200Z",
+  "tests": [
+    {
+      "name": "01 真实注册、Argon2账号、今日页面",
+      "ok": true,
+      "ms": 443
+    },
+    {
+      "name": "02 五类记录通过实际表单创建并跨日北京存取",
+      "ok": true,
+      "ms": 765
+    },
+    {
+      "name": "03 提醒新增、编辑、暂停恢复，无需额外时区",
+      "ok": true,
+      "ms": 381
+    },
+    {
+      "name": "04 档案表单生日、数值与偏好保存",
+      "ok": true,
+      "ms": 249
+    },
+    {
+      "name": "05 统计周期、日期筛选与全部会员子页",
+      "ok": true,
+      "ms": 521
+    },
+    {
+      "name": "06 非法输入和无密钥错误为可读提示，未联网AI",
+      "ok": true,
+      "ms": 250
+    },
+    {
+      "name": "07 登录退出与初始化运营账号真实表单",
+      "ok": true,
+      "ms": 5688
+    },
+    {
+      "name": "08 创建顾问、维护资料与运营子页",
+      "ok": true,
+      "ms": 463
+    },
+    {
+      "name": "09 顾问绑定、会员方案与安排任务表单",
+      "ok": true,
+      "ms": 270
+    },
+    {
+      "name": "10 商品创建、价格与上下架表单",
+      "ok": true,
+      "ms": 292
+    },
+    {
+      "name": "11 顾问登录、开始服务、完成回访和下次提醒",
+      "ok": true,
+      "ms": 5854
+    },
+    {
+      "name": "12 顾问商品推荐和成员档案边界",
+      "ok": true,
+      "ms": 211
+    },
+    {
+      "name": "13 会员查看推荐、真实模拟购买与订单",
+      "ok": true,
+      "ms": 5874
+    },
+    {
+      "name": "14 运营订单送达、编辑价格与上下架",
+      "ok": true,
+      "ms": 6221
+    },
+    {
+      "name": "15 AI设置密钥按服务隔离且只保存内存、不联机",
+      "ok": true,
+      "ms": 5973
+    },
+    {
+      "name": "16 三角色页面无脚本错误、对象占位和外部请求",
+      "ok": true,
+      "ms": 1
+    }
+  ],
+  "pageErrors": [],
+  "consoleErrors": [],
+  "rpcErrors": [
+    {
+      "action": "chat.send",
+      "error": "请先在 AI 设置中输入自己的 API Key"
+    }
+  ],
+  "browserRequests": [
+    "http://127.0.0.1:18765/",
+    "http://127.0.0.1:18765/app.css",
+    "http://127.0.0.1:18765/app.js"
+  ],
+  "screenshots": [
+    "C:\\Users\\wuyuf\\Documents\\Codex\\2026-09-02\\wo-d\\outputs\\android-ui\\578731200\\01-login.png",
+    "C:\\Users\\wuyuf\\Documents\\Codex\\2026-09-02\\wo-d\\outputs\\android-ui\\578731200\\02-today.png",
+    "C:\\Users\\wuyuf\\Documents\\Codex\\2026-09-02\\wo-d\\outputs\\android-ui\\578731200\\03-five-records.png",
+    "C:\\Users\\wuyuf\\Documents\\Codex\\2026-09-02\\wo-d\\outputs\\android-ui\\578731200\\04-beijing-reminder-editor.png",
+    "C:\\Users\\wuyuf\\Documents\\Codex\\2026-09-02\\wo-d\\outputs\\android-ui\\578731200\\05-profile.png",
+    "C:\\Users\\wuyuf\\Documents\\Codex\\2026-09-02\\wo-d\\outputs\\android-ui\\578731200\\06-statistics.png",
+    "C:\\Users\\wuyuf\\Documents\\Codex\\2026-09-02\\wo-d\\outputs\\android-ui\\578731200\\07-ai-no-key.png",
+    "C:\\Users\\wuyuf\\Documents\\Codex\\2026-09-02\\wo-d\\outputs\\android-ui\\578731200\\08-missing-key-error.png",
+    "C:\\Users\\wuyuf\\Documents\\Codex\\2026-09-02\\wo-d\\outputs\\android-ui\\578731200\\09-operator.png",
+    "C:\\Users\\wuyuf\\Documents\\Codex\\2026-09-02\\wo-d\\outputs\\android-ui\\578731200\\10-member-management.png",
+    "C:\\Users\\wuyuf\\Documents\\Codex\\2026-09-02\\wo-d\\outputs\\android-ui\\578731200\\11-advisor-visits.png",
+    "C:\\Users\\wuyuf\\Documents\\Codex\\2026-09-02\\wo-d\\outputs\\android-ui\\578731200\\12-member-orders.png",
+    "C:\\Users\\wuyuf\\Documents\\Codex\\2026-09-02\\wo-d\\outputs\\android-ui\\578731200\\13-operator-products.png"
+  ],
+  "loadedAppJsSha256": "2cbdcb6a87cb641cb12e4d2f955725740a9cca005d5c8740af8bee32dc377408",
+  "finishedAt": "2026-09-05T03:26:06.075Z",
+  "passed": 16,
+  "failed": 0
+}

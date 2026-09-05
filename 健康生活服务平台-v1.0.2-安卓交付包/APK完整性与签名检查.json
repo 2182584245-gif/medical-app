@@ -1,0 +1,1326 @@
+{
+  "apk": "C:\\Users\\wuyuf\\Documents\\Codex\\2026-09-02\\wo-d\\release-android-v1.0.2\\健康生活服务平台-v1.0.2-Android64.apk",
+  "size_bytes": 128682149,
+  "sha256": "c56c7635f71b1463794580d60431cb78a49f2800ee975040299e73873f2d2931",
+  "checked_at_utc": "2026-09-05T03:35:25.026754+00:00",
+  "zip_crc_pass": true,
+  "mobile_assets_pass": true,
+  "unexpected_private_files": [],
+  "release_not_debuggable": true,
+  "signature": {
+    "passed": true,
+    "exit_code": 0,
+    "output": "Verifies\nVerified using v1 scheme (JAR signing): false\nVerified using v2 scheme (APK Signature Scheme v2): true\nVerified using v3 scheme (APK Signature Scheme v3): false\nVerified using v3.1 scheme (APK Signature Scheme v3.1): false\nVerified using v4 scheme (APK Signature Scheme v4): false\nVerified for SourceStamp: false\nNumber of signers: 1\nSigner #1 certificate DN: CN=HealthLife Personal App, OU=Local Personal Use, O=HealthLife, C=CN\nSigner #1 certificate SHA-256 digest: 6584564a35bf0b4fa50fa5e28bc6e1c236f7a70ca0e32e32c3293afaef0dab47\nSigner #1 certificate SHA-1 digest: d3bf0b33aec7d262ea4387660d3bb4f552e6e780\nSigner #1 certificate MD5 digest: ef07300338d606046f93dda8b183fe2f\nSigner #1 key algorithm: RSA\nSigner #1 key size (bits): 3072\nSigner #1 public key SHA-256 digest: 8a38f02aaec901c85938807ab4b4e765a4b9833d11186f2eca71cb850a703505\nSigner #1 public key SHA-1 digest: 55b5215bed32fdb322e965bee88b54c8f5ad0960\nSigner #1 public key MD5 digest: 1e39d044f996e904056d50527883825c\n"
+  },
+  "zip_alignment_16kb": {
+    "passed": true,
+    "exit_code": 0,
+    "output": ""
+  },
+  "native_elf_16kb_pass": true,
+  "native_library_count": 144,
+  "native_libraries": [
+    {
+      "path": "lib/arm64-v8a/libchaquopy_java.so",
+      "alignments": [
+        16384,
+        16384,
+        16384
+      ],
+      "pass_16kb": true
+    },
+    {
+      "path": "lib/arm64-v8a/libcrypto_chaquopy.so",
+      "alignments": [
+        16384,
+        16384
+      ],
+      "pass_16kb": true
+    },
+    {
+      "path": "lib/arm64-v8a/libcrypto_python.so",
+      "alignments": [
+        16384,
+        16384,
+        16384
+      ],
+      "pass_16kb": true
+    },
+    {
+      "path": "lib/arm64-v8a/libjnidispatch.so",
+      "alignments": [
+        16384,
+        16384
+      ],
+      "pass_16kb": true
+    },
+    {
+      "path": "lib/arm64-v8a/libmlkit_google_ocr_pipeline.so",
+      "alignments": [
+        16384,
+        16384,
+        16384
+      ],
+      "pass_16kb": true
+    },
+    {
+      "path": "lib/arm64-v8a/libpython3.13.so",
+      "alignments": [
+        16384,
+        16384,
+        16384
+      ],
+      "pass_16kb": true
+    },
+    {
+      "path": "lib/arm64-v8a/libsqlite3_chaquopy.so",
+      "alignments": [
+        16384,
+        16384
+      ],
+      "pass_16kb": true
+    },
+    {
+      "path": "lib/arm64-v8a/libsqlite3_python.so",
+      "alignments": [
+        16384,
+        16384,
+        16384
+      ],
+      "pass_16kb": true
+    },
+    {
+      "path": "lib/arm64-v8a/libssl_chaquopy.so",
+      "alignments": [
+        16384,
+        16384
+      ],
+      "pass_16kb": true
+    },
+    {
+      "path": "lib/arm64-v8a/libssl_python.so",
+      "alignments": [
+        16384,
+        16384,
+        16384
+      ],
+      "pass_16kb": true
+    },
+    {
+      "path": "lib/arm64-v8a/libvosk.so",
+      "alignments": [
+        16384,
+        16384,
+        16384,
+        16384
+      ],
+      "pass_16kb": true
+    },
+    {
+      "path": "lib/x86_64/libchaquopy_java.so",
+      "alignments": [
+        16384,
+        16384,
+        16384
+      ],
+      "pass_16kb": true
+    },
+    {
+      "path": "lib/x86_64/libcrypto_chaquopy.so",
+      "alignments": [
+        16384,
+        16384
+      ],
+      "pass_16kb": true
+    },
+    {
+      "path": "lib/x86_64/libcrypto_python.so",
+      "alignments": [
+        16384,
+        16384,
+        16384
+      ],
+      "pass_16kb": true
+    },
+    {
+      "path": "lib/x86_64/libjnidispatch.so",
+      "alignments": [
+        16384,
+        16384
+      ],
+      "pass_16kb": true
+    },
+    {
+      "path": "lib/x86_64/libmlkit_google_ocr_pipeline.so",
+      "alignments": [
+        16384,
+        16384,
+        16384
+      ],
+      "pass_16kb": true
+    },
+    {
+      "path": "lib/x86_64/libpython3.13.so",
+      "alignments": [
+        16384,
+        16384,
+        16384
+      ],
+      "pass_16kb": true
+    },
+    {
+      "path": "lib/x86_64/libsqlite3_chaquopy.so",
+      "alignments": [
+        16384,
+        16384
+      ],
+      "pass_16kb": true
+    },
+    {
+      "path": "lib/x86_64/libsqlite3_python.so",
+      "alignments": [
+        16384,
+        16384,
+        16384
+      ],
+      "pass_16kb": true
+    },
+    {
+      "path": "lib/x86_64/libssl_chaquopy.so",
+      "alignments": [
+        16384,
+        16384
+      ],
+      "pass_16kb": true
+    },
+    {
+      "path": "lib/x86_64/libssl_python.so",
+      "alignments": [
+        16384,
+        16384,
+        16384
+      ],
+      "pass_16kb": true
+    },
+    {
+      "path": "lib/x86_64/libvosk.so",
+      "alignments": [
+        16384,
+        16384,
+        16384,
+        16384
+      ],
+      "pass_16kb": true
+    },
+    {
+      "path": "assets/chaquopy/bootstrap-native/arm64-v8a/_bz2.cpython-313-aarch64-linux-android.so",
+      "alignments": [
+        16384,
+        16384,
+        16384
+      ],
+      "pass_16kb": true
+    },
+    {
+      "path": "assets/chaquopy/bootstrap-native/arm64-v8a/_ctypes.cpython-313-aarch64-linux-android.so",
+      "alignments": [
+        16384,
+        16384,
+        16384
+      ],
+      "pass_16kb": true
+    },
+    {
+      "path": "assets/chaquopy/bootstrap-native/arm64-v8a/_datetime.cpython-313-aarch64-linux-android.so",
+      "alignments": [
+        16384,
+        16384,
+        16384
+      ],
+      "pass_16kb": true
+    },
+    {
+      "path": "assets/chaquopy/bootstrap-native/arm64-v8a/_lzma.cpython-313-aarch64-linux-android.so",
+      "alignments": [
+        16384,
+        16384,
+        16384
+      ],
+      "pass_16kb": true
+    },
+    {
+      "path": "assets/chaquopy/bootstrap-native/arm64-v8a/_opcode.cpython-313-aarch64-linux-android.so",
+      "alignments": [
+        16384,
+        16384,
+        16384
+      ],
+      "pass_16kb": true
+    },
+    {
+      "path": "assets/chaquopy/bootstrap-native/arm64-v8a/_random.cpython-313-aarch64-linux-android.so",
+      "alignments": [
+        16384,
+        16384,
+        16384
+      ],
+      "pass_16kb": true
+    },
+    {
+      "path": "assets/chaquopy/bootstrap-native/arm64-v8a/_struct.cpython-313-aarch64-linux-android.so",
+      "alignments": [
+        16384,
+        16384,
+        16384
+      ],
+      "pass_16kb": true
+    },
+    {
+      "path": "assets/chaquopy/bootstrap-native/arm64-v8a/binascii.cpython-313-aarch64-linux-android.so",
+      "alignments": [
+        16384,
+        16384,
+        16384
+      ],
+      "pass_16kb": true
+    },
+    {
+      "path": "assets/chaquopy/bootstrap-native/arm64-v8a/java/chaquopy.so",
+      "alignments": [
+        16384,
+        16384,
+        16384
+      ],
+      "pass_16kb": true
+    },
+    {
+      "path": "assets/chaquopy/bootstrap-native/arm64-v8a/math.cpython-313-aarch64-linux-android.so",
+      "alignments": [
+        16384,
+        16384,
+        16384
+      ],
+      "pass_16kb": true
+    },
+    {
+      "path": "assets/chaquopy/bootstrap-native/arm64-v8a/mmap.cpython-313-aarch64-linux-android.so",
+      "alignments": [
+        16384,
+        16384,
+        16384
+      ],
+      "pass_16kb": true
+    },
+    {
+      "path": "assets/chaquopy/bootstrap-native/arm64-v8a/zlib.cpython-313-aarch64-linux-android.so",
+      "alignments": [
+        16384,
+        16384,
+        16384
+      ],
+      "pass_16kb": true
+    },
+    {
+      "path": "assets/chaquopy/bootstrap-native/x86_64/_bz2.cpython-313-x86_64-linux-android.so",
+      "alignments": [
+        16384,
+        16384,
+        16384
+      ],
+      "pass_16kb": true
+    },
+    {
+      "path": "assets/chaquopy/bootstrap-native/x86_64/_ctypes.cpython-313-x86_64-linux-android.so",
+      "alignments": [
+        16384,
+        16384,
+        16384
+      ],
+      "pass_16kb": true
+    },
+    {
+      "path": "assets/chaquopy/bootstrap-native/x86_64/_datetime.cpython-313-x86_64-linux-android.so",
+      "alignments": [
+        16384,
+        16384,
+        16384
+      ],
+      "pass_16kb": true
+    },
+    {
+      "path": "assets/chaquopy/bootstrap-native/x86_64/_lzma.cpython-313-x86_64-linux-android.so",
+      "alignments": [
+        16384,
+        16384,
+        16384
+      ],
+      "pass_16kb": true
+    },
+    {
+      "path": "assets/chaquopy/bootstrap-native/x86_64/_opcode.cpython-313-x86_64-linux-android.so",
+      "alignments": [
+        16384,
+        16384,
+        16384
+      ],
+      "pass_16kb": true
+    },
+    {
+      "path": "assets/chaquopy/bootstrap-native/x86_64/_random.cpython-313-x86_64-linux-android.so",
+      "alignments": [
+        16384,
+        16384,
+        16384
+      ],
+      "pass_16kb": true
+    },
+    {
+      "path": "assets/chaquopy/bootstrap-native/x86_64/_struct.cpython-313-x86_64-linux-android.so",
+      "alignments": [
+        16384,
+        16384,
+        16384
+      ],
+      "pass_16kb": true
+    },
+    {
+      "path": "assets/chaquopy/bootstrap-native/x86_64/binascii.cpython-313-x86_64-linux-android.so",
+      "alignments": [
+        16384,
+        16384,
+        16384
+      ],
+      "pass_16kb": true
+    },
+    {
+      "path": "assets/chaquopy/bootstrap-native/x86_64/java/chaquopy.so",
+      "alignments": [
+        16384,
+        16384,
+        16384
+      ],
+      "pass_16kb": true
+    },
+    {
+      "path": "assets/chaquopy/bootstrap-native/x86_64/math.cpython-313-x86_64-linux-android.so",
+      "alignments": [
+        16384,
+        16384,
+        16384
+      ],
+      "pass_16kb": true
+    },
+    {
+      "path": "assets/chaquopy/bootstrap-native/x86_64/mmap.cpython-313-x86_64-linux-android.so",
+      "alignments": [
+        16384,
+        16384,
+        16384
+      ],
+      "pass_16kb": true
+    },
+    {
+      "path": "assets/chaquopy/bootstrap-native/x86_64/zlib.cpython-313-x86_64-linux-android.so",
+      "alignments": [
+        16384,
+        16384,
+        16384
+      ],
+      "pass_16kb": true
+    },
+    {
+      "path": "assets/chaquopy/requirements-arm64-v8a.imy!_cffi_backend.so",
+      "alignments": [
+        16384,
+        16384,
+        16384
+      ],
+      "pass_16kb": true
+    },
+    {
+      "path": "assets/chaquopy/requirements-arm64-v8a.imy!_argon2_cffi_bindings/_ffi.so",
+      "alignments": [
+        16384,
+        16384,
+        16384
+      ],
+      "pass_16kb": true
+    },
+    {
+      "path": "assets/chaquopy/requirements-arm64-v8a.imy!chaquopy/lib/libffi.so",
+      "alignments": [
+        16384,
+        16384,
+        16384
+      ],
+      "pass_16kb": true
+    },
+    {
+      "path": "assets/chaquopy/requirements-x86_64.imy!_cffi_backend.so",
+      "alignments": [
+        16384,
+        16384,
+        16384
+      ],
+      "pass_16kb": true
+    },
+    {
+      "path": "assets/chaquopy/requirements-x86_64.imy!_argon2_cffi_bindings/_ffi.so",
+      "alignments": [
+        16384,
+        16384,
+        16384
+      ],
+      "pass_16kb": true
+    },
+    {
+      "path": "assets/chaquopy/requirements-x86_64.imy!chaquopy/lib/libffi.so",
+      "alignments": [
+        16384,
+        16384,
+        16384
+      ],
+      "pass_16kb": true
+    },
+    {
+      "path": "assets/chaquopy/stdlib-arm64-v8a.imy!_asyncio.cpython-313-aarch64-linux-android.so",
+      "alignments": [
+        16384,
+        16384,
+        16384
+      ],
+      "pass_16kb": true
+    },
+    {
+      "path": "assets/chaquopy/stdlib-arm64-v8a.imy!_bisect.cpython-313-aarch64-linux-android.so",
+      "alignments": [
+        16384,
+        16384,
+        16384
+      ],
+      "pass_16kb": true
+    },
+    {
+      "path": "assets/chaquopy/stdlib-arm64-v8a.imy!_blake2.cpython-313-aarch64-linux-android.so",
+      "alignments": [
+        16384,
+        16384,
+        16384
+      ],
+      "pass_16kb": true
+    },
+    {
+      "path": "assets/chaquopy/stdlib-arm64-v8a.imy!_codecs_cn.cpython-313-aarch64-linux-android.so",
+      "alignments": [
+        16384,
+        16384,
+        16384
+      ],
+      "pass_16kb": true
+    },
+    {
+      "path": "assets/chaquopy/stdlib-arm64-v8a.imy!_codecs_hk.cpython-313-aarch64-linux-android.so",
+      "alignments": [
+        16384,
+        16384,
+        16384
+      ],
+      "pass_16kb": true
+    },
+    {
+      "path": "assets/chaquopy/stdlib-arm64-v8a.imy!_codecs_iso2022.cpython-313-aarch64-linux-android.so",
+      "alignments": [
+        16384,
+        16384,
+        16384
+      ],
+      "pass_16kb": true
+    },
+    {
+      "path": "assets/chaquopy/stdlib-arm64-v8a.imy!_codecs_jp.cpython-313-aarch64-linux-android.so",
+      "alignments": [
+        16384,
+        16384,
+        16384
+      ],
+      "pass_16kb": true
+    },
+    {
+      "path": "assets/chaquopy/stdlib-arm64-v8a.imy!_codecs_kr.cpython-313-aarch64-linux-android.so",
+      "alignments": [
+        16384,
+        16384,
+        16384
+      ],
+      "pass_16kb": true
+    },
+    {
+      "path": "assets/chaquopy/stdlib-arm64-v8a.imy!_codecs_tw.cpython-313-aarch64-linux-android.so",
+      "alignments": [
+        16384,
+        16384,
+        16384
+      ],
+      "pass_16kb": true
+    },
+    {
+      "path": "assets/chaquopy/stdlib-arm64-v8a.imy!_contextvars.cpython-313-aarch64-linux-android.so",
+      "alignments": [
+        16384,
+        16384,
+        16384
+      ],
+      "pass_16kb": true
+    },
+    {
+      "path": "assets/chaquopy/stdlib-arm64-v8a.imy!_csv.cpython-313-aarch64-linux-android.so",
+      "alignments": [
+        16384,
+        16384,
+        16384
+      ],
+      "pass_16kb": true
+    },
+    {
+      "path": "assets/chaquopy/stdlib-arm64-v8a.imy!_decimal.cpython-313-aarch64-linux-android.so",
+      "alignments": [
+        16384,
+        16384,
+        16384
+      ],
+      "pass_16kb": true
+    },
+    {
+      "path": "assets/chaquopy/stdlib-arm64-v8a.imy!_elementtree.cpython-313-aarch64-linux-android.so",
+      "alignments": [
+        16384,
+        16384,
+        16384
+      ],
+      "pass_16kb": true
+    },
+    {
+      "path": "assets/chaquopy/stdlib-arm64-v8a.imy!_hashlib.cpython-313-aarch64-linux-android.so",
+      "alignments": [
+        16384,
+        16384,
+        16384
+      ],
+      "pass_16kb": true
+    },
+    {
+      "path": "assets/chaquopy/stdlib-arm64-v8a.imy!_heapq.cpython-313-aarch64-linux-android.so",
+      "alignments": [
+        16384,
+        16384,
+        16384
+      ],
+      "pass_16kb": true
+    },
+    {
+      "path": "assets/chaquopy/stdlib-arm64-v8a.imy!_interpchannels.cpython-313-aarch64-linux-android.so",
+      "alignments": [
+        16384,
+        16384,
+        16384
+      ],
+      "pass_16kb": true
+    },
+    {
+      "path": "assets/chaquopy/stdlib-arm64-v8a.imy!_interpqueues.cpython-313-aarch64-linux-android.so",
+      "alignments": [
+        16384,
+        16384,
+        16384
+      ],
+      "pass_16kb": true
+    },
+    {
+      "path": "assets/chaquopy/stdlib-arm64-v8a.imy!_interpreters.cpython-313-aarch64-linux-android.so",
+      "alignments": [
+        16384,
+        16384,
+        16384
+      ],
+      "pass_16kb": true
+    },
+    {
+      "path": "assets/chaquopy/stdlib-arm64-v8a.imy!_json.cpython-313-aarch64-linux-android.so",
+      "alignments": [
+        16384,
+        16384,
+        16384
+      ],
+      "pass_16kb": true
+    },
+    {
+      "path": "assets/chaquopy/stdlib-arm64-v8a.imy!_lsprof.cpython-313-aarch64-linux-android.so",
+      "alignments": [
+        16384,
+        16384,
+        16384
+      ],
+      "pass_16kb": true
+    },
+    {
+      "path": "assets/chaquopy/stdlib-arm64-v8a.imy!_md5.cpython-313-aarch64-linux-android.so",
+      "alignments": [
+        16384,
+        16384,
+        16384
+      ],
+      "pass_16kb": true
+    },
+    {
+      "path": "assets/chaquopy/stdlib-arm64-v8a.imy!_multibytecodec.cpython-313-aarch64-linux-android.so",
+      "alignments": [
+        16384,
+        16384,
+        16384
+      ],
+      "pass_16kb": true
+    },
+    {
+      "path": "assets/chaquopy/stdlib-arm64-v8a.imy!_pickle.cpython-313-aarch64-linux-android.so",
+      "alignments": [
+        16384,
+        16384,
+        16384
+      ],
+      "pass_16kb": true
+    },
+    {
+      "path": "assets/chaquopy/stdlib-arm64-v8a.imy!_posixsubprocess.cpython-313-aarch64-linux-android.so",
+      "alignments": [
+        16384,
+        16384,
+        16384
+      ],
+      "pass_16kb": true
+    },
+    {
+      "path": "assets/chaquopy/stdlib-arm64-v8a.imy!_queue.cpython-313-aarch64-linux-android.so",
+      "alignments": [
+        16384,
+        16384,
+        16384
+      ],
+      "pass_16kb": true
+    },
+    {
+      "path": "assets/chaquopy/stdlib-arm64-v8a.imy!_sha1.cpython-313-aarch64-linux-android.so",
+      "alignments": [
+        16384,
+        16384,
+        16384
+      ],
+      "pass_16kb": true
+    },
+    {
+      "path": "assets/chaquopy/stdlib-arm64-v8a.imy!_sha2.cpython-313-aarch64-linux-android.so",
+      "alignments": [
+        16384,
+        16384,
+        16384
+      ],
+      "pass_16kb": true
+    },
+    {
+      "path": "assets/chaquopy/stdlib-arm64-v8a.imy!_sha3.cpython-313-aarch64-linux-android.so",
+      "alignments": [
+        16384,
+        16384,
+        16384
+      ],
+      "pass_16kb": true
+    },
+    {
+      "path": "assets/chaquopy/stdlib-arm64-v8a.imy!_socket.cpython-313-aarch64-linux-android.so",
+      "alignments": [
+        16384,
+        16384,
+        16384
+      ],
+      "pass_16kb": true
+    },
+    {
+      "path": "assets/chaquopy/stdlib-arm64-v8a.imy!_sqlite3.cpython-313-aarch64-linux-android.so",
+      "alignments": [
+        16384,
+        16384,
+        16384
+      ],
+      "pass_16kb": true
+    },
+    {
+      "path": "assets/chaquopy/stdlib-arm64-v8a.imy!_ssl.cpython-313-aarch64-linux-android.so",
+      "alignments": [
+        16384,
+        16384,
+        16384
+      ],
+      "pass_16kb": true
+    },
+    {
+      "path": "assets/chaquopy/stdlib-arm64-v8a.imy!_statistics.cpython-313-aarch64-linux-android.so",
+      "alignments": [
+        16384,
+        16384,
+        16384
+      ],
+      "pass_16kb": true
+    },
+    {
+      "path": "assets/chaquopy/stdlib-arm64-v8a.imy!_xxtestfuzz.cpython-313-aarch64-linux-android.so",
+      "alignments": [
+        16384,
+        16384,
+        16384
+      ],
+      "pass_16kb": true
+    },
+    {
+      "path": "assets/chaquopy/stdlib-arm64-v8a.imy!_zoneinfo.cpython-313-aarch64-linux-android.so",
+      "alignments": [
+        16384,
+        16384,
+        16384
+      ],
+      "pass_16kb": true
+    },
+    {
+      "path": "assets/chaquopy/stdlib-arm64-v8a.imy!array.cpython-313-aarch64-linux-android.so",
+      "alignments": [
+        16384,
+        16384,
+        16384
+      ],
+      "pass_16kb": true
+    },
+    {
+      "path": "assets/chaquopy/stdlib-arm64-v8a.imy!cmath.cpython-313-aarch64-linux-android.so",
+      "alignments": [
+        16384,
+        16384,
+        16384
+      ],
+      "pass_16kb": true
+    },
+    {
+      "path": "assets/chaquopy/stdlib-arm64-v8a.imy!fcntl.cpython-313-aarch64-linux-android.so",
+      "alignments": [
+        16384,
+        16384,
+        16384
+      ],
+      "pass_16kb": true
+    },
+    {
+      "path": "assets/chaquopy/stdlib-arm64-v8a.imy!pyexpat.cpython-313-aarch64-linux-android.so",
+      "alignments": [
+        16384,
+        16384,
+        16384
+      ],
+      "pass_16kb": true
+    },
+    {
+      "path": "assets/chaquopy/stdlib-arm64-v8a.imy!resource.cpython-313-aarch64-linux-android.so",
+      "alignments": [
+        16384,
+        16384,
+        16384
+      ],
+      "pass_16kb": true
+    },
+    {
+      "path": "assets/chaquopy/stdlib-arm64-v8a.imy!select.cpython-313-aarch64-linux-android.so",
+      "alignments": [
+        16384,
+        16384,
+        16384
+      ],
+      "pass_16kb": true
+    },
+    {
+      "path": "assets/chaquopy/stdlib-arm64-v8a.imy!syslog.cpython-313-aarch64-linux-android.so",
+      "alignments": [
+        16384,
+        16384,
+        16384
+      ],
+      "pass_16kb": true
+    },
+    {
+      "path": "assets/chaquopy/stdlib-arm64-v8a.imy!termios.cpython-313-aarch64-linux-android.so",
+      "alignments": [
+        16384,
+        16384,
+        16384
+      ],
+      "pass_16kb": true
+    },
+    {
+      "path": "assets/chaquopy/stdlib-arm64-v8a.imy!unicodedata.cpython-313-aarch64-linux-android.so",
+      "alignments": [
+        16384,
+        16384,
+        16384
+      ],
+      "pass_16kb": true
+    },
+    {
+      "path": "assets/chaquopy/stdlib-arm64-v8a.imy!xxlimited.cpython-313-aarch64-linux-android.so",
+      "alignments": [
+        16384,
+        16384,
+        16384
+      ],
+      "pass_16kb": true
+    },
+    {
+      "path": "assets/chaquopy/stdlib-arm64-v8a.imy!xxlimited_35.cpython-313-aarch64-linux-android.so",
+      "alignments": [
+        16384,
+        16384,
+        16384
+      ],
+      "pass_16kb": true
+    },
+    {
+      "path": "assets/chaquopy/stdlib-arm64-v8a.imy!xxsubtype.cpython-313-aarch64-linux-android.so",
+      "alignments": [
+        16384,
+        16384,
+        16384
+      ],
+      "pass_16kb": true
+    },
+    {
+      "path": "assets/chaquopy/stdlib-x86_64.imy!_asyncio.cpython-313-x86_64-linux-android.so",
+      "alignments": [
+        16384,
+        16384,
+        16384
+      ],
+      "pass_16kb": true
+    },
+    {
+      "path": "assets/chaquopy/stdlib-x86_64.imy!_bisect.cpython-313-x86_64-linux-android.so",
+      "alignments": [
+        16384,
+        16384,
+        16384
+      ],
+      "pass_16kb": true
+    },
+    {
+      "path": "assets/chaquopy/stdlib-x86_64.imy!_blake2.cpython-313-x86_64-linux-android.so",
+      "alignments": [
+        16384,
+        16384,
+        16384
+      ],
+      "pass_16kb": true
+    },
+    {
+      "path": "assets/chaquopy/stdlib-x86_64.imy!_codecs_cn.cpython-313-x86_64-linux-android.so",
+      "alignments": [
+        16384,
+        16384,
+        16384
+      ],
+      "pass_16kb": true
+    },
+    {
+      "path": "assets/chaquopy/stdlib-x86_64.imy!_codecs_hk.cpython-313-x86_64-linux-android.so",
+      "alignments": [
+        16384,
+        16384,
+        16384
+      ],
+      "pass_16kb": true
+    },
+    {
+      "path": "assets/chaquopy/stdlib-x86_64.imy!_codecs_iso2022.cpython-313-x86_64-linux-android.so",
+      "alignments": [
+        16384,
+        16384,
+        16384
+      ],
+      "pass_16kb": true
+    },
+    {
+      "path": "assets/chaquopy/stdlib-x86_64.imy!_codecs_jp.cpython-313-x86_64-linux-android.so",
+      "alignments": [
+        16384,
+        16384,
+        16384
+      ],
+      "pass_16kb": true
+    },
+    {
+      "path": "assets/chaquopy/stdlib-x86_64.imy!_codecs_kr.cpython-313-x86_64-linux-android.so",
+      "alignments": [
+        16384,
+        16384,
+        16384
+      ],
+      "pass_16kb": true
+    },
+    {
+      "path": "assets/chaquopy/stdlib-x86_64.imy!_codecs_tw.cpython-313-x86_64-linux-android.so",
+      "alignments": [
+        16384,
+        16384,
+        16384
+      ],
+      "pass_16kb": true
+    },
+    {
+      "path": "assets/chaquopy/stdlib-x86_64.imy!_contextvars.cpython-313-x86_64-linux-android.so",
+      "alignments": [
+        16384,
+        16384,
+        16384
+      ],
+      "pass_16kb": true
+    },
+    {
+      "path": "assets/chaquopy/stdlib-x86_64.imy!_csv.cpython-313-x86_64-linux-android.so",
+      "alignments": [
+        16384,
+        16384,
+        16384
+      ],
+      "pass_16kb": true
+    },
+    {
+      "path": "assets/chaquopy/stdlib-x86_64.imy!_decimal.cpython-313-x86_64-linux-android.so",
+      "alignments": [
+        16384,
+        16384,
+        16384
+      ],
+      "pass_16kb": true
+    },
+    {
+      "path": "assets/chaquopy/stdlib-x86_64.imy!_elementtree.cpython-313-x86_64-linux-android.so",
+      "alignments": [
+        16384,
+        16384,
+        16384
+      ],
+      "pass_16kb": true
+    },
+    {
+      "path": "assets/chaquopy/stdlib-x86_64.imy!_hashlib.cpython-313-x86_64-linux-android.so",
+      "alignments": [
+        16384,
+        16384,
+        16384
+      ],
+      "pass_16kb": true
+    },
+    {
+      "path": "assets/chaquopy/stdlib-x86_64.imy!_heapq.cpython-313-x86_64-linux-android.so",
+      "alignments": [
+        16384,
+        16384,
+        16384
+      ],
+      "pass_16kb": true
+    },
+    {
+      "path": "assets/chaquopy/stdlib-x86_64.imy!_interpchannels.cpython-313-x86_64-linux-android.so",
+      "alignments": [
+        16384,
+        16384,
+        16384
+      ],
+      "pass_16kb": true
+    },
+    {
+      "path": "assets/chaquopy/stdlib-x86_64.imy!_interpqueues.cpython-313-x86_64-linux-android.so",
+      "alignments": [
+        16384,
+        16384,
+        16384
+      ],
+      "pass_16kb": true
+    },
+    {
+      "path": "assets/chaquopy/stdlib-x86_64.imy!_interpreters.cpython-313-x86_64-linux-android.so",
+      "alignments": [
+        16384,
+        16384,
+        16384
+      ],
+      "pass_16kb": true
+    },
+    {
+      "path": "assets/chaquopy/stdlib-x86_64.imy!_json.cpython-313-x86_64-linux-android.so",
+      "alignments": [
+        16384,
+        16384,
+        16384
+      ],
+      "pass_16kb": true
+    },
+    {
+      "path": "assets/chaquopy/stdlib-x86_64.imy!_lsprof.cpython-313-x86_64-linux-android.so",
+      "alignments": [
+        16384,
+        16384,
+        16384
+      ],
+      "pass_16kb": true
+    },
+    {
+      "path": "assets/chaquopy/stdlib-x86_64.imy!_md5.cpython-313-x86_64-linux-android.so",
+      "alignments": [
+        16384,
+        16384,
+        16384
+      ],
+      "pass_16kb": true
+    },
+    {
+      "path": "assets/chaquopy/stdlib-x86_64.imy!_multibytecodec.cpython-313-x86_64-linux-android.so",
+      "alignments": [
+        16384,
+        16384,
+        16384
+      ],
+      "pass_16kb": true
+    },
+    {
+      "path": "assets/chaquopy/stdlib-x86_64.imy!_pickle.cpython-313-x86_64-linux-android.so",
+      "alignments": [
+        16384,
+        16384,
+        16384
+      ],
+      "pass_16kb": true
+    },
+    {
+      "path": "assets/chaquopy/stdlib-x86_64.imy!_posixsubprocess.cpython-313-x86_64-linux-android.so",
+      "alignments": [
+        16384,
+        16384,
+        16384
+      ],
+      "pass_16kb": true
+    },
+    {
+      "path": "assets/chaquopy/stdlib-x86_64.imy!_queue.cpython-313-x86_64-linux-android.so",
+      "alignments": [
+        16384,
+        16384,
+        16384
+      ],
+      "pass_16kb": true
+    },
+    {
+      "path": "assets/chaquopy/stdlib-x86_64.imy!_sha1.cpython-313-x86_64-linux-android.so",
+      "alignments": [
+        16384,
+        16384,
+        16384
+      ],
+      "pass_16kb": true
+    },
+    {
+      "path": "assets/chaquopy/stdlib-x86_64.imy!_sha2.cpython-313-x86_64-linux-android.so",
+      "alignments": [
+        16384,
+        16384,
+        16384
+      ],
+      "pass_16kb": true
+    },
+    {
+      "path": "assets/chaquopy/stdlib-x86_64.imy!_sha3.cpython-313-x86_64-linux-android.so",
+      "alignments": [
+        16384,
+        16384,
+        16384
+      ],
+      "pass_16kb": true
+    },
+    {
+      "path": "assets/chaquopy/stdlib-x86_64.imy!_socket.cpython-313-x86_64-linux-android.so",
+      "alignments": [
+        16384,
+        16384,
+        16384
+      ],
+      "pass_16kb": true
+    },
+    {
+      "path": "assets/chaquopy/stdlib-x86_64.imy!_sqlite3.cpython-313-x86_64-linux-android.so",
+      "alignments": [
+        16384,
+        16384,
+        16384
+      ],
+      "pass_16kb": true
+    },
+    {
+      "path": "assets/chaquopy/stdlib-x86_64.imy!_ssl.cpython-313-x86_64-linux-android.so",
+      "alignments": [
+        16384,
+        16384,
+        16384
+      ],
+      "pass_16kb": true
+    },
+    {
+      "path": "assets/chaquopy/stdlib-x86_64.imy!_statistics.cpython-313-x86_64-linux-android.so",
+      "alignments": [
+        16384,
+        16384,
+        16384
+      ],
+      "pass_16kb": true
+    },
+    {
+      "path": "assets/chaquopy/stdlib-x86_64.imy!_xxtestfuzz.cpython-313-x86_64-linux-android.so",
+      "alignments": [
+        16384,
+        16384,
+        16384
+      ],
+      "pass_16kb": true
+    },
+    {
+      "path": "assets/chaquopy/stdlib-x86_64.imy!_zoneinfo.cpython-313-x86_64-linux-android.so",
+      "alignments": [
+        16384,
+        16384,
+        16384
+      ],
+      "pass_16kb": true
+    },
+    {
+      "path": "assets/chaquopy/stdlib-x86_64.imy!array.cpython-313-x86_64-linux-android.so",
+      "alignments": [
+        16384,
+        16384,
+        16384
+      ],
+      "pass_16kb": true
+    },
+    {
+      "path": "assets/chaquopy/stdlib-x86_64.imy!cmath.cpython-313-x86_64-linux-android.so",
+      "alignments": [
+        16384,
+        16384,
+        16384
+      ],
+      "pass_16kb": true
+    },
+    {
+      "path": "assets/chaquopy/stdlib-x86_64.imy!fcntl.cpython-313-x86_64-linux-android.so",
+      "alignments": [
+        16384,
+        16384,
+        16384
+      ],
+      "pass_16kb": true
+    },
+    {
+      "path": "assets/chaquopy/stdlib-x86_64.imy!pyexpat.cpython-313-x86_64-linux-android.so",
+      "alignments": [
+        16384,
+        16384,
+        16384
+      ],
+      "pass_16kb": true
+    },
+    {
+      "path": "assets/chaquopy/stdlib-x86_64.imy!resource.cpython-313-x86_64-linux-android.so",
+      "alignments": [
+        16384,
+        16384,
+        16384
+      ],
+      "pass_16kb": true
+    },
+    {
+      "path": "assets/chaquopy/stdlib-x86_64.imy!select.cpython-313-x86_64-linux-android.so",
+      "alignments": [
+        16384,
+        16384,
+        16384
+      ],
+      "pass_16kb": true
+    },
+    {
+      "path": "assets/chaquopy/stdlib-x86_64.imy!syslog.cpython-313-x86_64-linux-android.so",
+      "alignments": [
+        16384,
+        16384,
+        16384
+      ],
+      "pass_16kb": true
+    },
+    {
+      "path": "assets/chaquopy/stdlib-x86_64.imy!termios.cpython-313-x86_64-linux-android.so",
+      "alignments": [
+        16384,
+        16384,
+        16384
+      ],
+      "pass_16kb": true
+    },
+    {
+      "path": "assets/chaquopy/stdlib-x86_64.imy!unicodedata.cpython-313-x86_64-linux-android.so",
+      "alignments": [
+        16384,
+        16384,
+        16384
+      ],
+      "pass_16kb": true
+    },
+    {
+      "path": "assets/chaquopy/stdlib-x86_64.imy!xxlimited.cpython-313-x86_64-linux-android.so",
+      "alignments": [
+        16384,
+        16384,
+        16384
+      ],
+      "pass_16kb": true
+    },
+    {
+      "path": "assets/chaquopy/stdlib-x86_64.imy!xxlimited_35.cpython-313-x86_64-linux-android.so",
+      "alignments": [
+        16384,
+        16384,
+        16384
+      ],
+      "pass_16kb": true
+    },
+    {
+      "path": "assets/chaquopy/stdlib-x86_64.imy!xxsubtype.cpython-313-x86_64-linux-android.so",
+      "alignments": [
+        16384,
+        16384,
+        16384
+      ],
+      "pass_16kb": true
+    }
+  ],
+  "manifest": {
+    "passed": true,
+    "exit_code": 0,
+    "output": "N: android=http://schemas.android.com/apk/res/android (line=2)\n  E: manifest (line=2)\n    A: http://schemas.android.com/apk/res/android:versionCode(0x0101021b)=10002\n    A: http://schemas.android.com/apk/res/android:versionName(0x0101021c)=\"1.0.2\" (Raw: \"1.0.2\")\n    A: http://schemas.android.com/apk/res/android:compileSdkVersion(0x01010572)=36\n    A: http://schemas.android.com/apk/res/android:compileSdkVersionCodename(0x01010573)=\"16\" (Raw: \"16\")\n    A: package=\"cn.healthlife.local\" (Raw: \"cn.healthlife.local\")\n    A: platformBuildVersionCode=36\n    A: platformBuildVersionName=16\n      E: uses-sdk (line=7)\n        A: http://schemas.android.com/apk/res/android:minSdkVersion(0x0101020c)=24\n        A: http://schemas.android.com/apk/res/android:targetSdkVersion(0x01010270)=36\n      E: uses-permission (line=11)\n        A: http://schemas.android.com/apk/res/android:name(0x01010003)=\"android.permission.INTERNET\" (Raw: \"android.permission.INTERNET\")\n      E: uses-permission (line=12)\n        A: http://schemas.android.com/apk/res/android:name(0x01010003)=\"android.permission.RECORD_AUDIO\" (Raw: \"android.permission.RECORD_AUDIO\")\n      E: uses-feature (line=14)\n        A: http://schemas.android.com/apk/res/android:name(0x01010003)=\"android.hardware.microphone\" (Raw: \"android.hardware.microphone\")\n        A: http://schemas.android.com/apk/res/android:required(0x0101028e)=false\n      E: permission (line=18)\n        A: http://schemas.android.com/apk/res/android:name(0x01010003)=\"cn.healthlife.local.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION\" (Raw: \"cn.healthlife.local.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION\")\n        A: http://schemas.android.com/apk/res/android:protectionLevel(0x01010009)=0x00000002\n      E: uses-permission (line=22)\n        A: http://schemas.android.com/apk/res/android:name(0x01010003)=\"cn.healthlife.local.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION\" (Raw: \"cn.healthlife.local.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION\")\n      E: uses-permission (line=24)\n        A: http://schemas.android.com/apk/res/android:name(0x01010003)=\"android.permission.ACCESS_NETWORK_STATE\" (Raw: \"android.permission.ACCESS_NETWORK_STATE\")\n      E: application (line=26)\n        A: http://schemas.android.com/apk/res/android:theme(0x01010000)=@0x7f0d0005\n        A: http://schemas.android.com/apk/res/android:label(0x01010001)=\"健康生活服务平台\" (Raw: \"健康生活服务平台\")\n        A: http://schemas.android.com/apk/res/android:icon(0x01010002)=@0x7f070072\n        A: http://schemas.android.com/apk/res/android:allowBackup(0x01010280)=false\n        A: http://schemas.android.com/apk/res/android:supportsRtl(0x010103af)=true\n        A: http://schemas.android.com/apk/res/android:extractNativeLibs(0x010104ea)=false\n        A: http://schemas.android.com/apk/res/android:fullBackupContent(0x010104eb)=false\n        A: http://schemas.android.com/apk/res/android:usesCleartextTraffic(0x010104ec)=false\n        A: http://schemas.android.com/apk/res/android:appComponentFactory(0x0101057a)=\"androidx.core.app.CoreComponentFactory\" (Raw: \"androidx.core.app.CoreComponentFactory\")\n        A: http://schemas.android.com/apk/res/android:dataExtractionRules(0x0101063e)=@0x7f0f0000\n          E: meta-data (line=37)\n            A: http://schemas.android.com/apk/res/android:name(0x01010003)=\"android.webkit.WebView.MetricsOptOut\" (Raw: \"android.webkit.WebView.MetricsOptOut\")\n            A: http://schemas.android.com/apk/res/android:value(0x01010024)=true\n          E: activity (line=41)\n            A: http://schemas.android.com/apk/res/android:name(0x01010003)=\"cn.healthlife.local.MainActivity\" (Raw: \"cn.healthlife.local.MainActivity\")\n            A: http://schemas.android.com/apk/res/android:exported(0x01010010)=true\n            A: http://schemas.android.com/apk/res/android:configChanges(0x0101001f)=0x000006a0\n            A: http://schemas.android.com/apk/res/android:windowSoftInputMode(0x0101022b)=0x00000010\n              E: intent-filter (line=46)\n                  E: action (line=47)\n                    A: http://schemas.android.com/apk/res/android:name(0x01010003)=\"android.intent.action.MAIN\" (Raw: \"android.intent.action.MAIN\")\n                  E: category (line=49)\n                    A: http://schemas.android.com/apk/res/android:name(0x01010003)=\"android.intent.category.LAUNCHER\" (Raw: \"android.intent.category.LAUNCHER\")\n          E: service (line=53)\n            A: http://schemas.android.com/apk/res/android:name(0x01010003)=\"com.google.mlkit.common.internal.MlKitComponentDiscoveryService\" (Raw: \"com.google.mlkit.common.internal.MlKitComponentDiscoveryService\")\n            A: http://schemas.android.com/apk/res/android:exported(0x01010010)=false\n            A: http://schemas.android.com/apk/res/android:directBootAware(0x01010505)=true\n              E: meta-data (line=57)\n                A: http://schemas.android.com/apk/res/android:name(0x01010003)=\"com.google.firebase.components:com.google.mlkit.vision.text.internal.TextRegistrar\" (Raw: \"com.google.firebase.components:com.google.mlkit.vision.text.internal.TextRegistrar\")\n                A: http://schemas.android.com/apk/res/android:value(0x01010024)=\"com.google.firebase.components.ComponentRegistrar\" (Raw: \"com.google.firebase.components.ComponentRegistrar\")\n              E: meta-data (line=60)\n                A: http://schemas.android.com/apk/res/android:name(0x01010003)=\"com.google.firebase.components:com.google.mlkit.vision.common.internal.VisionCommonRegistrar\" (Raw: \"com.google.firebase.components:com.google.mlkit.vision.common.internal.VisionCommonRegistrar\")\n                A: http://schemas.android.com/apk/res/android:value(0x01010024)=\"com.google.firebase.components.ComponentRegistrar\" (Raw: \"com.google.firebase.components.ComponentRegistrar\")\n              E: meta-data (line=63)\n                A: http://schemas.android.com/apk/res/android:name(0x01010003)=\"com.google.firebase.components:com.google.mlkit.common.internal.CommonComponentRegistrar\" (Raw: \"com.google.firebase.components:com.google.mlkit.common.internal.CommonComponentRegistrar\")\n                A: http://schemas.android.com/apk/res/android:value(0x01010024)=\"com.google.firebase.components.ComponentRegistrar\" (Raw: \"com.google.firebase.components.ComponentRegistrar\")\n          E: provider (line=68)\n            A: http://schemas.android.com/apk/res/android:name(0x01010003)=\"com.google.mlkit.common.internal.MlKitInitProvider\" (Raw: \"com.google.mlkit.common.internal.MlKitInitProvider\")\n            A: http://schemas.android.com/apk/res/android:exported(0x01010010)=false\n            A: http://schemas.android.com/apk/res/android:authorities(0x01010018)=\"cn.healthlife.local.mlkitinitprovider\" (Raw: \"cn.healthlife.local.mlkitinitprovider\")\n            A: http://schemas.android.com/apk/res/android:initOrder(0x0101001a)=99\n          E: activity (line=74)\n            A: http://schemas.android.com/apk/res/android:theme(0x01010000)=@0x01030010\n            A: http://schemas.android.com/apk/res/android:name(0x01010003)=\"com.google.android.gms.common.api.GoogleApiActivity\" (Raw: \"com.google.android.gms.common.api.GoogleApiActivity\")\n            A: http://schemas.android.com/apk/res/android:exported(0x01010010)=false\n          E: meta-data (line=79)\n            A: http://schemas.android.com/apk/res/android:name(0x01010003)=\"com.google.android.gms.version\" (Raw: \"com.google.android.gms.version\")\n            A: http://schemas.android.com/apk/res/android:value(0x01010024)=@0x7f090004\n          E: provider (line=83)\n            A: http://schemas.android.com/apk/res/android:name(0x01010003)=\"androidx.startup.InitializationProvider\" (Raw: \"androidx.startup.InitializationProvider\")\n            A: http://schemas.android.com/apk/res/android:exported(0x01010010)=false\n            A: http://schemas.android.com/apk/res/android:authorities(0x01010018)=\"cn.healthlife.local.androidx-startup\" (Raw: \"cn.healthlife.local.androidx-startup\")\n              E: meta-data (line=87)\n                A: http://schemas.android.com/apk/res/android:name(0x01010003)=\"androidx.emoji2.text.EmojiCompatInitializer\" (Raw: \"androidx.emoji2.text.EmojiCompatInitializer\")\n                A: http://schemas.android.com/apk/res/android:value(0x01010024)=\"androidx.startup\" (Raw: \"androidx.startup\")\n              E: meta-data (line=90)\n                A: http://schemas.android.com/apk/res/android:name(0x01010003)=\"androidx.lifecycle.ProcessLifecycleInitializer\" (Raw: \"androidx.lifecycle.ProcessLifecycleInitializer\")\n                A: http://schemas.android.com/apk/res/android:value(0x01010024)=\"androidx.startup\" (Raw: \"androidx.startup\")\n              E: meta-data (line=93)\n                A: http://schemas.android.com/apk/res/android:name(0x01010003)=\"androidx.profileinstaller.ProfileInstallerInitializer\" (Raw: \"androidx.profileinstaller.ProfileInstallerInitializer\")\n                A: http://schemas.android.com/apk/res/android:value(0x01010024)=\"androidx.startup\" (Raw: \"androidx.startup\")\n          E: receiver (line=98)\n            A: http://schemas.android.com/apk/res/android:name(0x01010003)=\"androidx.profileinstaller.ProfileInstallReceiver\" (Raw: \"androidx.profileinstaller.ProfileInstallReceiver\")\n            A: http://schemas.android.com/apk/res/android:permission(0x01010006)=\"android.permission.DUMP\" (Raw: \"android.permission.DUMP\")\n            A: http://schemas.android.com/apk/res/android:enabled(0x0101000e)=true\n            A: http://schemas.android.com/apk/res/android:exported(0x01010010)=true\n            A: http://schemas.android.com/apk/res/android:directBootAware(0x01010505)=false\n              E: intent-filter (line=104)\n                  E: action (line=105)\n                    A: http://schemas.android.com/apk/res/android:name(0x01010003)=\"androidx.profileinstaller.action.INSTALL_PROFILE\" (Raw: \"androidx.profileinstaller.action.INSTALL_PROFILE\")\n              E: intent-filter (line=107)\n                  E: action (line=108)\n                    A: http://schemas.android.com/apk/res/android:name(0x01010003)=\"androidx.profileinstaller.action.SKIP_FILE\" (Raw: \"androidx.profileinstaller.action.SKIP_FILE\")\n              E: intent-filter (line=110)\n                  E: action (line=111)\n                    A: http://schemas.android.com/apk/res/android:name(0x01010003)=\"androidx.profileinstaller.action.SAVE_PROFILE\" (Raw: \"androidx.profileinstaller.action.SAVE_PROFILE\")\n              E: intent-filter (line=113)\n                  E: action (line=114)\n                    A: http://schemas.android.com/apk/res/android:name(0x01010003)=\"androidx.profileinstaller.action.BENCHMARK_OPERATION\" (Raw: \"androidx.profileinstaller.action.BENCHMARK_OPERATION\")\n          E: service (line=118)\n            A: http://schemas.android.com/apk/res/android:name(0x01010003)=\"com.google.android.datatransport.runtime.backends.TransportBackendDiscovery\" (Raw: \"com.google.android.datatransport.runtime.backends.TransportBackendDiscovery\")\n            A: http://schemas.android.com/apk/res/android:exported(0x01010010)=false\n              E: meta-data (line=121)\n                A: http://schemas.android.com/apk/res/android:name(0x01010003)=\"backend:com.google.android.datatransport.cct.CctBackendFactory\" (Raw: \"backend:com.google.android.datatransport.cct.CctBackendFactory\")\n                A: http://schemas.android.com/apk/res/android:value(0x01010024)=\"cct\" (Raw: \"cct\")\n          E: service (line=125)\n            A: http://schemas.android.com/apk/res/android:name(0x01010003)=\"com.google.android.datatransport.runtime.scheduling.jobscheduling.JobInfoSchedulerService\" (Raw: \"com.google.android.datatransport.runtime.scheduling.jobscheduling.JobInfoSchedulerService\")\n            A: http://schemas.android.com/apk/res/android:permission(0x01010006)=\"android.permission.BIND_JOB_SERVICE\" (Raw: \"android.permission.BIND_JOB_SERVICE\")\n            A: http://schemas.android.com/apk/res/android:exported(0x01010010)=false\n          E: receiver (line=131)\n            A: http://schemas.android.com/apk/res/android:name(0x01010003)=\"com.google.android.datatransport.runtime.scheduling.jobscheduling.AlarmManagerSchedulerBroadcastReceiver\" (Raw: \"com.google.android.datatransport.runtime.scheduling.jobscheduling.AlarmManagerSchedulerBroadcastReceiver\")\n            A: http://schemas.android.com/apk/res/android:exported(0x01010010)=false\n"
+  },
+  "badging": {
+    "passed": true,
+    "exit_code": 0,
+    "output": "package: name='cn.healthlife.local' versionCode='10002' versionName='1.0.2' platformBuildVersionName='16' platformBuildVersionCode='36' compileSdkVersion='36' compileSdkVersionCodename='16'\nminSdkVersion:'24'\ntargetSdkVersion:'36'\nuses-permission: name='android.permission.INTERNET'\nuses-permission: name='android.permission.RECORD_AUDIO'\nuses-permission: name='cn.healthlife.local.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION'\nuses-permission: name='android.permission.ACCESS_NETWORK_STATE'\napplication-label:'健康生活服务平台'\napplication-label-af:'健康生活服务平台'\napplication-label-am:'健康生活服务平台'\napplication-label-ar:'健康生活服务平台'\napplication-label-as:'健康生活服务平台'\napplication-label-az:'健康生活服务平台'\napplication-label-be:'健康生活服务平台'\napplication-label-bg:'健康生活服务平台'\napplication-label-bn:'健康生活服务平台'\napplication-label-bs:'健康生活服务平台'\napplication-label-ca:'健康生活服务平台'\napplication-label-cs:'健康生活服务平台'\napplication-label-da:'健康生活服务平台'\napplication-label-de:'健康生活服务平台'\napplication-label-el:'健康生活服务平台'\napplication-label-en-AU:'健康生活服务平台'\napplication-label-en-CA:'健康生活服务平台'\napplication-label-en-GB:'健康生活服务平台'\napplication-label-en-IN:'健康生活服务平台'\napplication-label-en-XC:'健康生活服务平台'\napplication-label-es:'健康生活服务平台'\napplication-label-es-US:'健康生活服务平台'\napplication-label-et:'健康生活服务平台'\napplication-label-eu:'健康生活服务平台'\napplication-label-fa:'健康生活服务平台'\napplication-label-fi:'健康生活服务平台'\napplication-label-fr:'健康生活服务平台'\napplication-label-fr-CA:'健康生活服务平台'\napplication-label-gl:'健康生活服务平台'\napplication-label-gu:'健康生活服务平台'\napplication-label-hi:'健康生活服务平台'\napplication-label-hr:'健康生活服务平台'\napplication-label-hu:'健康生活服务平台'\napplication-label-hy:'健康生活服务平台'\napplication-label-in:'健康生活服务平台'\napplication-label-is:'健康生活服务平台'\napplication-label-it:'健康生活服务平台'\napplication-label-iw:'健康生活服务平台'\napplication-label-ja:'健康生活服务平台'\napplication-label-ka:'健康生活服务平台'\napplication-label-kk:'健康生活服务平台'\napplication-label-km:'健康生活服务平台'\napplication-label-kn:'健康生活服务平台'\napplication-label-ko:'健康生活服务平台'\napplication-label-ky:'健康生活服务平台'\napplication-label-lo:'健康生活服务平台'\napplication-label-lt:'健康生活服务平台'\napplication-label-lv:'健康生活服务平台'\napplication-label-mk:'健康生活服务平台'\napplication-label-ml:'健康生活服务平台'\napplication-label-mn:'健康生活服务平台'\napplication-label-mr:'健康生活服务平台'\napplication-label-ms:'健康生活服务平台'\napplication-label-my:'健康生活服务平台'\napplication-label-nb:'健康生活服务平台'\napplication-label-ne:'健康生活服务平台'\napplication-label-nl:'健康生活服务平台'\napplication-label-or:'健康生活服务平台'\napplication-label-pa:'健康生活服务平台'\napplication-label-pl:'健康生活服务平台'\napplication-label-pt:'健康生活服务平台'\napplication-label-pt-BR:'健康生活服务平台'\napplication-label-pt-PT:'健康生活服务平台'\napplication-label-ro:'健康生活服务平台'\napplication-label-ru:'健康生活服务平台'\napplication-label-si:'健康生活服务平台'\napplication-label-sk:'健康生活服务平台'\napplication-label-sl:'健康生活服务平台'\napplication-label-sq:'健康生活服务平台'\napplication-label-sr:'健康生活服务平台'\napplication-label-sr-Latn:'健康生活服务平台'\napplication-label-sv:'健康生活服务平台'\napplication-label-sw:'健康生活服务平台'\napplication-label-ta:'健康生活服务平台'\napplication-label-te:'健康生活服务平台'\napplication-label-th:'健康生活服务平台'\napplication-label-tl:'健康生活服务平台'\napplication-label-tr:'健康生活服务平台'\napplication-label-uk:'健康生活服务平台'\napplication-label-ur:'健康生活服务平台'\napplication-label-uz:'健康生活服务平台'\napplication-label-vi:'健康生活服务平台'\napplication-label-zh-CN:'健康生活服务平台'\napplication-label-zh-HK:'健康生活服务平台'\napplication-label-zh-TW:'健康生活服务平台'\napplication-label-zu:'健康生活服务平台'\napplication-icon-120:'res/7_.xml'\napplication-icon-160:'res/7_.xml'\napplication-icon-240:'res/7_.xml'\napplication-icon-320:'res/7_.xml'\napplication-icon-480:'res/7_.xml'\napplication-icon-640:'res/7_.xml'\napplication-icon-65534:'res/7_.xml'\napplication: label='健康生活服务平台' icon='res/7_.xml'\nlaunchable-activity: name='cn.healthlife.local.MainActivity'  label='' icon=''\nfeature-group: label=''\n  uses-feature-not-required: name='android.hardware.microphone'\n  uses-feature: name='android.hardware.faketouch'\n  uses-implied-feature: name='android.hardware.faketouch' reason='default feature for all apps'\nmain\nother-activities\nother-receivers\nother-services\nsupports-screens: 'small' 'normal' 'large' 'xlarge'\nsupports-any-density: 'true'\nlocales: '--_--' 'af' 'am' 'ar' 'as' 'az' 'be' 'bg' 'bn' 'bs' 'ca' 'cs' 'da' 'de' 'el' 'en-AU' 'en-CA' 'en-GB' 'en-IN' 'en-XC' 'es' 'es-US' 'et' 'eu' 'fa' 'fi' 'fr' 'fr-CA' 'gl' 'gu' 'hi' 'hr' 'hu' 'hy' 'in' 'is' 'it' 'iw' 'ja' 'ka' 'kk' 'km' 'kn' 'ko' 'ky' 'lo' 'lt' 'lv' 'mk' 'ml' 'mn' 'mr' 'ms' 'my' 'nb' 'ne' 'nl' 'or' 'pa' 'pl' 'pt' 'pt-BR' 'pt-PT' 'ro' 'ru' 'si' 'sk' 'sl' 'sq' 'sr' 'sr-Latn' 'sv' 'sw' 'ta' 'te' 'th' 'tl' 'tr' 'uk' 'ur' 'uz' 'vi' 'zh-CN' 'zh-HK' 'zh-TW' 'zu'\ndensities: '120' '160' '240' '320' '480' '640' '65534'\nnative-code: 'arm64-v8a' 'x86_64'\n"
+  },
+  "device_runtime_test": "Not implied by static artifact checks; consult device test report.",
+  "passed": true
+}
