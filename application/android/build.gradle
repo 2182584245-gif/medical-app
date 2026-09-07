@@ -1,0 +1,9 @@
+plugins {
+    id 'com.android.application' version '8.13.2' apply false
+    id 'com.chaquo.python' version '17.0.0' apply false
+}
+// The optional build root keeps large, disposable intermediates off the system disk.
+if (System.getenv('HEALTH_ANDROID_BUILD_DIR')) {
+    layout.buildDirectory = file(System.getenv('HEALTH_ANDROID_BUILD_DIR') + '/root')
+    subprojects { layout.buildDirectory = file(System.getenv('HEALTH_ANDROID_BUILD_DIR') + '/' + name) }
+}

@@ -1,0 +1,70 @@
+健康生活服务平台 Android 1.0.2 — 第三方声明 / Third-party notices
+
+本目录保存本次分发涉及的主要第三方许可原文和来源索引。各组件的版权、
+商标和许可属于其各自权利人。本说明不将第三方软件重新授权，也不表示
+这些机构认可本应用。具体许可原文优先于下列简要说明。
+
+1. APK 中的 Python 依赖
+下列文件从已构建 APK 的 assets/chaquopy/requirements-common.imy 内的 dist-info
+逐字节复制，包括其原有版权声明；没有改写许可正文。
+- anyio 4.15.0: anyio-4.15.0__licenses_LICENSE.txt
+- argon2-cffi 25.1.0: argon2_cffi-25.1.0__licenses_LICENSE.txt
+- argon2-cffi-bindings 21.2.0: argon2_cffi_bindings-21.2.0__LICENSE.txt
+- certifi 2026.7.22: certifi-2026.7.22__licenses_LICENSE.txt
+- cffi 1.17.1: cffi-1.17.1__LICENSE.txt
+- chaquopy-libffi 3.3: chaquopy_libffi-3.3__LICENSE.txt, chaquopy_libffi-3.3__LICENSE-BUILDTOOLS.txt
+- h11 0.16.0: h11-0.16.0__licenses_LICENSE.txt.txt
+- httpcore 1.0.9: httpcore-1.0.9__licenses_LICENSE.md.txt
+- httpx 0.28.1: httpx-0.28.1__licenses_LICENSE.md.txt
+- idna 3.19: idna-3.19__licenses_LICENSE.md.txt
+- pycparser 3.0: pycparser-3.0__licenses_LICENSE.txt
+- pypdf 6.17.0: pypdf-6.17.0__licenses_LICENSE.txt
+- typing_extensions 4.16.0: typing_extensions-4.16.0__licenses_LICENSE.txt
+
+2. Python 与 Android 嵌入运行时
+- CPython 3.13.9: Python-3.13.9-LICENSE.txt，包含 PSF 与历史许可原文。
+  官方源码：https://github.com/python/cpython/tree/v3.13.9
+  Android 运行时由 Chaquopy 提供；本应用未自行修改 CPython 源码。
+  Chaquopy 的 Android 构建及适配来源：https://github.com/chaquo/chaquopy/tree/17.0.0/target
+- Chaquopy 17.0.0: MIT，见 Chaquopy-17.0.0-LICENSE.txt。
+  官方源码：https://github.com/chaquo/chaquopy/tree/17.0.0
+
+3. Android 原生与语音组件
+- AndroidX Activity、WebKit、ExifInterface 及相关 AndroidX 组件采用
+  Apache License 2.0；通用原文见 AndroidX-LICENSE-Apache-2.0.txt。
+  官方源码：https://github.com/androidx/androidx
+  本说明不把 Google ML Kit 归入 AndroidX，也不把 ML Kit 声明为 Apache 开源。
+- Vosk Android 0.3.75: Apache License 2.0，见 Vosk-API-LICENSE-Apache-2.0.txt。
+  官方源码：https://github.com/alphacep/vosk-api
+  此副本来自上游固定提交；准确来源及摘要见 SOURCES.json。
+- vosk-model-small-cn-0.22: 官方模型清单将本模型列为 Apache 2.0。
+  模型清单：https://alphacephei.com/vosk/models
+  模型文件：https://alphacephei.com/vosk/models/vosk-model-small-cn-0.22.zip
+  原 README 见 Vosk-model-small-cn-0.22-README.txt；Apache 2.0 全文同本目录。
+- Java Native Access 5.18.1: 上游允许选择 Apache-2.0 或 LGPL-2.1-or-later。
+  本次分发采用 Apache-2.0 许可选项；保留 JNA 上游选择说明、Apache 全文及
+  LGPL 全文供查阅，并非要求同时采用两种许可。
+  官方源码：https://github.com/java-native-access/jna/tree/5.18.1
+
+4. Google ML Kit — 独立使用条款及隐私披露
+本应用使用随包内置中文模型的 com.google.mlkit:text-recognition-chinese:16.0.1。
+ML Kit 及其 Google 组件应依适用的 Google 条款使用，不在此声明为开源软件，
+也不适用本目录中 AndroidX 的 Apache 许可替代其专有条款。
+官方条款：https://developers.google.com/ml-kit/terms
+Google APIs 条款：https://developers.google.com/terms
+隐私说明：https://developers.google.com/ml-kit/terms#privacy
+Android 数据披露：https://developers.google.com/ml-kit/android-data-disclosure
+
+根据 Google 的公开说明，OCR 输入图片/文字及识别结果在本机处理，不发送到
+Google 服务器；SDK 仍可能向 Google 发送设备与应用信息、每安装标识、
+性能/调用统计、输入格式/尺寸和错误等诊断信息，并可能取得兼容性信息。
+因此“离线识别”不等于“SDK 完全不联网”。本应用没有将未公开或内部接口
+作为关闭所有 ML Kit 遥测的保证。WebView.MetricsOptOut 仅针对 WebView
+使用统计，不是 ML Kit 的遥测关闭开关。
+
+5. 文件来源与重新收集
+SOURCES.json 记录每份许可的官方 URL 或原始 APK 内路径、SHA-256 和字节数。
+extract_source_apk_sha256 标识用于抽取依赖许可的先前构建，不是包含本目录
+后的最终 APK 摘要；最终交付 APK 的校验值由发布流程另行提供。
+可使用 tools/collect_android_licenses.py --apk <已构建APK> 重新收集，
+或以 --check 检查已生成材料的完整性。未删除或替换依赖自带的原始许可。

@@ -1,0 +1,83 @@
+plugins {
+    id 'com.android.application'
+    id 'com.chaquo.python'
+}
+
+android {
+    namespace 'cn.healthlife.local'
+    compileSdk 36
+    compileSdkExtension 19
+    buildToolsVersion '36.1.0'
+    defaultConfig {
+        applicationId 'cn.healthlife.local'
+        minSdk 24
+        targetSdk 36
+        versionCode 10002
+        versionName '1.0.2'
+        ndk { abiFilters 'arm64-v8a', 'x86_64' }
+        testInstrumentationRunner 'androidx.test.runner.AndroidJUnitRunner'
+    }
+    signingConfigs {
+        release {
+            if (System.getenv('HEALTH_SIGNING_STORE')) {
+                storeFile file(System.getenv('HEALTH_SIGNING_STORE'))
+                storePassword System.getenv('HEALTH_SIGNING_PASSWORD')
+                keyAlias 'healthlife'
+                keyPassword System.getenv('HEALTH_SIGNING_PASSWORD')
+            }
+        }
+    }
+    buildTypes {
+        release {
+            minifyEnabled false
+            debuggable false
+            signingConfig signingConfigs.release
+        }
+        debug { applicationIdSuffix '.debug'; versionNameSuffix '-debug' }
+    }
+    buildFeatures { buildConfig true }
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+    sourceSets.main.assets.srcDir '../../assets'
+    packaging {
+        jniLibs { useLegacyPackaging false }
+        resources.excludes += ['META-INF/DEPENDENCIES', 'META-INF/INDEX.LIST']
+    }
+    lint { abortOnError true; checkReleaseBuilds true }
+}
+
+chaquopy {
+    defaultConfig {
+        version '3.13'
+        if (System.getenv('HEALTH_BUILD_PYTHON')) { buildPython System.getenv('HEALTH_BUILD_PYTHON') }
+        pip {
+            install 'argon2-cffi==25.1.0'
+            install 'argon2-cffi-bindings==21.2.0'
+            install 'cffi==1.17.1'
+            install 'httpx==0.28.1'
+            install 'pypdf==6.17.0'
+        }
+    }
+    sourceSets {
+        main {
+            srcDir '../../src'
+            exclude 'ollama_chat_app/ui/**'
+            exclude 'ollama_chat_app/main.py'
+            exclude '**/__pycache__/**'
+        }
+    }
+}
+
+dependencies {
+    implementation 'androidx.exifinterface:exifinterface:1.4.2'
+    implementation 'androidx.activity:activity:1.10.1'
+    implementation 'androidx.webkit:webkit:1.14.0'
+    implementation 'com.google.mlkit:text-recognition-chinese:16.0.1'
+    implementation 'com.alphacephei:vosk-android:0.3.75@aar'
+    implementation 'net.java.dev.jna:jna:5.18.1@aar'
+    androidTestImplementation 'androidx.test:runner:1.6.2'
+    androidTestImplementation 'androidx.test:rules:1.6.1'
+    androidTestImplementation 'androidx.test.ext:junit:1.2.1'
+}

@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="webview_unavailable">无法加载系统网页组件。请在手机系统设置中启用或更新 Android System WebView，然后重新打开应用。数据不会被删除。</string>
+    <string name="preview_unavailable">无法预览该文件，可导出后查看；加密或损坏的 PDF 不支持预览。</string>
+</resources>

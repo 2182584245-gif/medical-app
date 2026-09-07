@@ -1,0 +1,238 @@
+{
+  "format": 1,
+  "extract_source_apk_sha256": "ecf936adcfe082f29cccbbf47e3bef18884b1d1fcd2c93fb0cf193b130098a8b",
+  "python_distributions": [
+    {
+      "name": "anyio",
+      "version": "4.15.0",
+      "license_files": [
+        "anyio-4.15.0__licenses_LICENSE.txt"
+      ]
+    },
+    {
+      "name": "argon2-cffi",
+      "version": "25.1.0",
+      "license_files": [
+        "argon2_cffi-25.1.0__licenses_LICENSE.txt"
+      ]
+    },
+    {
+      "name": "argon2-cffi-bindings",
+      "version": "21.2.0",
+      "license_files": [
+        "argon2_cffi_bindings-21.2.0__LICENSE.txt"
+      ]
+    },
+    {
+      "name": "certifi",
+      "version": "2026.7.22",
+      "license_files": [
+        "certifi-2026.7.22__licenses_LICENSE.txt"
+      ]
+    },
+    {
+      "name": "cffi",
+      "version": "1.17.1",
+      "license_files": [
+        "cffi-1.17.1__LICENSE.txt"
+      ]
+    },
+    {
+      "name": "chaquopy-libffi",
+      "version": "3.3",
+      "license_files": [
+        "chaquopy_libffi-3.3__LICENSE.txt",
+        "chaquopy_libffi-3.3__LICENSE-BUILDTOOLS.txt"
+      ]
+    },
+    {
+      "name": "h11",
+      "version": "0.16.0",
+      "license_files": [
+        "h11-0.16.0__licenses_LICENSE.txt.txt"
+      ]
+    },
+    {
+      "name": "httpcore",
+      "version": "1.0.9",
+      "license_files": [
+        "httpcore-1.0.9__licenses_LICENSE.md.txt"
+      ]
+    },
+    {
+      "name": "httpx",
+      "version": "0.28.1",
+      "license_files": [
+        "httpx-0.28.1__licenses_LICENSE.md.txt"
+      ]
+    },
+    {
+      "name": "idna",
+      "version": "3.19",
+      "license_files": [
+        "idna-3.19__licenses_LICENSE.md.txt"
+      ]
+    },
+    {
+      "name": "pycparser",
+      "version": "3.0",
+      "license_files": [
+        "pycparser-3.0__licenses_LICENSE.txt"
+      ]
+    },
+    {
+      "name": "pypdf",
+      "version": "6.17.0",
+      "license_files": [
+        "pypdf-6.17.0__licenses_LICENSE.txt"
+      ]
+    },
+    {
+      "name": "typing_extensions",
+      "version": "4.16.0",
+      "license_files": [
+        "typing_extensions-4.16.0__licenses_LICENSE.txt"
+      ]
+    }
+  ],
+  "files": [
+    {
+      "file": "AndroidX-LICENSE-Apache-2.0.txt",
+      "source": "https://raw.githubusercontent.com/androidx/androidx/4e931c638cc2fca0f2326b9806a09e9f9d511175/LICENSE.txt",
+      "bytes": 10175,
+      "sha256": "809fa1ed21450f59827d1e9aec720bbc4b687434fa22283c6cb5dd82a47ab9c0"
+    },
+    {
+      "file": "Chaquopy-17.0.0-LICENSE.txt",
+      "source": "https://raw.githubusercontent.com/chaquo/chaquopy/17.0.0/LICENSE.txt",
+      "bytes": 1076,
+      "sha256": "345a9fdfeed355d37b18569ef277ba56eb0ab7c0b17a08a90163ce8d33d2b862"
+    },
+    {
+      "file": "JNA-5.18.1-Apache-2.0.txt",
+      "source": "https://raw.githubusercontent.com/java-native-access/jna/5.18.1/AL2.0",
+      "bytes": 10174,
+      "sha256": "0d542e0c8804e39aa7f37eb00da5a762149dc682d7829451287e11b938e94594"
+    },
+    {
+      "file": "JNA-5.18.1-LGPL-2.1.txt",
+      "source": "https://raw.githubusercontent.com/java-native-access/jna/5.18.1/LGPL2.1",
+      "bytes": 24389,
+      "sha256": "eea173a556abac0370461e57e12aab266894ea6be3874c2be05fd87871f75449"
+    },
+    {
+      "file": "JNA-5.18.1-LICENSE-choice.txt",
+      "source": "https://raw.githubusercontent.com/java-native-access/jna/5.18.1/LICENSE",
+      "bytes": 797,
+      "sha256": "07c938b23950ab7d47a24ef35f9f5da3a05ae164278dc959ad6994135ed59ff1"
+    },
+    {
+      "file": "NOTICE.txt",
+      "source": "generated:tools/collect_android_licenses.py",
+      "bytes": 4617,
+      "sha256": "eba2e0d173d1e63b3f69dabd06e13aa928cf9001ad4fe83f7676f10ece9d557c"
+    },
+    {
+      "file": "Python-3.13.9-LICENSE.txt",
+      "source": "https://raw.githubusercontent.com/python/cpython/v3.13.9/LICENSE",
+      "bytes": 13809,
+      "sha256": "78b12c3a81360b357002334f0e70ea0e92eebf7a9b358805c03c48484945f3bb"
+    },
+    {
+      "file": "Vosk-API-LICENSE-Apache-2.0.txt",
+      "source": "https://raw.githubusercontent.com/alphacep/vosk-api/05adbfcc0df27a1535913c6accd4b7fc60ffd59d/COPYING",
+      "bytes": 10173,
+      "sha256": "bb618af833c817ab01c1564bd3ec75ba4b4f9cf30910a4a2168e30a674ee8cc6"
+    },
+    {
+      "file": "Vosk-model-small-cn-0.22-README.txt",
+      "source": "workspace:assets/vosk-model-small-cn-0.22/README",
+      "bytes": 82,
+      "sha256": "7362be411c609f2a1c9d2dfe22c2d72555c15eb90bfe47c41772f49ef94840ce"
+    },
+    {
+      "file": "anyio-4.15.0__licenses_LICENSE.txt",
+      "source": "APK!/assets/chaquopy/requirements-common.imy!/anyio-4.15.0.dist-info/licenses/LICENSE",
+      "bytes": 1081,
+      "sha256": "5361ac9dc58f2ef5fd2e9b09c68297c17f04950909bbc8023bdb82eacf22c2b0"
+    },
+    {
+      "file": "argon2_cffi-25.1.0__licenses_LICENSE.txt",
+      "source": "APK!/assets/chaquopy/requirements-common.imy!/argon2_cffi-25.1.0.dist-info/licenses/LICENSE",
+      "bytes": 1115,
+      "sha256": "b6944d386e87ccf49d9632da083685a4b7624733e686a7fe283dd2d428341d77"
+    },
+    {
+      "file": "argon2_cffi_bindings-21.2.0__LICENSE.txt",
+      "source": "APK!/assets/chaquopy/requirements-common.imy!/argon2_cffi_bindings-21.2.0.dist-info/LICENSE",
+      "bytes": 1082,
+      "sha256": "9c158d4f433627f48ac24b6b4d37970afe4172514673c5318014d7cca157c6df"
+    },
+    {
+      "file": "certifi-2026.7.22__licenses_LICENSE.txt",
+      "source": "APK!/assets/chaquopy/requirements-common.imy!/certifi-2026.7.22.dist-info/licenses/LICENSE",
+      "bytes": 989,
+      "sha256": "e93716da6b9c0d5a4a1df60fe695b370f0695603d21f6f83f053e42cfc10caf7"
+    },
+    {
+      "file": "cffi-1.17.1__LICENSE.txt",
+      "source": "APK!/assets/chaquopy/requirements-common.imy!/cffi-1.17.1.dist-info/LICENSE",
+      "bytes": 1294,
+      "sha256": "04b80f5b077bbed68808cfebadeb5e3523f2a8c9a96495c587bd96df1eac2a33"
+    },
+    {
+      "file": "chaquopy_libffi-3.3__LICENSE-BUILDTOOLS.txt",
+      "source": "APK!/assets/chaquopy/requirements-common.imy!/chaquopy_libffi-3.3.dist-info/LICENSE-BUILDTOOLS",
+      "bytes": 18698,
+      "sha256": "e67978cd18816c0cb7d29aaaacde7b7447402c2fb321a051698890a8eaedda94"
+    },
+    {
+      "file": "chaquopy_libffi-3.3__LICENSE.txt",
+      "source": "APK!/assets/chaquopy/requirements-common.imy!/chaquopy_libffi-3.3.dist-info/LICENSE",
+      "bytes": 1132,
+      "sha256": "deaf3a42effb551a5b140fa9afefed183a27f1341c6d1bf430d106a5e6931fc0"
+    },
+    {
+      "file": "h11-0.16.0__licenses_LICENSE.txt.txt",
+      "source": "APK!/assets/chaquopy/requirements-common.imy!/h11-0.16.0.dist-info/licenses/LICENSE.txt",
+      "bytes": 1124,
+      "sha256": "37db5bb85926db28a427a25867f10b1232003aea1be69ccb851138adb8e6f361"
+    },
+    {
+      "file": "httpcore-1.0.9__licenses_LICENSE.md.txt",
+      "source": "APK!/assets/chaquopy/requirements-common.imy!/httpcore-1.0.9.dist-info/licenses/LICENSE.md",
+      "bytes": 1518,
+      "sha256": "fdcb59154c74cbaba16a11242f7740bea9f23d6feb5547917d8c5f94a80392a5"
+    },
+    {
+      "file": "httpx-0.28.1__licenses_LICENSE.md.txt",
+      "source": "APK!/assets/chaquopy/requirements-common.imy!/httpx-0.28.1.dist-info/licenses/LICENSE.md",
+      "bytes": 1508,
+      "sha256": "4ec59d544f12b5f539a3a716fd321ac58ccd8030b465221f2c880200cdf28d8d"
+    },
+    {
+      "file": "idna-3.19__licenses_LICENSE.md.txt",
+      "source": "APK!/assets/chaquopy/requirements-common.imy!/idna-3.19.dist-info/licenses/LICENSE.md",
+      "bytes": 1541,
+      "sha256": "1a9a4f0e3d479a27240ddd59a9137a66ab4a0f9dfdc8ca6188cc0bfd85187f04"
+    },
+    {
+      "file": "pycparser-3.0__licenses_LICENSE.txt",
+      "source": "APK!/assets/chaquopy/requirements-common.imy!/pycparser-3.0.dist-info/licenses/LICENSE",
+      "bytes": 1543,
+      "sha256": "0c846399369ea76ddd7b5c44fe6d16497415fcf015f5cbb508c24bf98b81c5b1"
+    },
+    {
+      "file": "pypdf-6.17.0__licenses_LICENSE.txt",
+      "source": "APK!/assets/chaquopy/requirements-common.imy!/pypdf-6.17.0.dist-info/licenses/LICENSE",
+      "bytes": 1605,
+      "sha256": "a97ac230e5f33ef10a5367a850eb01f91f1a0b064e34742c7794d2294557f524"
+    },
+    {
+      "file": "typing_extensions-4.16.0__licenses_LICENSE.txt",
+      "source": "APK!/assets/chaquopy/requirements-common.imy!/typing_extensions-4.16.0.dist-info/licenses/LICENSE",
+      "bytes": 13936,
+      "sha256": "3b2f81fe21d181c499c59a256c8e1968455d6689d269aa85373bfb6af41da3bf"
+    }
+  ]
+}

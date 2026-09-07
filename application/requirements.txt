@@ -1,0 +1,8 @@
+PySide6==6.11.2
+argon2-cffi==25.1.0
+httpx==0.28.1
+ollama==0.6.2
+vosk==0.3.45
+pypdf==6.17.0
+rapidocr==3.9.2
+onnxruntime==1.29.0
