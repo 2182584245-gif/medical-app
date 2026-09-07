@@ -1,4 +1,4 @@
-"""Render entrypoint. Secrets come from Render environment, never from the repository."""
+"""Cloud entrypoint. Secrets come from the service environment, never the repository."""
 
 from __future__ import annotations
 

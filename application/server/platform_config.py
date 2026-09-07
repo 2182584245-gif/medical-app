@@ -5,10 +5,14 @@ from __future__ import annotations
 import os
 import re
 from typing import Literal
+from uuid import UUID
 
 from pydantic import Field, SecretStr, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from sqlalchemy.engine import make_url
+
+RAILWAY_HEALTHCHECK_HOST = "healthcheck.railway.app"
+RAILWAY_DOMAIN_PATTERN = r"[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.up\.railway\.app"
 
 
 class PlatformSettings(BaseSettings):
@@ -25,6 +29,10 @@ class PlatformSettings(BaseSettings):
     auth_global_limit: int = Field(default=120, ge=1, le=1000)
     argon2_concurrency: int = Field(default=2, ge=1, le=2)
     render_proxy: bool = False
+    railway_proxy: bool = False
+    # An operator assertion about verified deployment networking, NOT a proof
+    # of proxy identity: HTTP edge only, no TCP proxy, trusted project services.
+    railway_edge_only: bool = False
     # Used by the bounded request middleware, never disables production TLS.
     require_https: bool = True
     max_body_bytes: int = Field(default=1024 * 1024, ge=1024, le=1024 * 1024)
@@ -37,6 +45,10 @@ class PlatformSettings(BaseSettings):
     @model_validator(mode="after")
     def secure(self):
         try:
+            if self.railway_proxy != self.railway_edge_only or (
+                self.render_proxy and self.railway_proxy
+            ):
+                raise ValueError
             pepper = self.token_pepper.get_secret_value()
             raw = bytes.fromhex(pepper)
             if len(pepper) != 64 or len(raw) != 32 or len(set(raw)) < 16:
@@ -58,7 +70,22 @@ class PlatformSettings(BaseSettings):
                     r"medical_app_platform_runtime(?:\.[a-z0-9]{20})?", url.username or ""
                 ):
                     raise ValueError
-                if not self.allowed_hosts:
+                if self.railway_proxy:
+                    # These checks catch deployment mistakes. Environment values
+                    # do not authenticate incoming requests or prove isolation.
+                    for name in ("RAILWAY_SERVICE_ID", "RAILWAY_PROJECT_ID",
+                                 "RAILWAY_ENVIRONMENT_ID"):
+                        value = os.environ.get(name, "")
+                        if str(UUID(value)) != value:
+                            raise ValueError
+                    railway_host = os.environ.get("RAILWAY_PUBLIC_DOMAIN", "")
+                    if not re.fullmatch(RAILWAY_DOMAIN_PATTERN, railway_host):
+                        raise ValueError
+                    if not self.allowed_hosts:
+                        self.allowed_hosts = [railway_host]
+                    if railway_host not in self.allowed_hosts:
+                        raise ValueError
+                elif not self.allowed_hosts:
                     host = os.environ.get("RENDER_EXTERNAL_HOSTNAME", "")
                     if host.endswith(".onrender.com"):
                         self.allowed_hosts = [host]
@@ -67,6 +94,11 @@ class PlatformSettings(BaseSettings):
                     or ".." in host
                     or "." not in host
                     or host in {"localhost", "127.0.0.1", "testserver"}
+                    for host in self.allowed_hosts
+                ):
+                    raise ValueError
+                if self.railway_proxy and any(
+                    host not in {railway_host, RAILWAY_HEALTHCHECK_HOST}
                     for host in self.allowed_hosts
                 ):
                     raise ValueError

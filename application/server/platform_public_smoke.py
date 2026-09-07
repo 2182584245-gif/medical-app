@@ -1,7 +1,8 @@
 """Opt-in public HTTPS acceptance with exact synthetic-account cleanup.
 
 This is not run by app startup, imports, or normal pytest collection. The CLI
-requires both a verified Render HTTPS origin and the platform schema marker.
+requires a verified Render/Railway HTTPS origin, its exact expected hostname,
+and the platform schema marker.
 Business checks use the real desktop HTTP client/facades, never an admin token.
 Admin access is limited to catalog/absence checks and short cleanup transactions.
 No AI provider is called. No password/token, response body or driver error is
@@ -66,20 +67,35 @@ class PublicSmokeError(RuntimeError):
         super().__init__(self.code)
 
 
-def validate_render_origin(value: str) -> str:
-    """Only a Render public HTTPS origin, with no path, credentials or custom port."""
+def validate_public_origin(value: str, *, expected_host: str | None = None) -> str:
+    """Allow only a platform HTTPS origin; an explicit host pins the chosen service.
+
+    Host agreement is an operator confirmation, not proof that the remote service
+    is our application. Live deployment and health checks must precede this tool.
+    """
     try:
         validated = validate_base_url(value)
         parsed = urlsplit(validated)
         if (
             parsed.scheme != "https" or parsed.port not in {None, 443}
-            or parsed.path or not re.fullmatch(r"[a-z0-9][a-z0-9-]*\.onrender\.com",
-                                             parsed.hostname or "")
+            or parsed.path or not re.fullmatch(
+                r"[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.(?:onrender\.com|up\.railway\.app)",
+                parsed.hostname or "",
+            )
+            or (expected_host is not None and expected_host != parsed.hostname)
         ):
             raise ValueError
         return validated
     except Exception:
         raise PublicSmokeError("configuration") from None
+
+
+def validate_render_origin(value: str) -> str:
+    """Compatibility validator that remains strictly Render-only."""
+    validated = validate_public_origin(value)
+    if not (urlsplit(validated).hostname or "").endswith(".onrender.com"):
+        raise PublicSmokeError("configuration")
+    return validated
 
 
 @dataclass
@@ -382,7 +398,8 @@ def _business_checks(clients, run, passwords, check):
     _require(auth[1].me().id == member.id and auth[2].me().id == outsider.id)
 
 
-def run(*, base_url: str, confirm: str, client_factory=None, management=None) -> dict:
+def run(*, base_url: str, confirm: str, expected_host: str | None = None,
+        client_factory=None, management=None) -> dict:
     """Only explicit calls do work; injected transports are labelled offline.
 
     The optional factories are for deterministic offline tests, not CLI switches.
@@ -406,7 +423,9 @@ def run(*, base_url: str, confirm: str, client_factory=None, management=None) ->
     try:
         if confirm != PLATFORM_SCHEMA:
             raise PublicSmokeError("configuration")
-        origin = validate_render_origin(base_url)
+        if client_factory is None and not expected_host:
+            raise PublicSmokeError("configuration")
+        origin = validate_public_origin(base_url, expected_host=expected_host)
         logging.getLogger("httpx").setLevel(logging.WARNING)
         logging.getLogger("httpcore").setLevel(logging.WARNING)
         stage = "management_preflight"
@@ -456,9 +475,10 @@ class _SafeParser(argparse.ArgumentParser):
 def main(argv=None):
     parser = _SafeParser(description="Explicit public HTTPS synthetic acceptance; no AI calls.")
     parser.add_argument("--base-url", required=True)
+    parser.add_argument("--expected-host", required=True)
     parser.add_argument("--confirm", required=True)
     args = parser.parse_args(argv)
-    result = run(base_url=args.base_url, confirm=args.confirm)
+    result = run(base_url=args.base_url, expected_host=args.expected_host, confirm=args.confirm)
     print(json.dumps(result, ensure_ascii=False, indent=2))
     return 0 if result["status"] == "passed" else 1
 

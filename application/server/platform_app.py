@@ -26,7 +26,7 @@ from ollama_chat_app.services.service_management import ServiceManagementService
 
 from .app import RequestBoundary
 from .platform_ai import PlatformAIService
-from .platform_config import PlatformSettings
+from .platform_config import RAILWAY_HEALTHCHECK_HOST, PlatformSettings
 from .platform_rpc import RpcDispatcher, RpcError
 from .platform_uploads import PlatformFileService, validate_chat_uploads
 
@@ -62,7 +62,12 @@ class PlatformChatService(ChatService):
 
 
 class PlatformBoundary:
-    """Bound in-flight request memory and trust only the selected Render ingress."""
+    """Bound requests and honor only the explicitly configured deployment ingress.
+
+    Railway edge-only mode relies on verified deployment entrance isolation,
+    not on source CIDRs or environment variables authenticating a request.
+    It restores only the HTTPS scheme and NEVER rewrites a client's socket IP.
+    """
 
     def __init__(self, app, *, settings, auth=None):
         self.app, self.settings = app, settings
@@ -72,21 +77,58 @@ class PlatformBoundary:
     async def __call__(self, scope, receive, send):
         if scope["type"] != "http":
             return await self.app(scope, receive, send)
-        headers = dict(scope.get("headers", []))
+        raw_headers = [(name.lower(), value) for name, value in scope.get("headers", [])]
+        headers = dict(raw_headers)
         sensitive_headers = {
+            b"host",
             b"authorization",
             b"content-length",
             b"x-forwarded-proto",
+            b"x-real-ip",
             b"cf-connecting-ip",
         }
         seen = set()
-        for name, _value in scope.get("headers", []):
+        for name, _value in raw_headers:
             if name in sensitive_headers:
                 if name in seen:
                     return await JSONResponse({"detail": "Ambiguous request headers"}, 400)(
                         scope, receive, send
                     )
                 seen.add(name)
+        railway_mode = bool(
+            getattr(self.settings, "railway_proxy", False)
+            and getattr(self.settings, "railway_edge_only", False)
+            and not self.settings.render_proxy
+        )
+        health_request = (
+            scope.get("method") == "GET"
+            and scope["path"] in {"/health/live", "/health/ready"}
+        )
+        try:
+            raw_host = headers.get(b"host", b"").decode("ascii")
+            if not raw_host or any(ord(char) < 33 or ord(char) > 126 for char in raw_host):
+                raise ValueError
+            hostname, *port = raw_host.lower().split(":")
+            if port and (len(port) != 1 or not port[0].isdigit() or not 1 <= int(port[0]) <= 65535):
+                raise ValueError
+        except (ValueError, UnicodeError):
+            hostname = ""
+        if hostname == RAILWAY_HEALTHCHECK_HOST:
+            if not railway_mode or not health_request:
+                return await JSONResponse({"detail": "Host not permitted"}, 400)(
+                    scope, receive, send
+                )
+        elif railway_mode and hostname not in self.settings.allowed_hosts:
+            return await JSONResponse({"detail": "Host not permitted"}, 400)(
+                scope, receive, send
+            )
+        if railway_mode and headers.get(b"x-forwarded-proto") == b"https":
+            # Enabling both flags is the operator's explicit confirmation that
+            # this service has no public TCP/direct ingress and the project
+            # environment contains only trusted services. No CIDR is invented.
+            scope = dict(scope)
+            scope["scheme"] = "https"
+            # X-Real-IP, XFF, CF-Connecting-IP, and Forwarded remain unused.
         if self.settings.render_proxy:
             scope = dict(scope)
             peer = (scope.get("client") or ("", 0))[0]
@@ -122,7 +164,7 @@ class PlatformBoundary:
         if (
             self.settings.require_https
             and scope["scheme"] != "https"
-            and not scope["path"].startswith("/health/")
+            and not health_request
         ):
             return await JSONResponse({"detail": "HTTPS required"}, 426)(scope, receive, send)
         if large:
@@ -218,7 +260,10 @@ def create_app(settings=None, *, database=None):
     application.state.services = services
     application.include_router(create_auth_router(auth))
     application.add_middleware(PlatformBoundary, settings=settings, auth=auth)
-    application.add_middleware(TrustedHostMiddleware, allowed_hosts=settings.allowed_hosts)
+    allowed_hosts = list(settings.allowed_hosts)
+    if settings.railway_proxy and settings.railway_edge_only:
+        allowed_hosts.append(RAILWAY_HEALTHCHECK_HOST)
+    application.add_middleware(TrustedHostMiddleware, allowed_hosts=allowed_hosts)
 
     @application.exception_handler(RequestValidationError)
     async def validation_error(_request, _error):

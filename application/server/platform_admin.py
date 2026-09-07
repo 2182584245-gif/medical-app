@@ -164,6 +164,8 @@ def load_runtime_settings(
     test_client: bool = False,
     allowed_hosts: list[str] | None = None,
     render_proxy: bool = False,
+    railway_proxy: bool = False,
+    railway_edge_only: bool = False,
 ) -> PlatformSettings:
     payload = load_runtime_payload(profile)
     return PlatformSettings(
@@ -175,6 +177,8 @@ def load_runtime_settings(
         else (allowed_hosts or []),
         require_https=not test_client,
         render_proxy=render_proxy and not test_client,
+        railway_proxy=railway_proxy and not test_client,
+        railway_edge_only=railway_edge_only and not test_client,
     )
 
 

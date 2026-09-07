@@ -3,7 +3,9 @@
 ## v1.2.0 云端升级
 
 新代码保留本地 SQLite 模式，增加显式选择的桌面云端模式：电脑只连接 HTTPS
-FastAPI 后端；Render 免费 Web Service 运行后端，Supabase PostgreSQL 保存业务数据。
+FastAPI 后端；当前尝试用 Railway 赠送额度运行后端，Supabase PostgreSQL 保存业务数据。
+Railway 无密钥网络探针已通过 HTTPS 和数据库端口连通性测试，测试实例随后已停止；
+这不等于正式后端已上线。原 Render 路线因付款信息验证受阻，保留为备选部署说明。
 云端与本地账号独立，不自动读取或上传旧 SQLite。AI Key、语音、OCR 仍留在电脑。
 
 完整业务结构为 `medical_app_platform` 私有 schema（数据库命名空间）：24 张业务表，

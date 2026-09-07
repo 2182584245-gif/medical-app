@@ -45,6 +45,11 @@ $script:TextExtensions = @(
     '.json', '.mako', '.spec', '.iss', '.sql', '.svg', '.java', '.kt', '.kts', '.pro'
 )
 $script:ImageExtensions = @('.png', '.ico', '.jpg', '.jpeg', '.webp')
+$script:SpecialTextFiles = @(
+    'tools/railway_probe/.python-version',
+    'tools/railway_platform/Dockerfile',
+    'tools/railway_platform/Dockerfile.dockerignore'
+)
 $script:ModelExtensions = @('.mdl', '.fst', '.int', '.stats', '.mat', '.ie', '.dubm')
 $script:ExcludedDirectories = @(
     '.git', '.local', '.gradle', '.idea', '.vscode', '__pycache__', 'node_modules',
@@ -130,7 +135,7 @@ function Test-AllowedFile([string]$Relative) {
     $extension = [IO.Path]::GetExtension($name).ToLowerInvariant()
     if ($script:TextExtensions -contains $extension) { return $true }
     if ($name -in @('README', 'LICENSE', 'NOTICE', '.gitignore', 'gradlew')) { return $true }
-    if ($Relative -eq 'tools/railway_probe/.python-version') { return $true }
+    if ($script:SpecialTextFiles -contains $Relative) { return $true }
     if ($Relative -eq 'android/gradle/wrapper/gradle-wrapper.jar') { return $true }
     if (($parts[0] -eq 'assets' -or $Relative.StartsWith('android/app/src/main/res/')) -and
         $script:ImageExtensions -contains $extension) { return $true }
@@ -239,6 +244,7 @@ function New-PublicationPlan {
         $hash = Get-Sha256 $source
         $extension = [IO.Path]::GetExtension($relative).ToLowerInvariant()
         $isText = $script:TextExtensions -contains $extension -or
+            $script:SpecialTextFiles -contains $relative -or
             [IO.Path]::GetFileName($relative) -in @('README', 'LICENSE', 'NOTICE', '.gitignore', 'gradlew')
         if ($isText) {
             if ($length -gt 8MB) { Stop-Sync "Oversized text source requires review: $relative" }
@@ -387,6 +393,12 @@ function Invoke-PureSelfTest {
         'tools/railway_probe/.python-version' = $true
         'tools/railway_probe/.env' = $false
         'tools/railway_probe/credentials.json' = $false
+        'tools/railway_platform/Dockerfile' = $true
+        'tools/railway_platform/Dockerfile.dockerignore' = $true
+        'tools/railway_platform/.env' = $false
+        'tools/railway_platform/runtime-secret.json' = $false
+        'tools/railway_platform/history.sqlite' = $false
+        'tools/other/Dockerfile' = $false
         'android/gradle/wrapper/gradle-wrapper.jar' = $true
         'android/app/src/main/java/cn/healthlife/local/MainActivity.java' = $true
         'assets/vosk-model-small-cn-0.22/am/final.mdl' = $true

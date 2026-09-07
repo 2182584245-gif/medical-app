@@ -1,0 +1,32 @@
+{
+  "purpose": "Public deployment checklist only; not imported automatically by Railway",
+  "root_directory": "/application",
+  "builder": "DOCKERFILE",
+  "dockerfile_path": "tools/railway_platform/Dockerfile",
+  "start_command": "python -m server.platform_entrypoint",
+  "healthcheck_path": "/health/ready",
+  "healthcheck_timeout_seconds": 120,
+  "replicas": 1,
+  "runtime_variables": {
+    "PORT": "8080",
+    "PLATFORM_ENV": "production",
+    "PLATFORM_REQUIRE_HTTPS": "true",
+    "PLATFORM_RENDER_PROXY": "false"
+  },
+  "after_edge_isolation_review_only": {
+    "PLATFORM_RAILWAY_PROXY": "true",
+    "PLATFORM_RAILWAY_EDGE_ONLY": "true"
+  },
+  "required_sensitive_runtime_variable_names": [
+    "PLATFORM_DATABASE_URL",
+    "PLATFORM_TOKEN_PEPPER",
+    "PLATFORM_DATABASE_CA_PEM"
+  ],
+  "required_public_runtime_variable_names": ["PLATFORM_ALLOWED_HOSTS"],
+  "railway_injected_variable_names": [
+    "RAILWAY_PUBLIC_DOMAIN",
+    "RAILWAY_SERVICE_ID",
+    "RAILWAY_PROJECT_ID",
+    "RAILWAY_ENVIRONMENT_ID"
+  ]
+}

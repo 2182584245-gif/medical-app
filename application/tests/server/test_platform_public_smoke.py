@@ -4,6 +4,7 @@ import json
 import sqlite3
 from datetime import UTC, datetime, timedelta
 from types import SimpleNamespace
+from urllib.parse import urlsplit
 
 import httpx
 import pytest
@@ -17,6 +18,7 @@ from server.platform_app import create_app
 from server.platform_config import PlatformSettings
 
 ORIGIN = "https://synthetic-public-check.onrender.com"
+RAILWAY_ORIGIN = "https://synthetic-public-check.up.railway.app"
 SECRET_ERROR = "NEVER-PRINT-token-password-SQL-response-https://private.invalid/?key=secret"
 
 
@@ -54,8 +56,9 @@ class SqliteManagement:
         return result
 
 
-@pytest.fixture
-def context():
+@pytest.fixture(params=[ORIGIN, RAILWAY_ORIGIN], ids=["render", "railway"])
+def context(request):
+    origin = request.param
     database = SyntheticDatabase()
     # The shared test fixture omits CASCADE on its extra auth/RPC tables. Match
     # the reviewed production cascade here, using only a disposable in-memory DB.
@@ -73,15 +76,15 @@ def context():
     )
     settings = PlatformSettings(
         env="test", database_url="sqlite+pysqlite:///:memory:", token_pepper=PEPPER,
-        allowed_hosts=["synthetic-public-check.onrender.com"], require_https=True,
+        allowed_hosts=[urlsplit(origin).hostname], require_https=True,
     )
     app = create_app(settings, database=database)
     management = SqliteManagement(database)
     seen, cloud_clients = [], []
-    with TestClient(app, base_url=ORIGIN, raise_server_exceptions=False) as api:
+    with TestClient(app, base_url=origin, raise_server_exceptions=False) as api:
         def send(request):
             assert request.url.scheme == "https"
-            assert str(request.url).startswith(ORIGIN + "/")
+            assert str(request.url).startswith(origin + "/")
             assert not request.url.path.startswith("/v1/rpc/ai/")
             seen.append(request)
             response = api.request(request.method, request.url.path, content=request.content,
@@ -95,12 +98,12 @@ def context():
             return client
 
         yield SimpleNamespace(database=database, management=management, factory=factory,
-                              send=send, seen=seen, clients=cloud_clients, app=app)
+                              send=send, seen=seen, clients=cloud_clients, app=app, origin=origin)
     database.close()
 
 
 def execute(context, **kwargs):
-    return smoke.run(base_url=ORIGIN, confirm=smoke.PLATFORM_SCHEMA,
+    return smoke.run(base_url=context.origin, confirm=smoke.PLATFORM_SCHEMA,
                      client_factory=kwargs.pop("client_factory", context.factory),
                      management=kwargs.pop("management", context.management), **kwargs)
 
@@ -167,6 +170,12 @@ def test_full_offline_flow_uses_real_client_and_facades_cleans_only_own_records(
     "https://safe.onrender.com/api", "https://secret@safe.onrender.com",
     "https://safe.onrender.com/?password=secret", "https://safe.onrender.com/#secret",
     "https://localhost", "https://a.b.onrender.com", " https://safe.onrender.com",
+    "http://safe.up.railway.app", "https://up.railway.app", "https://safe.railway.app",
+    "https://a.b.up.railway.app", "https://safe.up.railway.app.evil.example",
+    "https://safe.up.railway.app:444", "https://safe.up.railway.app/api",
+    "https://secret@safe.up.railway.app", "https://safe.up.railway.app/?secret=value",
+    "https://safe.up.railway.app/#secret", "https://-bad.up.railway.app",
+    "https://bad-.up.railway.app", "https://" + "a" * 64 + ".up.railway.app",
 ])
 def test_origin_and_confirmation_guards_have_zero_side_effects(value):
     class ForbiddenManagement:
@@ -343,9 +352,41 @@ def test_cli_requires_explicit_arguments_and_hides_unrecognized_inputs(capsys):
 
 def test_cli_report_and_exit_status(monkeypatch, capsys):
     def fake_run(**values):
-        assert values == {"base_url": ORIGIN, "confirm": smoke.PLATFORM_SCHEMA}
+        assert values == {"base_url": ORIGIN, "confirm": smoke.PLATFORM_SCHEMA,
+                          "expected_host": urlsplit(ORIGIN).hostname}
         return {"status": "failed", "code": "test_only"}
 
     monkeypatch.setattr(smoke, "run", fake_run)
-    assert smoke.main(["--base-url", ORIGIN, "--confirm", smoke.PLATFORM_SCHEMA]) == 1
+    assert smoke.main(["--base-url", ORIGIN, "--expected-host", urlsplit(ORIGIN).hostname,
+                       "--confirm", smoke.PLATFORM_SCHEMA]) == 1
     assert json.loads(capsys.readouterr().out) == {"status": "failed", "code": "test_only"}
+
+
+@pytest.mark.parametrize("origin", [ORIGIN, RAILWAY_ORIGIN])
+def test_public_origin_pins_expected_service(origin):
+    host = urlsplit(origin).hostname
+    assert smoke.validate_public_origin(origin, expected_host=host) == origin
+    assert smoke.validate_public_origin(origin + "/", expected_host=host) == origin
+    assert smoke.validate_public_origin(origin + ":443", expected_host=host) == origin + ":443"
+    for expected in ["", "another.up.railway.app", "*", "https://" + host, host + "/"]:
+        with pytest.raises(smoke.PublicSmokeError, match="configuration"):
+            smoke.validate_public_origin(origin, expected_host=expected)
+
+
+def test_legacy_render_validator_does_not_widen_implicitly():
+    assert smoke.validate_render_origin(ORIGIN) == ORIGIN
+    with pytest.raises(smoke.PublicSmokeError, match="configuration"):
+        smoke.validate_render_origin(RAILWAY_ORIGIN)
+
+
+@pytest.mark.parametrize("expected", [None, "another.up.railway.app", ""])
+def test_live_run_requires_matching_host_before_management_or_network(monkeypatch, expected):
+    def forbidden(*_args, **_kwargs):
+        pytest.fail("unconfirmed service must not load credentials or create network clients")
+
+    monkeypatch.setattr(smoke, "ManagementCleanup", forbidden)
+    monkeypatch.setattr(smoke, "CloudAPIClient", forbidden)
+    result = smoke.run(base_url=RAILWAY_ORIGIN, expected_host=expected,
+                       confirm=smoke.PLATFORM_SCHEMA)
+    assert result["code"] == "configuration"
+    assert result["cleanup"]["status"] == "not_required"

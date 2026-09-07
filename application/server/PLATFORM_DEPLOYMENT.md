@@ -5,7 +5,7 @@
 ## 组成和秘密边界
 
 - Desktop（桌面）：Python 3.13 / PySide6；用户显式选择本地或云端。
-- API（业务接口）：Render 免费 Python Web Service，单进程，HTTPS，启动入口
+- API（业务接口）：当前尝试 Railway 赠送额度，原 Render 为备选；单进程、HTTPS，启动入口
   `cd application && PYTHONPATH=src python -m server.platform_entrypoint`。
 - Database（业务数据库）：现有 Supabase PostgreSQL；Session pooler（会话连接池）
   端口 5432，TLS `verify-full`（核对证书链和服务器主机名），不关闭验证。
@@ -13,12 +13,31 @@
   不删除。Alembic 同一迁移历史：`pilot_0001 -> platform_0001`。
 - Runtime role（运行角色）`medical_app_platform_runtime`：无超级用户、建库、建角色、
   复制、绕过 RLS 权限，无角色成员资格；连接上限 5；逐表授权，无 schema CREATE。
-- 秘密仅在本机 `.local` DPAPI 加密记录和 Render 服务环境中。管理员数据库连接串、
+- 秘密仅在本机 `.local` DPAPI 加密记录和经授权的后端服务秘密环境中。管理员数据库连接串、
   管理员应用密码、用户密码和 AI Key 禁止加入源码、发布包和普通日志。
 - 云端应用账号存 Argon2id 哈希，Opaque token（随机不透明令牌）仅存 HMAC 摘要；
   真令牌在电脑内存，关闭后失效于本机，服务端到期或注销后拒绝使用。
 
-## Render 服务配置
+## Railway 服务配置（当前路线）
+
+- 实际前置测试及停止状态见 [交付检查](PLATFORM_RELEASE_CHECKS.md)；不要将测试探针
+  地址填入桌面应用，不把一次 TCP 连通当作正式数据库登录和权限验收。
+- 正式镜像说明见 [Railway 部署目录](../tools/railway_platform/README.md)。只安装
+  `requirements-server.txt`，不要让自动检测安装桌面的 `requirements.txt` / `pyproject.toml`。
+- 仅对正式服务核验公网入口只有平台 HTTP 边缘、没有 TCP Proxy/其他直连入口，
+  且项目同环境内全部服务受信任后，才可显式确认 `PLATFORM_RAILWAY_PROXY=true` 和
+  `PLATFORM_RAILWAY_EDGE_ONLY=true`；两者不是代理身份认证或防火墙。
+- `PLATFORM_ALLOWED_HOSTS` 使用已核实的精确服务 Host，与 `RAILWAY_PUBLIC_DOMAIN`
+  一致；不使用通配符、不伪造 Render 环境变量。Railway 模式不从任何转发头恢复
+  客户端 IP，限流保守使用 socket peer，可能导致不同用户共享部分认证限额。
+- 保持 `PLATFORM_REQUIRE_HTTPS=true`、`sslmode=verify-full`、项目 CA 及专用运行角色。
+  运行连接、pepper 不可填入源码或探针；配置到第三方服务前需确认目标与秘密范围。
+- 公网验收必须明确同时输入核验过的 HTTPS origin（源站地址）、相同的纯主机名和
+  `--confirm medical_app_platform`，例如参数名 `--base-url`、`--expected-host`、`--confirm`。
+  不接受管理员数据库 URL 作为上述参数，不通过聊天传递密码；只创建随机合成测试账号，
+  清理沿用精确身份验证，不删除实际用户数据。
+
+## Render 服务配置（历史备选，未部署）
 
 - Workspace（工作区）：medical-app，用户已经确认。
 - Repository（源码仓库）：2182584245-gif/medical-app；Branch（分支）：main。
@@ -47,7 +66,7 @@
    验收，含业务与 SET LOCAL ROLE 行级隔离；不冒充公网或独立连接测试。
 6. 由本机管理员调用 `bootstrap_admin` 隐藏输入密码；创建初始 operator（运营管理员）。
    已有 operator 或同名账号时拒绝覆盖；不得将密码设为全体用户共用默认密码。
-7. 安全传递运行角色 URL、pepper、根证书到 Render，创建并核实免费服务。
+7. 经确认安全传递运行角色 URL、pepper、根证书到所选后端服务，核实赠送额度与实际部署。
 8. 验证实际 HTTPS、匿名拒绝、两独立客户端同步、注销撤销、角色隔离与故障提示。
    仅用随机合成账号；如测试临时提交，必须限定本次精确 ID 清理并核实无残留。
 
@@ -74,6 +93,12 @@
   也不能假设 Supabase 免费版提供全部付费备份能力。原本地完整备份功能保留。
 
 ## 免费与运行限制
+
+Railway 当前试用提供一次性 5 美元、最长 30 天，耗尽/到期后 Free 方案每月 1 美元
+额度且不结转。实际是否足够常驻取决于运行消耗，不能承诺永久免费在线。受限试用的
+外连端口可能受限；当前探针只证明此账号当时能连通目标。测试后停止无用实例，不为
+绕过限制注册多个账号、不自动升级或绑定卡。正式业务数据仍保存在 Supabase。
+参见 [Railway 试用说明](https://docs.railway.com/pricing/free-trial)。
 
 Render 免费 Web Service 约15分钟无访问后休眠，下一次唤醒约1分钟；文件系统临时，
 所以业务数据保存在 Supabase，不放在 Render SQLite。每月免费实例小时、流量、构建
