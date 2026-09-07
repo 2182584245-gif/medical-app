@@ -197,6 +197,11 @@ def verify(toc_path: Path, dist_dir: Path) -> dict[str, object]:
         missing_files.append("_internal/numpy/_core/_multiarray_umath*.pyd")
 
     required_modules = {
+        "ollama_chat_app.cloud_config",
+        "ollama_chat_app.services.cloud_client",
+        "ollama_chat_app.services.cloud_rpc_codec",
+        "ollama_chat_app.services.remote_services",
+        "ollama_chat_app.workers.cloud_bridge",
         "ollama_chat_app.time_utils",
         "ollama_chat_app.ui.time_fields",
         "onnxruntime",

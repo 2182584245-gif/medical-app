@@ -186,7 +186,13 @@ def verify_directory(root: Path) -> dict[str, object]:
         "未知发布者",
         "视觉实验模型",
         "多个对话",
-        "没有开启 Supabase/Render 云端同步",
+        "程序启动默认为本地模式",
+        "本地和云端不会自动合并",
+        "两种模式的账号相互独立",
+        "云端登录令牌只存在内存",
+        "网络失败不会偷偷保存到本地",
+        "后端不保存AI Key",
+        "云端能力需先部署并验证可用的服务",
     ):
         if required_text not in instructions:
             raise RuntimeError(f"使用说明缺少必要提示：{required_text}")
