@@ -130,6 +130,7 @@ function Test-AllowedFile([string]$Relative) {
     $extension = [IO.Path]::GetExtension($name).ToLowerInvariant()
     if ($script:TextExtensions -contains $extension) { return $true }
     if ($name -in @('README', 'LICENSE', 'NOTICE', '.gitignore', 'gradlew')) { return $true }
+    if ($Relative -eq 'tools/railway_probe/.python-version') { return $true }
     if ($Relative -eq 'android/gradle/wrapper/gradle-wrapper.jar') { return $true }
     if (($parts[0] -eq 'assets' -or $Relative.StartsWith('android/app/src/main/res/')) -and
         $script:ImageExtensions -contains $extension) { return $true }
@@ -383,6 +384,9 @@ function Invoke-PureSelfTest {
         'src/ollama_chat_app/data/database.py' = $true
         'server/platform_admin.py' = $true
         'tools/sync_repository_source.ps1' = $true
+        'tools/railway_probe/.python-version' = $true
+        'tools/railway_probe/.env' = $false
+        'tools/railway_probe/credentials.json' = $false
         'android/gradle/wrapper/gradle-wrapper.jar' = $true
         'android/app/src/main/java/cn/healthlife/local/MainActivity.java' = $true
         'assets/vosk-model-small-cn-0.22/am/final.mdl' = $true
