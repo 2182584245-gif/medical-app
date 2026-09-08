@@ -45,7 +45,7 @@ class AdvisorAiPanel(QWidget):
         hint = QLabel(
             "AI 只读取所选会员已确认的档案事实、近期生活记录和当前服务任务，"
             "先生成顾问摘要草稿；只有当前绑定顾问确认后才成为正式摘要。"
-            "摘要日期和时间均按北京时间显示。"
+            "摘要日期和时间按右上角所选时区显示，默认北京时间。"
         )
         hint.setWordWrap(True)
         hint.setObjectName("AdvisorHint")

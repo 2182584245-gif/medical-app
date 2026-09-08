@@ -48,7 +48,11 @@ $script:ImageExtensions = @('.png', '.ico', '.jpg', '.jpeg', '.webp')
 $script:SpecialTextFiles = @(
     'tools/railway_probe/.python-version',
     'tools/railway_platform/Dockerfile',
-    'tools/railway_platform/Dockerfile.dockerignore'
+    'tools/railway_platform/Dockerfile.dockerignore',
+    'tools/local_platform/Dockerfile',
+    'tools/local_platform/Dockerfile.dockerignore',
+    'tools/local_platform/compose.yaml',
+    'tools/local_platform/compose.env'
 )
 $script:ModelExtensions = @('.mdl', '.fst', '.int', '.stats', '.mat', '.ie', '.dubm')
 $script:ExcludedDirectories = @(

@@ -10,7 +10,7 @@ from typing import Any
 
 from ..paths import database_path
 
-SCHEMA_VERSION = 5
+SCHEMA_VERSION = 6
 DEFAULT_CONVERSATION_TITLE = "默认对话"
 
 
@@ -186,6 +186,10 @@ class Database:
                     version = 4
                 if version == 4:
                     self._migrate_v4_to_v5(connection)
+                    version = 5
+                if version == 5:
+                    from .experience_schema import migrate_experience
+                    migrate_experience(connection)
                 connection.execute(f"PRAGMA user_version = {SCHEMA_VERSION}")
                 if connection.execute("PRAGMA foreign_key_check").fetchone() is not None:
                     raise DatabaseError("数据库升级外键检查失败，已保留升级前数据")

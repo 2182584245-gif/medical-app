@@ -11,7 +11,7 @@ from pathlib import Path
 import pytest
 
 import ollama_chat_app.services.backup as backup_module
-from ollama_chat_app.data.database import Database, DatabaseError
+from ollama_chat_app.data.database import SCHEMA_VERSION, Database, DatabaseError
 from ollama_chat_app.security.passwords import hash_password
 from ollama_chat_app.services.backup import (
     DATA_DATABASE_PATH,
@@ -142,7 +142,7 @@ def _assert_rows_preserved(database: Database, expected: dict[str, list[tuple]])
     for table, rows in expected.items():
         assert actual[table] == rows, f"migration or import changed rows in {table}"
     with database.connect() as connection:
-        assert connection.execute("PRAGMA user_version").fetchone()[0] == 5
+        assert connection.execute("PRAGMA user_version").fetchone()[0] == SCHEMA_VERSION == 6
         assert connection.execute("PRAGMA foreign_keys").fetchone()[0] == 1
         assert connection.execute("PRAGMA foreign_key_check").fetchall() == []
         assert connection.execute("PRAGMA quick_check").fetchall()[0][0] == "ok"
@@ -231,7 +231,7 @@ def test_v4_archives_import_as_v5_without_changing_the_legacy_source(
         PortableBackupService(legacy_database).create_archive(archive_path)
     with zipfile.ZipFile(archive_path) as archive:
         manifest = json.loads(archive.read(DATA_MANIFEST_PATH.as_posix()))
-        assert manifest["schema_version"] == (4 if historical_archive else 5)
+    assert manifest["schema_version"] == (4 if historical_archive else SCHEMA_VERSION)
 
     destination = Database(tmp_path / "current" / "app.db")
     destination.initialize()

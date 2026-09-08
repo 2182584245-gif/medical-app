@@ -3,7 +3,8 @@ from __future__ import annotations
 import base64
 import binascii
 import json
-from collections.abc import Mapping, Sequence
+import threading
+from collections.abc import Iterator, Mapping, Sequence
 from typing import Any
 
 import httpx
@@ -110,6 +111,97 @@ class DeepSeekCloudProvider(ChatProvider):
             max_tokens=2,
         )
 
+    def chat_stream(
+        self,
+        model: str,
+        messages: Sequence[ChatMessage],
+        *,
+        cancel_event: threading.Event | None = None,
+    ) -> Iterator[str]:
+        """Yield actual SSE text deltas; an unfinished stream is never complete."""
+        self._last_used_model = None
+        self._last_response_model = None
+        model_name = self.resolve_model(model, messages)
+        payload = _completion_request_body(
+            model_name, messages, thinking={"type": "disabled"}, stream=True
+        )
+        stopped = cancel_event or threading.Event()
+        received_text = False
+        finished = False
+        try:
+            if stopped.is_set():
+                raise ProviderError("已停止回答。", code="cancelled")
+            with (
+                httpx.Client(
+                    base_url=config.DEEPSEEK_API_BASE_URL,
+                    headers={
+                        "Authorization": f"Bearer {self._api_key}",
+                        "Content-Type": "application/json",
+                    },
+                    timeout=config.REQUEST_TIMEOUT_SECONDS,
+                    transport=self._transport,
+                ) as client,
+                client.stream("POST", "/chat/completions", content=payload) as response,
+            ):
+                if response.status_code >= 400:
+                    raise _translate_http_error(
+                        response.status_code, vision=model_name == config.DEEPSEEK_VISION_MODEL
+                    )
+                for line in response.iter_lines():
+                    if stopped.is_set():
+                        raise ProviderError("已停止回答。", code="cancelled")
+                    if not line.startswith("data:"):
+                        continue
+                    chunk = line[5:].strip()
+                    if chunk == "[DONE]":
+                        finished = True
+                        break
+                    try:
+                        data = json.loads(chunk)
+                        choices = data.get("choices", [])
+                        if not isinstance(choices, list):
+                            raise ValueError
+                        if data.get("error"):
+                            raise ValueError
+                        if isinstance(data.get("model"), str):
+                            self._last_response_model = data["model"][:200]
+                        for choice in choices:
+                            reason = choice.get("finish_reason")
+                            if reason in {
+                                "length",
+                                "content_filter",
+                                "insufficient_system_resource",
+                            }:
+                                raise ProviderError(
+                                    "回答未完整生成，请缩短问题后重试。",
+                                    code="incomplete_response",
+                                )
+                            delta = choice.get("delta", {}).get("content")
+                            if delta is not None and not isinstance(delta, str):
+                                raise ValueError
+                            if delta:
+                                received_text = True
+                                yield delta
+                    except (ValueError, TypeError, AttributeError):
+                        raise ProviderError(
+                            "DeepSeek 返回了无法识别的流式内容。", code="invalid_response"
+                        ) from None
+            if stopped.is_set():
+                raise ProviderError("已停止回答。", code="cancelled")
+            if not finished or not received_text:
+                raise ProviderError(
+                    "DeepSeek 连接在回答完成前中断，请重试。", code="incomplete_response"
+                )
+            self._last_used_model = model_name
+        except httpx.TimeoutException:
+            raise ProviderError(
+                "等待 DeepSeek 响应超时，请检查网络后重试。", code="timeout"
+            ) from None
+        except httpx.HTTPError:
+            raise ProviderError(
+                "DeepSeek 连接中断，请检查网络后重试。", code="connection_error"
+            ) from None
+
     def _create_completion(
         self,
         *,
@@ -175,6 +267,7 @@ def _completion_request_body(
     *,
     thinking: Mapping[str, str],
     max_tokens: int | None = None,
+    stream: bool = False,
 ) -> bytes:
     if max_tokens is not None and (
         isinstance(max_tokens, bool) or not isinstance(max_tokens, int) or max_tokens < 1
@@ -183,7 +276,7 @@ def _completion_request_body(
     payload: dict[str, Any] = {
         "model": model,
         "messages": _normalise_messages(messages),
-        "stream": False,
+        "stream": stream,
         "thinking": dict(thinking),
     }
     if max_tokens is not None:

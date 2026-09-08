@@ -197,7 +197,7 @@ def test_operator_ai_config_panel_reads_saves_and_never_has_a_key_field(
     assert "只有运营员" in panel.status_label.text()
 
 
-def test_operator_workspace_integrates_ai_config_panel(config_fixture, qtbot) -> None:
+def test_operator_workspace_omits_ai_config_ui_as_requested(config_fixture, qtbot) -> None:
     database, _auth, _health, ai, operator, _member = config_fixture
     workspace = OperatorWorkspace(
         ServiceManagementService(database),
@@ -207,9 +207,10 @@ def test_operator_workspace_integrates_ai_config_panel(config_fixture, qtbot) ->
 
     workspace.start_session(operator)
 
-    assert workspace.ai_config_panel is not None
-    assert workspace.ai_config_panel.operator_user_id == operator.id
-    assert workspace.tabs.indexOf(workspace.ai_config_panel) >= 0
+    # The redesigned operator workspace intentionally removes AI configuration.
+    # Independent component and service authorization tests above remain intact.
+    assert workspace.ai_config_panel is None
+    assert all("AI" not in workspace.tabs.tabText(index) for index in range(workspace.tabs.count()))
 
     workspace.end_session()
-    assert workspace.ai_config_panel.operator_user_id is None
+    assert workspace.ai_config_panel is None

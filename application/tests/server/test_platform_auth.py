@@ -84,6 +84,37 @@ def account(client, name="synthetic-member"):
     return registration.json(), login.json()
 
 
+def test_login_offline_lease_bound_to_current_session(platform_client):
+    from ollama_chat_app.services.offline_access import utc_timestamp, validate_lease
+
+    user, response = account(platform_client, "offline-lease-member")
+    lease = validate_lease(response["offline_lease"], actor_id=user["id"])
+    assert response["sync_protocol"] == 2
+    assert utc_timestamp(lease["expires_at"]) <= utc_timestamp(response["expires_at"])
+    assert "access_token" not in lease and "password" not in lease
+
+
+def test_offline_lease_cannot_outlive_advisor_term(platform_database):
+    from ollama_chat_app.services.auth import AuthService
+    from ollama_chat_app.services.offline_access import utc_timestamp
+    from server.platform_leases import make_offline_lease
+
+    now = utc_now()
+    actor = AuthService(platform_database).register("lease-synthetic-advisor", PASSWORD)
+    with platform_database.transaction() as connection:
+        connection.execute("UPDATE users SET role_code='advisor' WHERE id=?", (actor.id,))
+        connection.execute(
+            "INSERT INTO staff_account_terms(user_id,starts_at,ends_at,updated_at,created_at) "
+            "VALUES(?,?,?,?,?)",
+            (actor.id, timestamp_to_db(now-timedelta(hours=1)),
+             timestamp_to_db(now+timedelta(minutes=15)),
+             timestamp_to_db(now), timestamp_to_db(now)),
+        )
+        value = make_offline_lease(connection, actor.id, "advisor", now,
+                                   now+timedelta(hours=2), bytes(range(32)).hex())
+    assert utc_timestamp(value["expires_at"]) == now+timedelta(minutes=15)
+
+
 def headers(login):
     return {"Authorization": "Bearer " + login["access_token"]}
 

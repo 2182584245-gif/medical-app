@@ -171,11 +171,31 @@ def test_migration_fixed_revision_and_postcheck(monkeypatch, succeed):
     if succeed:
         result = admin.migrate(confirm=admin.PLATFORM_SCHEMA, pilot_confirm=admin.PRIVATE_SCHEMA)
         assert result["status"] == "platform_migration_verified"
-        assert result["created_tables"] == 27
+        assert result["created_tables"] == len(admin.PLATFORM_COLUMNS)
     else:
         with pytest.raises(admin.PlatformAdminError, match="RLS"):
             admin.migrate(confirm=admin.PLATFORM_SCHEMA, pilot_confirm=admin.PRIVATE_SCHEMA)
     assert calls == [admin.PLATFORM_REVISION]
+
+
+@pytest.mark.parametrize("valid", [True, False])
+def test_existing_v1_upgrade_adds_only_five_tables_and_rejects_incomplete_catalog(
+    monkeypatch, valid
+):
+    before = {**verified_report(), "revisions": ["platform_0001"], "all_rls_forced": valid}
+    reports = iter([before, verified_report()])
+    monkeypatch.setattr(admin, "inspect_catalog", lambda _p: next(reports))
+    monkeypatch.setattr(admin, "management_url", lambda _p: management())
+    calls = []
+    monkeypatch.setattr(admin.command, "upgrade", lambda _cfg, revision: calls.append(revision))
+    if valid:
+        result = admin.migrate(confirm=admin.PLATFORM_SCHEMA, pilot_confirm=admin.PRIVATE_SCHEMA)
+        assert result["created_tables"] == 5
+        assert calls == ["platform_0002"]
+    else:
+        with pytest.raises(admin.PlatformAdminError, match="未接管"):
+            admin.migrate(confirm=admin.PLATFORM_SCHEMA, pilot_confirm=admin.PRIVATE_SCHEMA)
+        assert calls == []
 
 
 class FakeConnection:
@@ -249,7 +269,9 @@ def provision_setup(monkeypatch, tmp_path, saved=None, existing=None):
     monkeypatch.setattr(admin, "save_secret_payload", save)
     monkeypatch.setattr(admin, "_role_row", lambda _c: role[0])
     monkeypatch.setattr(admin, "_create_role", create)
-    monkeypatch.setattr(admin, "_verify_role", lambda _c, _p: events.append(("verify", "role")))
+    monkeypatch.setattr(
+        admin, "_verify_role", lambda _c, _p, **_kw: events.append(("verify", "role"))
+    )
     yield SimpleNamespace(target=target, store=store, connection=connection, events=events)
 
 
@@ -411,6 +433,7 @@ def test_catalog_metadata_only_inspection(monkeypatch, bad):
                 for table, rules in admin.policy_rules().items()
                 for action in rules
             ]
+            rows += [(table, "platform_staff_term", "*", False) for table in admin.EXPIRY_TABLES]
             if bad == "policies":
                 rows.pop()
         elif "has_table_privilege" in text:

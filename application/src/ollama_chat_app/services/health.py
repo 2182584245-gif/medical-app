@@ -261,7 +261,7 @@ class HealthService:
         start_date = end_date - timedelta(days=days - 1)
         records = self.list_life_records(
             user_id,
-            limit=500,
+            limit=10_000,
             start_date=start_date,
             end_date=end_date,
         )
@@ -760,11 +760,12 @@ class HealthService:
         if len(normalized) > 50:
             raise HealthValidationError("记录详情字段不能超过 50 个")
         numeric_rules: dict[str, dict[str, tuple[float, float, str]]] = {
-            "diet": {"calories_kcal": (0, 20_000, "热量")},
+            "diet": {"calories_kcal": (0, 20_000, "热量"), "amount_g": (0, 20_000, "食物重量")},
             "water": {"amount_ml": (1, 10_000, "饮水量")},
             "activity": {
                 "duration_minutes": (0, 1_440, "活动时长"),
                 "steps": (0, 200_000, "步数"),
+                "energy_kcal": (0, 20_000, "运动耗能"),
             },
             "sleep": {
                 "duration_hours": (0, 24, "睡眠时长"),
@@ -773,6 +774,7 @@ class HealthService:
             "environment": {
                 "temperature_c": (-80, 80, "环境温度"),
                 "humidity_percent": (0, 100, "环境湿度"),
+                "ventilation_minutes": (0, 1_440, "通风时长"),
             },
         }
         for field, (minimum, maximum, label) in numeric_rules[category].items():

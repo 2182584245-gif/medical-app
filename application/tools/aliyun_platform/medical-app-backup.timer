@@ -1,0 +1,10 @@
+[Unit]
+Description=Daily verified medical platform backup
+
+[Timer]
+OnCalendar=*-*-* 03:15:00 Asia/Shanghai
+RandomizedDelaySec=15m
+Persistent=true
+
+[Install]
+WantedBy=timers.target

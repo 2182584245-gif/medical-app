@@ -14,13 +14,14 @@ VOICE_MODEL = PROJECT_ROOT / "assets" / "vosk-model-small-cn-0.22"
 
 # Ollama reads its installed version with importlib.metadata to construct the
 # User-Agent header. It needs only its own metadata; keyring is intentionally not
-# collected because cloud API keys are session-only in this build.
+# collected; explicitly saved keys use Windows DPAPI outside the release tree.
 data_files = (
     copy_metadata("ollama")
     + copy_metadata("pypdf")
     + copy_metadata("rapidocr")
     + copy_metadata("onnxruntime")
     + copy_metadata("vosk")
+    + collect_data_files("tzdata")
     + collect_data_files("rapidocr", includes=["*.yaml", "models/*"])
     + [(str(VOICE_MODEL), "assets/vosk-model-small-cn-0.22")]
 )

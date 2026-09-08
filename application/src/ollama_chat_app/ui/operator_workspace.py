@@ -5,6 +5,7 @@ from typing import Any
 
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import (
+    QAbstractItemView,
     QCheckBox,
     QComboBox,
     QDateTimeEdit,
@@ -13,23 +14,31 @@ from PySide6.QtWidgets import (
     QDoubleSpinBox,
     QFormLayout,
     QFrame,
+    QGridLayout,
     QHBoxLayout,
+    QHeaderView,
+    QInputDialog,
     QLabel,
     QLineEdit,
     QListWidget,
     QListWidgetItem,
     QMessageBox,
     QPushButton,
+    QScrollArea,
     QSpinBox,
+    QSplitter,
+    QStackedWidget,
+    QTableWidget,
+    QTableWidgetItem,
     QTabWidget,
     QTextEdit,
     QVBoxLayout,
     QWidget,
 )
 
-from ..time_utils import format_beijing
-from .operator_ai_config_panel import OperatorAiConfigPanel
+from ..time_utils import display_timezone_label, format_beijing
 from .operator_performance_panel import OperatorPerformancePanel
+from .staff_style import build_staff_style
 from .time_fields import (
     BeijingDateTimeEdit,
     beijing_qdatetime,
@@ -46,10 +55,12 @@ MEMBERSHIP_LABELS = {
     "cancelled": "已取消",
 }
 TASK_LABELS = {
-    "pending": "待上门",
+    "pending": "预约中",
     "in_progress": "进行中",
     "completed": "已完成",
-    "cancelled": "已取消",
+    "cancelled": "已停用",
+    "incomplete": "未完成",
+    "disabled": "已停用",
 }
 PRODUCT_CATEGORY_LABELS = {
     "food": "食品与饮品",
@@ -109,21 +120,14 @@ class CreateAdvisorDialog(QDialog):
         self.username_input.setPlaceholderText("用于顾问登录，例如 wang-advisor")
         form.addRow("登录账号", self.username_input)
         self.password_input = QLineEdit()
+        self.password_input.setProperty("sensitive_input", True)
         self.password_input.setEchoMode(QLineEdit.EchoMode.Password)
         self.password_input.setPlaceholderText("至少 8 个字符")
         form.addRow("初始密码", self.password_input)
-        self.confirm_input = QLineEdit()
-        self.confirm_input.setEchoMode(QLineEdit.EchoMode.Password)
-        form.addRow("确认密码", self.confirm_input)
         self.name_input = QLineEdit()
-        form.addRow("顾问姓名", self.name_input)
-        self.organization_input = QLineEdit()
-        form.addRow("所属机构", self.organization_input)
-        self.specialty_input = QLineEdit()
-        form.addRow("擅长服务", self.specialty_input)
-        self.bio_input = QTextEdit()
-        self.bio_input.setMaximumHeight(110)
-        form.addRow("顾问简介", self.bio_input)
+        form.addRow("昵称", self.name_input)
+        self.valid_until_input = BeijingDateTimeEdit(beijing_qdatetime().addYears(1))
+        form.addRow(f"有效期限（{display_timezone_label()}）", self.valid_until_input)
         form.addRow(_dialog_buttons(self, self._validate))
 
     def _validate(self) -> None:
@@ -134,8 +138,8 @@ class CreateAdvisorDialog(QDialog):
         if len(password) < 8:
             QMessageBox.warning(self, "密码过短", "初始密码至少需要 8 个字符。")
             return
-        if password != self.confirm_input.text():
-            QMessageBox.warning(self, "密码不一致", "两次输入的密码不一致。")
+        if self.valid_until_input.dateTime() <= beijing_qdatetime():
+            QMessageBox.warning(self, "期限无效", "有效期限必须晚于现在。")
             return
         self.accept()
 
@@ -145,9 +149,7 @@ class CreateAdvisorDialog(QDialog):
             "username": self.username_input.text().strip(),
             "password": self.password_input.text(),
             "display_name": self.name_input.text().strip(),
-            "organization": self.organization_input.text().strip(),
-            "specialty": self.specialty_input.text().strip(),
-            "bio": self.bio_input.toPlainText().strip(),
+            "valid_until": _iso_value(self.valid_until_input),
         }
 
 
@@ -175,9 +177,9 @@ class MembershipDialog(QDialog):
             self.status_combo.addItem(label, code)
         form.addRow("会员状态", self.status_combo)
         self.start_input = BeijingDateTimeEdit()
-        form.addRow("开始时间（北京时间）", self.start_input)
+        form.addRow(f"开始时间（{display_timezone_label()}）", self.start_input)
         self.end_input = BeijingDateTimeEdit(beijing_qdatetime().addYears(1))
-        form.addRow("到期时间（北京时间）", self.end_input)
+        form.addRow(f"到期时间（{display_timezone_label()}）", self.end_input)
         self.visit_total_input = QSpinBox()
         self.visit_total_input.setRange(0, 100)
         self.visit_total_input.setValue(4)
@@ -272,6 +274,10 @@ class AdvisorProfileDialog(QDialog):
         self.bio_input.setPlainText(str(advisor.get("bio") or ""))
         self.bio_input.setMaximumHeight(130)
         form.addRow("顾问简介", self.bio_input)
+        self.valid_until_input = BeijingDateTimeEdit(beijing_qdatetime().addYears(1))
+        if advisor.get("valid_until"):
+            set_editor_datetime(self.valid_until_input, advisor["valid_until"])
+        form.addRow("账号有效期限", self.valid_until_input)
         form.addRow(_dialog_buttons(self, self._validate))
 
     def _validate(self) -> None:
@@ -305,7 +311,7 @@ class BindAdvisorDialog(QDialog):
             self.advisor_combo.addItem(f"{name}｜{status}", int(advisor["id"]))
         form.addRow("选择顾问", self.advisor_combo)
         self.start_input = BeijingDateTimeEdit()
-        form.addRow("服务开始时间（北京时间）", self.start_input)
+        form.addRow(f"服务开始时间（{display_timezone_label()}）", self.start_input)
         note = QLabel("换绑时，旧绑定会结束，但历史上门记录仍会保留。")
         note.setWordWrap(True)
         form.addRow(note)
@@ -334,7 +340,7 @@ class VisitTaskDialog(QDialog):
         self.title_input = QLineEdit("首次上门建档")
         form.addRow("任务名称", self.title_input)
         self.time_input = BeijingDateTimeEdit(beijing_qdatetime().addDays(1))
-        form.addRow("计划上门时间（北京时间）", self.time_input)
+        form.addRow(f"计划上门时间（{display_timezone_label()}）", self.time_input)
         self.notes_input = QTextEdit()
         self.notes_input.setMaximumHeight(120)
         self.notes_input.setPlaceholderText("填写需要顾问提前了解的事项")
@@ -485,6 +491,8 @@ class OperatorWorkspace(QWidget):
         self.advisors: list[dict[str, Any]] = []
         self.products: list[dict[str, Any]] = []
         self.orders: list[dict[str, Any]] = []
+        self.metric_labels: dict[str, QLabel] = {}
+        self.tasks: list[dict[str, Any]] = []
 
         root = QVBoxLayout(self)
         root.setContentsMargins(16, 14, 16, 14)
@@ -510,7 +518,7 @@ class OperatorWorkspace(QWidget):
         logout_button.clicked.connect(self.logout_requested)
         header_layout.addWidget(logout_button)
         root.addWidget(header)
-        timezone_hint = QLabel("日期和时间均按北京时间显示与保存。")
+        timezone_hint = QLabel("日期和时间按右上角所选时区显示，默认北京时间。")
         timezone_hint.setObjectName("BeijingTimeHint")
         root.addWidget(timezone_hint)
 
@@ -521,21 +529,13 @@ class OperatorWorkspace(QWidget):
 
         self.tabs = QTabWidget()
         self.tabs.setDocumentMode(True)
-        self.tabs.addTab(self._build_overview_tab(), "概览")
         self.tabs.addTab(self._build_members_tab(), "会员服务")
-        self.tabs.addTab(self._build_advisors_tab(), "顾问管理")
-        self.tabs.addTab(self._build_visits_tab(), "上门服务")
+        self.tabs.addTab(self._build_advisors_tab(), "顾问管理与上门服务")
         self.tabs.addTab(self._build_products_tab(), "商品管理")
         self.tabs.addTab(self._build_orders_tab(), "模拟订单")
         self.performance_panel = OperatorPerformancePanel(self.service)
         self.tabs.addTab(self.performance_panel, "工作统计")
-        self.ai_config_panel = (
-            OperatorAiConfigPanel(ai_assistant_service)
-            if ai_assistant_service is not None
-            else None
-        )
-        if self.ai_config_panel is not None:
-            self.tabs.addTab(self.ai_config_panel, "AI 配置")
+        self.ai_config_panel = None
         for button in (
             self.create_product_button,
             self.edit_product_button,
@@ -545,33 +545,10 @@ class OperatorWorkspace(QWidget):
             button.setEnabled(self.commerce is not None)
         self.tabs.currentChanged.connect(lambda _index: self.refresh())
         root.addWidget(self.tabs, 1)
-        self.setStyleSheet(
-            """
-            QWidget#OperatorWorkspace { font-size: 16px; }
-            QFrame#StaffHeader, QFrame#StaffCard {
-                background: #ffffff;
-                border: 1px solid #d9e2e8;
-                border-radius: 13px;
-            }
-            QLabel#StaffTitle { font-size: 25px; font-weight: 700; color: #163c4a; }
-            QLabel#MetricValue { font-size: 30px; font-weight: 700; color: #176b65; }
-            QLabel#WorkspaceStatusSuccess {
-                color: #176b47; background: #eaf8f1; padding: 8px; border-radius: 8px;
-            }
-            QLabel#WorkspaceStatusError {
-                color: #9c2f27; background: #fff1f0; padding: 8px; border-radius: 8px;
-            }
-            QPushButton { min-height: 36px; padding: 5px 13px; }
-            QTabBar::tab { min-width: 120px; min-height: 38px; font-weight: 600; }
-            QListWidget {
-                background: #ffffff;
-                border: 1px solid #d9e2e8;
-                border-radius: 9px;
-                padding: 6px;
-            }
-            QListWidget::item { padding: 9px; }
-            """
-        )
+        self.apply_preferences({})
+
+    def apply_preferences(self, preferences: dict) -> None:
+        self.setStyleSheet(build_staff_style(preferences))
 
     def _build_overview_tab(self) -> QWidget:
         page = QWidget()
@@ -610,63 +587,154 @@ class OperatorWorkspace(QWidget):
         layout.addStretch(1)
         return page
 
+    def _metric_row(self, entries: tuple[tuple[str, str], ...]) -> QHBoxLayout:
+        row = QHBoxLayout()
+        for code, title in entries:
+            frame = QFrame()
+            frame.setObjectName("StaffCard")
+            card = QHBoxLayout(frame)
+            card.addWidget(QLabel(title))
+            label = QLabel("0")
+            label.setObjectName("MetricValue")
+            card.addWidget(label)
+            self.metric_labels[code] = label
+            row.addWidget(frame)
+        return row
+
     def _build_members_tab(self) -> QWidget:
         page = QWidget()
-        layout = QHBoxLayout(page)
+        outer = QVBoxLayout(page)
+        outer.addLayout(
+            self._metric_row(
+                (("member_count", "会员账户"), ("active_membership_count", "有效会员"))
+            )
+        )
+        split = QSplitter(Qt.Orientation.Horizontal)
+        outer.addWidget(split, 1)
+        left_widget = QWidget()
         left = QVBoxLayout()
-        left.addWidget(QLabel("会员列表"))
+        left_widget.setLayout(left)
+        actions = QHBoxLayout()
+        actions.addWidget(QLabel("会员列表"))
+        self.view_members_button = QPushButton("查看资料表")
+        self.view_members_button.setCheckable(True)
+        self.view_members_button.toggled.connect(self._toggle_member_table)
+        actions.addWidget(self.view_members_button)
+        refresh = QPushButton("刷新")
+        refresh.clicked.connect(self.refresh)
+        actions.addWidget(refresh)
+        left.addLayout(actions)
         self.member_list = QListWidget()
         self.member_list.currentItemChanged.connect(self._show_member)
-        left.addWidget(self.member_list, 1)
-        layout.addLayout(left, 2)
+        self.member_table = QTableWidget(0, 7)
+        self.member_table.setHorizontalHeaderLabels(
+            ["昵称", "真实姓名", "账号", "密码", "会员状态", "顾问绑定", "联系电话"]
+        )
+        self.member_table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
+        self.member_table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
+        self.member_table.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
+        self.member_table.setAlternatingRowColors(True)
+        self.member_table.horizontalHeader().setSectionResizeMode(
+            QHeaderView.ResizeMode.ResizeToContents
+        )
+        self.member_table.itemSelectionChanged.connect(self._select_table_member)
+        self.member_views = QStackedWidget()
+        self.member_views.addWidget(self.member_list)
+        self.member_views.addWidget(self.member_table)
+        left.addWidget(self.member_views, 1)
+        split.addWidget(left_widget)
+        right_widget = QWidget()
         right = QVBoxLayout()
+        right_widget.setLayout(right)
         right.addWidget(QLabel("会员服务详情"))
         self.member_detail = QLabel("请从左侧选择会员。")
         self.member_detail.setWordWrap(True)
         self.member_detail.setAlignment(Qt.AlignmentFlag.AlignTop)
-        self.member_detail.setMinimumWidth(430)
-        right.addWidget(self.member_detail, 1)
-        self.membership_button = QPushButton("设置 / 续期会员方案")
+        self.member_detail.setTextFormat(Qt.TextFormat.PlainText)
+        self.member_detail.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
+        detail_scroll = QScrollArea()
+        detail_scroll.setWidgetResizable(True)
+        detail_scroll.setWidget(self.member_detail)
+        right.addWidget(detail_scroll, 1)
+        member_actions = QGridLayout()
+        self.membership_button = QPushButton("设置会员方案")
         self.membership_button.clicked.connect(self._set_membership)
-        right.addWidget(self.membership_button)
-        self.bind_button = QPushButton("绑定 / 更换家庭生活顾问")
+        member_actions.addWidget(self.membership_button, 0, 0)
+        self.bind_button = QPushButton("绑定 / 更换顾问")
         self.bind_button.clicked.connect(self._bind_advisor)
-        right.addWidget(self.bind_button)
+        member_actions.addWidget(self.bind_button, 0, 1)
         self.task_button = QPushButton("创建上门任务")
         self.task_button.clicked.connect(self._create_visit_task)
-        right.addWidget(self.task_button)
-        self.member_account_button = QPushButton("停用 / 启用选中会员账号")
+        member_actions.addWidget(self.task_button, 1, 0)
+        self.member_account_button = QPushButton("停用 / 启用账号")
         self.member_account_button.clicked.connect(self._toggle_member_account)
-        right.addWidget(self.member_account_button)
-        layout.addLayout(right, 3)
+        member_actions.addWidget(self.member_account_button, 1, 1)
+        reset_button = QPushButton("重置密码")
+        reset_button.clicked.connect(lambda: self._reset_password(self.member_list))
+        member_actions.addWidget(reset_button, 2, 0, 1, 2)
+        right.addLayout(member_actions)
+        split.addWidget(right_widget)
+        split.setSizes([580, 470])
         return page
 
     def _build_advisors_tab(self) -> QWidget:
         page = QWidget()
         layout = QVBoxLayout(page)
-        action_row = QHBoxLayout()
-        create_button = QPushButton("新增家庭生活顾问")
+        layout.addLayout(
+            self._metric_row(
+                (
+                    ("advisor_count", "顾问账户"),
+                    ("pending_visit_count", "待办上门"),
+                    ("completed_visit_count", "已完成上门"),
+                )
+            )
+        )
+        split = QSplitter(Qt.Orientation.Horizontal)
+        layout.addWidget(split, 1)
+        advisor_page = QWidget()
+        advisor_box = QVBoxLayout(advisor_page)
+        action_row = QGridLayout()
+        create_button = QPushButton("新增顾问")
         create_button.clicked.connect(self._create_advisor)
-        action_row.addWidget(create_button)
-        edit_button = QPushButton("编辑选中顾问信息")
+        action_row.addWidget(create_button, 0, 0)
+        edit_button = QPushButton("编辑顾问")
         edit_button.clicked.connect(self._edit_advisor)
-        action_row.addWidget(edit_button)
-        account_button = QPushButton("停用 / 启用选中顾问账号")
+        action_row.addWidget(edit_button, 0, 1)
+        account_button = QPushButton("停用 / 启用账号")
         account_button.clicked.connect(self._toggle_advisor_account)
-        action_row.addWidget(account_button)
-        action_row.addStretch(1)
-        layout.addLayout(action_row)
+        action_row.addWidget(account_button, 1, 0)
+        reset_button = QPushButton("重置密码")
+        reset_button.clicked.connect(lambda: self._reset_password(self.advisor_list))
+        action_row.addWidget(reset_button, 1, 1)
+        advisor_box.addLayout(action_row)
         self.advisor_list = QListWidget()
-        layout.addWidget(self.advisor_list, 1)
+        self.advisor_list.itemDoubleClicked.connect(lambda _item: self._edit_advisor())
+        advisor_box.addWidget(self.advisor_list, 1)
+        split.addWidget(advisor_page)
+        split.addWidget(self._build_visits_tab())
+        split.setSizes([430, 680])
         return page
 
     def _build_visits_tab(self) -> QWidget:
         page = QWidget()
-        layout = QHBoxLayout(page)
+        layout = QVBoxLayout(page)
         tasks_box = QVBoxLayout()
-        tasks_box.addWidget(QLabel("上门任务（双击可查看详情）"))
+        task_header = QHBoxLayout()
+        task_header.addWidget(QLabel("上门预约（双击编辑）"))
+        self.task_status_filter = QComboBox()
+        self.task_status_filter.addItem("全部状态", None)
+        for code in ("pending", "in_progress", "completed", "incomplete", "disabled"):
+            self.task_status_filter.addItem(TASK_LABELS[code], code)
+        self.task_status_filter.currentIndexChanged.connect(
+            lambda _index: self._fill_tasks(self.tasks)
+        )
+        task_header.addWidget(self.task_status_filter)
+        refresh = QPushButton("刷新")
+        refresh.clicked.connect(self.refresh)
+        task_header.addWidget(refresh)
+        tasks_box.addLayout(task_header)
         self.task_list = QListWidget()
-        self.task_list.itemDoubleClicked.connect(self._show_task_detail)
+        self.task_list.itemDoubleClicked.connect(self._edit_task)
         tasks_box.addWidget(self.task_list, 1)
         layout.addLayout(tasks_box, 1)
         records_box = QVBoxLayout()
@@ -744,6 +812,10 @@ class OperatorWorkspace(QWidget):
         ):
             widget.clear()
         self.member_detail.setText("请从左侧选择会员。")
+        self.member_table.setRowCount(0)
+        self.members = []
+        self.advisors = []
+        self.tasks = []
 
     def refresh(self) -> None:
         if self.actor_user_id is None:
@@ -755,6 +827,7 @@ class OperatorWorkspace(QWidget):
             self.members = list(self.service.list_members(self.actor_user_id))
             self.advisors = list(self.service.list_advisors(self.actor_user_id))
             tasks = list(self.service.list_visit_tasks(self.actor_user_id))
+            self.tasks = tasks
             records = list(self.service.list_visit_records(self.actor_user_id))
             self._fill_members()
             self._fill_advisors()
@@ -762,7 +835,7 @@ class OperatorWorkspace(QWidget):
             self._fill_records(records)
             self.performance_panel.refresh()
             if self._refresh_commerce():
-                self._set_status("数据已刷新。", error=False)
+                self.status_label.hide()
         except Exception as exc:
             self._set_status(_error_text("读取运营数据", exc), error=True)
 
@@ -787,26 +860,92 @@ class OperatorWorkspace(QWidget):
             self._set_status(_error_text("读取商品和模拟订单", exc), error=True)
             return False
 
+    def refresh_snapshot(self, resources):
+        """Periodic read-only refresh: no details, commerce, dialogs or RPC."""
+        if self.actor_user_id is None:
+            return ()
+        from .snapshot_refresh import preserve_views
+
+        tab = self.tabs.currentIndex()
+        if tab == 0:
+            self.members = list(resources["members"])
+            with preserve_views(self.member_list, self.member_table):
+                self._fill_members()
+            if self.member_list.currentRow() < 0:
+                self.member_detail.setText("请从左侧选择会员。")
+            self._set_status(
+                "会员列表已同步；右侧完整档案保留上次在线读取结果，需主动重新选择会员读取。",
+                error=False,
+            )
+            return ("运营会员列表",)
+        if tab == 1:
+            self.advisors = list(resources["advisors"])
+            self.tasks = list(resources["appointments"])
+            with preserve_views(self.advisor_list, self.task_list):
+                self._fill_advisors()
+                self._fill_tasks(self.tasks)
+            self._set_status(
+                "顾问和任务列表已同步；历史上门明细与概览数字需主动点击刷新在线读取。",
+                error=False,
+            )
+            return ("顾问列表", "运营上门任务")
+        if tab == 4:
+            return self.performance_panel.refresh_snapshot(resources)
+        return ()  # Products, virtual orders and AI configuration are not mirrored.
+
     def _fill_members(self) -> None:
         selected_id = self._selected_id(self.member_list)
         self.member_list.clear()
+        self.member_table.blockSignals(True)
+        self.member_table.setRowCount(len(self.members))
         selected_row = -1
         for index, member in enumerate(self.members):
             name = str(member.get("display_name") or member.get("username") or "会员")
             account = ACCOUNT_LABELS.get(str(member.get("account_status")), "状态未知")
             plan = str(member.get("plan_code") or "未设置会员")
             advisor = str(member.get("advisor_name") or "未绑定顾问")
-            item = QListWidgetItem(f"{name}｜{account}\n{plan}｜{advisor}")
+            nickname = str(member.get("nickname") or name)
+            membership = MEMBERSHIP_LABELS.get(str(member.get("membership_status")), "未设置会员")
+            password = "已设置 ••••••" if member.get("password_set", True) else "未设置"
+            item = QListWidgetItem(
+                f"昵称：{nickname}｜真实姓名：{member.get('display_name') or '未填写'}\n"
+                f"账号：{member.get('username', '')}｜密码：{password}\n"
+                f"会员：{membership} · {plan}｜顾问：{advisor}｜{account}"
+            )
             item.setData(Qt.ItemDataRole.UserRole, member)
             self.member_list.addItem(item)
+            values = (
+                nickname,
+                member.get("display_name") or "未填写",
+                member.get("username"),
+                password,
+                membership,
+                advisor,
+                member.get("phone") or "未填写",
+            )
+            for column, value in enumerate(values):
+                cell = QTableWidgetItem(str(value))
+                cell.setData(Qt.ItemDataRole.UserRole, int(member["id"]))
+                self.member_table.setItem(index, column, cell)
             if int(member["id"]) == selected_id:
                 selected_row = index
         if self.members:
             self.member_list.setCurrentRow(max(0, selected_row))
+            self.member_table.selectRow(max(0, selected_row))
         else:
             item = QListWidgetItem("暂无会员账户；会员可在登录页自行注册。")
             item.setFlags(Qt.ItemFlag.NoItemFlags)
             self.member_list.addItem(item)
+        self.member_table.blockSignals(False)
+
+    def _toggle_member_table(self, checked: bool) -> None:
+        self.member_views.setCurrentIndex(1 if checked else 0)
+        self.view_members_button.setText("返回会员列表" if checked else "查看资料表")
+
+    def _select_table_member(self) -> None:
+        row = self.member_table.currentRow()
+        if row >= 0 and row < len(self.members):
+            self.member_list.setCurrentRow(row)
 
     def _fill_advisors(self) -> None:
         selected_id = self._selected_id(self.advisor_list)
@@ -817,8 +956,15 @@ class OperatorWorkspace(QWidget):
             account = ACCOUNT_LABELS.get(str(advisor.get("account_status")), "状态未知")
             organization = str(advisor.get("organization") or "机构未填写")
             workload = int(advisor.get("active_member_count") or 0)
+            validity = (
+                _display_time(advisor["valid_until"])
+                if advisor.get("valid_until")
+                else "原账号期限未设置"
+            )
             item = QListWidgetItem(
-                f"{name}｜登录账号：{advisor.get('username', '')}｜{account}\n"
+                f"昵称：{name}｜{account}\n"
+                f"账号：{advisor.get('username', '')}｜密码：已设置 ••••••\n"
+                f"期限：{validity}\n"
                 f"{organization}｜当前负责 {workload} 位会员"
             )
             item.setData(Qt.ItemDataRole.UserRole, advisor)
@@ -834,11 +980,21 @@ class OperatorWorkspace(QWidget):
 
     def _fill_tasks(self, tasks: list[dict[str, Any]]) -> None:
         self.task_list.clear()
+        selected_status = self.task_status_filter.currentData()
+        if selected_status:
+            tasks = [
+                task
+                for task in tasks
+                if ("disabled" if task.get("status") == "cancelled" else task.get("status"))
+                == selected_status
+            ]
         for task in tasks:
             status = TASK_LABELS.get(str(task.get("status")), "状态未知")
             item = QListWidgetItem(
                 f"[{status}] {_display_time(task.get('scheduled_at'))}｜{task.get('title', '')}\n"
-                f"会员：{task.get('member_name', '')}｜顾问：{task.get('advisor_name') or '未分配'}"
+                f"会员：{task.get('member_name', '')}｜"
+                f"顾问：{task.get('advisor_name') or '未分配'}\n"
+                f"地址：{task.get('address') or '未填写'}｜备注：{task.get('notes') or '无'}"
             )
             item.setData(Qt.ItemDataRole.UserRole, task)
             self.task_list.addItem(item)
@@ -940,19 +1096,74 @@ class OperatorWorkspace(QWidget):
             return
         account = ACCOUNT_LABELS.get(str(member.get("account_status")), "状态未知")
         membership = MEMBERSHIP_LABELS.get(str(member.get("membership_status")), "未设置会员")
+        nickname = member.get("nickname") or member.get("display_name") or member.get("username")
         lines = [
-            f"姓名：{member.get('display_name') or member.get('username')}",
+            f"昵称：{nickname}",
+            f"真实姓名：{member.get('display_name') or '未填写'}",
             f"登录账号：{member.get('username')}",
+            "密码：已设置 ••••••（可使用下方入口重置）",
             f"账号状态：{account}",
             f"会员方案：{member.get('plan_code') or '未设置'}",
             f"会员状态：{membership}",
-            f"到期时间（北京时间）：{_display_time(member.get('membership_ends_at'))}",
+            f"到期时间（{display_timezone_label()}）：{_display_time(member.get('membership_ends_at'))}",
             f"家庭生活顾问：{member.get('advisor_name') or '未绑定'}",
-            f"下次上门（北京时间）：{_display_time(member.get('next_visit_at'))}",
+            f"下次上门（{display_timezone_label()}）：{_display_time(member.get('next_visit_at'))}",
             f"联系电话：{member.get('phone') or '未填写'}",
             f"居住情况：{member.get('living_situation') or '未填写'}",
         ]
+        method = getattr(self.service, "get_member_overview", None)
+        if self.actor_user_id is not None and callable(method):
+            try:
+                overview = method(self.actor_user_id, int(member["id"]), recent_record_limit=20)
+                profile = overview.get("profile", {})
+                labels = (
+                    ("出生日期", "birth_date"),
+                    ("性别", "gender"),
+                    ("紧急联系人", "emergency_contact_name"),
+                    ("紧急联系电话", "emergency_contact_phone"),
+                    ("称呼偏好", "ai_preferred_name"),
+                    ("身高（厘米）", "height_cm"),
+                    ("生活目标", "health_goals"),
+                    ("饮食偏好", "dietary_preferences"),
+                    ("会员自填备注", "medical_notes"),
+                )
+                lines.extend(f"{label}：{profile.get(key) or '未填写'}" for label, key in labels)
+                lines.append("已确认生活事实")
+                facts = overview.get("confirmed_facts", [])
+                lines.extend(f"{fact.get('fact_key')}：{fact.get('value')}" for fact in facts)
+                if not facts:
+                    lines.append("暂无已确认事实")
+                lines.append("近期生活记录")
+                records = overview.get("recent_life_records", [])
+                lines.extend(
+                    f"{_display_time(record.get('occurred_at'))}｜{record.get('content')}"
+                    for record in records
+                )
+                if not records:
+                    lines.append("暂无近期记录")
+            except Exception as exc:
+                lines.append(f"完整档案暂时无法读取：{exc}")
         self.member_detail.setText("\n\n".join(lines))
+
+    def _reset_password(self, widget: QListWidget) -> None:
+        account = self._selected_data(widget)
+        if self.actor_user_id is None or not account:
+            return
+        dialog = QInputDialog(self)
+        dialog.setWindowTitle("重置账号密码")
+        dialog.setLabelText(f"为 {account.get('username')} 输入新密码（至少 8 位）：")
+        dialog.setTextEchoMode(QLineEdit.EchoMode.Password)
+        for field in dialog.findChildren(QLineEdit):
+            field.setProperty("sensitive_input", True)
+        if dialog.exec() != QDialog.DialogCode.Accepted:
+            return
+        password = dialog.textValue()
+        try:
+            self.service.reset_account_password(self.actor_user_id, int(account["id"]), password)
+            self._set_status("新密码已保存。请将新密码告知账号使用者。", error=False)
+            self.refresh()
+        except Exception as exc:
+            QMessageBox.warning(self, "重置失败", str(exc))
 
     @staticmethod
     def _selected_data(widget: QListWidget) -> dict[str, Any] | None:
@@ -980,7 +1191,7 @@ class OperatorWorkspace(QWidget):
         try:
             self.service.create_advisor(self.actor_user_id, **dialog.values)
             self.refresh()
-            self._set_status("顾问账号已创建，可立即用于登录。", error=False)
+            self._set_status("顾问账号已创建，可在设置的有效期限内登录。", error=False)
         except Exception as exc:
             QMessageBox.warning(self, "创建失败", _error_text("创建顾问", exc))
 
@@ -1011,6 +1222,11 @@ class OperatorWorkspace(QWidget):
         try:
             self.service.save_advisor_profile(
                 self.actor_user_id, int(advisor["id"]), **dialog.values
+            )
+            self.service.set_advisor_validity(
+                self.actor_user_id,
+                int(advisor["id"]),
+                valid_until=_iso_value(dialog.valid_until_input),
             )
             self.refresh()
             self._set_status("顾问信息已更新。", error=False)
@@ -1161,6 +1377,59 @@ class OperatorWorkspace(QWidget):
         except Exception as exc:
             QMessageBox.warning(self, f"{action}失败", _error_text(f"{action}账号", exc))
 
+    def _edit_task(self, item: QListWidgetItem) -> None:
+        task = item.data(Qt.ItemDataRole.UserRole)
+        if not isinstance(task, Mapping) or self.actor_user_id is None:
+            return
+        dialog = QDialog(self)
+        dialog.setWindowTitle(f"上门预约｜{task.get('member_name') or '会员'}")
+        dialog.setMinimumWidth(580)
+        form = QFormLayout(dialog)
+        form.addRow("会员", QLabel(str(task.get("member_name") or "")))
+        kind = QLineEdit(str(task.get("service_type") or task.get("title") or ""))
+        form.addRow("服务类型", kind)
+        scheduled = BeijingDateTimeEdit()
+        if task.get("scheduled_at"):
+            set_editor_datetime(scheduled, task["scheduled_at"])
+        form.addRow(f"预约时间（{display_timezone_label()}）", scheduled)
+        advisor = QComboBox()
+        advisor.addItem("暂不分配", None)
+        for entry in self.advisors:
+            advisor.addItem(str(entry.get("display_name") or entry.get("username")), entry["id"])
+        advisor.setCurrentIndex(max(0, advisor.findData(task.get("advisor_user_id"))))
+        form.addRow("服务人员", advisor)
+        form.addRow(QLabel("更换人员需先在会员服务中更换顾问绑定。"))
+        state = QComboBox()
+        for code in ("pending", "in_progress", "completed", "incomplete", "disabled"):
+            state.addItem(TASK_LABELS[code], code)
+        current = "disabled" if task.get("status") == "cancelled" else task.get("status")
+        state.setCurrentIndex(max(0, state.findData(current)))
+        form.addRow("服务状态", state)
+        address = QLineEdit(str(task.get("address") or ""))
+        form.addRow("上门地址", address)
+        notes = QTextEdit(str(task.get("notes") or ""))
+        notes.setMaximumHeight(130)
+        form.addRow("预约备注", notes)
+        form.addRow(QLabel("已完成状态由顾问提交工作记录后产生，保留完整服务审计。"))
+        form.addRow(_dialog_buttons(dialog, dialog.accept))
+        if dialog.exec() != QDialog.DialogCode.Accepted:
+            return
+        try:
+            self.service.update_appointment(
+                self.actor_user_id,
+                int(task["id"]),
+                service_type=kind.text(),
+                scheduled_at=_iso_value(scheduled),
+                advisor_id=advisor.currentData(),
+                status=state.currentData(),
+                notes=notes.toPlainText(),
+                address=address.text(),
+            )
+            self.refresh()
+            self._set_status("预约已更新，会员刷新服务页后即可看到最新安排。", error=False)
+        except Exception as exc:
+            QMessageBox.warning(self, "保存预约失败", str(exc))
+
     def _show_task_detail(self, item: QListWidgetItem) -> None:
         task = item.data(Qt.ItemDataRole.UserRole)
         if not isinstance(task, Mapping):
@@ -1174,7 +1443,7 @@ class OperatorWorkspace(QWidget):
                     f"状态：{TASK_LABELS.get(str(task.get('status')), '未知')}",
                     f"会员：{task.get('member_name', '')}",
                     f"顾问：{task.get('advisor_name') or '未分配'}",
-                    f"计划时间（北京时间）：{_display_time(task.get('scheduled_at'))}",
+                    f"计划时间（{display_timezone_label()}）：{_display_time(task.get('scheduled_at'))}",
                     f"备注：{task.get('notes') or '无'}",
                 )
             ),
@@ -1188,7 +1457,7 @@ class OperatorWorkspace(QWidget):
         lines = [
             f"会员：{record.get('member_name', '')}",
             f"顾问：{record.get('advisor_name') or '未填写'}",
-            f"上门时间（北京时间）：{_display_time(record.get('visited_at'))}",
+            f"上门时间（{display_timezone_label()}）：{_display_time(record.get('visited_at'))}",
             f"总结：{record.get('summary', '')}",
         ]
         if isinstance(details, Mapping):

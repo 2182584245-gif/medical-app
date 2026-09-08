@@ -5,6 +5,8 @@
 !server/
 server/**
 !server/*.py
+server/railway_secret_handoff.py
+server/railway_connection.py
 !src/
 src/**
 !src/ollama_chat_app/

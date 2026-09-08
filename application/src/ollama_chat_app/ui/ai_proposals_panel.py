@@ -14,7 +14,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from ..time_utils import format_beijing
+from ..time_utils import display_timezone_label, format_beijing
 
 _TYPE_LABELS = {
     "life_record": "生活记录",
@@ -244,18 +244,21 @@ def _proposal_summary(proposal: Mapping[str, Any]) -> str:
     if proposal_type == "life_record":
         category = _CATEGORY_LABELS.get(str(proposal.get("category")), "生活")
         occurred_at = format_beijing(proposal.get("occurred_at"), empty="未填写时间")
-        return f"{category} · {occurred_at}（北京时间）\n{proposal.get('content', '')}"
+        return (
+            f"{category} · {occurred_at}（{display_timezone_label()}）\n"
+            f"{proposal.get('content', '')}"
+        )
     if proposal_type == "profile_fact":
         field = str(proposal.get("fact_key", ""))
         return f"{_PROFILE_LABELS.get(field, field)}：{proposal.get('value', '')}"
     if proposal_type == "reminder":
         scheduled_at = format_beijing(proposal.get("scheduled_at"), empty="未填写时间")
-        return f"{proposal.get('title', '')} · {scheduled_at}（北京时间）"
+        return f"{proposal.get('title', '')} · {scheduled_at}（{display_timezone_label()}）"
     if proposal_type == "advisor_summary":
         period_start = format_beijing(proposal.get("period_start"), empty="未填写开始时间")
         period_end = format_beijing(proposal.get("period_end"), empty="未填写结束时间")
         return (
-            f"{period_start} 至 {period_end}（北京时间）\n"
+            f"{period_start} 至 {period_end}（{display_timezone_label()}）\n"
             f"{proposal.get('content', '')}"
         )
     return str(proposal.get("content", ""))

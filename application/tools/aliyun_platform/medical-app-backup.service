@@ -1,0 +1,18 @@
+[Unit]
+Description=Medical platform owned backup and disposable restore verification
+After=docker.service network-online.target
+Requires=docker.service
+
+[Service]
+Type=oneshot
+User=root
+WorkingDirectory=/opt/medical-app/source
+Environment=PYTHONPATH=/opt/medical-app/source
+ExecStart=/usr/bin/python3 -m tools.aliyun_platform.maintenance backup
+TimeoutStartSec=3600
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=true
+ProtectSystem=strict
+ReadWritePaths=/opt/medical-app

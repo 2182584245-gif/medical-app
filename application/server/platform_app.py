@@ -100,10 +100,10 @@ class PlatformBoundary:
             and getattr(self.settings, "railway_edge_only", False)
             and not self.settings.render_proxy
         )
-        health_request = (
-            scope.get("method") == "GET"
-            and scope["path"] in {"/health/live", "/health/ready"}
-        )
+        health_request = scope.get("method") == "GET" and scope["path"] in {
+            "/health/live",
+            "/health/ready",
+        }
         try:
             raw_host = headers.get(b"host", b"").decode("ascii")
             if not raw_host or any(ord(char) < 33 or ord(char) > 126 for char in raw_host):
@@ -119,9 +119,7 @@ class PlatformBoundary:
                     scope, receive, send
                 )
         elif railway_mode and hostname not in self.settings.allowed_hosts:
-            return await JSONResponse({"detail": "Host not permitted"}, 400)(
-                scope, receive, send
-            )
+            return await JSONResponse({"detail": "Host not permitted"}, 400)(scope, receive, send)
         if railway_mode and headers.get(b"x-forwarded-proto") == b"https":
             # Enabling both flags is the operator's explicit confirmation that
             # this service has no public TCP/direct ingress and the project
@@ -161,11 +159,7 @@ class PlatformBoundary:
             "/v1/rpc/files/upload_bytes",
             "/v1/rpc/chat/begin_message",
         }
-        if (
-            self.settings.require_https
-            and scope["scheme"] != "https"
-            and not health_request
-        ):
+        if self.settings.require_https and scope["scheme"] != "https" and not health_request:
             return await JSONResponse({"detail": "HTTPS required"}, 426)(scope, receive, send)
         if large:
             authorization = headers.get(b"authorization", b"")
@@ -203,6 +197,8 @@ class PlatformBoundary:
                     else self.settings.max_body_bytes
                 )
             )
+            if scope["path"].startswith("/v1/rpc/sync/"):
+                limit = min(limit, 1024 * 1024)
             boundary = RequestBoundary(
                 self.app,
                 settings=SimpleNamespace(
@@ -226,15 +222,23 @@ def create_app(settings=None, *, database=None):
     auth = PlatformAuth(database, settings)
     database.initialize()
     health = HealthService(database)
+    from ollama_chat_app.services.preferences import PreferencesService
+
     services = {
         "auth": AuthService(database),
         "chat": PlatformChatService(database),
         "health": health,
+        "preferences": PreferencesService(database),
         "service_management": ServiceManagementService(database),
         "commerce": CommerceService(database),
         "files": PlatformFileService(database),
         "ai": PlatformAIService(database, health, settings.token_pepper.get_secret_value()),
     }
+    from .platform_sync import PlatformSyncService
+
+    services["sync"] = PlatformSyncService(
+        database, services, settings.token_pepper.get_secret_value()
+    )
     dispatcher = RpcDispatcher(database, services)
 
     @asynccontextmanager
@@ -297,7 +301,8 @@ def create_app(settings=None, *, database=None):
                 result = dispatcher.invoke(principal.user.id, service, method, payload)
             if not isinstance(result, Mapping):
                 raise RpcError(500, "invalid_result")
-            if len(json.dumps(result, ensure_ascii=False).encode()) > 32 * 1024 * 1024:
+            maximum_result = (8 if service == "sync" else 32) * 1024 * 1024
+            if len(json.dumps(result, ensure_ascii=False).encode()) > maximum_result:
                 raise RpcError(413, "result_too_large")
             return result
         except RpcError as error:

@@ -38,6 +38,9 @@ def desktop_page(qtbot, tmp_path):
     )
     qtbot.addWidget(page)
     page.start_session(user)
+    # The test member explicitly opts in; session-isolation tests below must
+    # exercise the in-flight request rather than the separate consent dialog.
+    page.context_checkbox.setChecked(True)
     return page
 
 

@@ -112,7 +112,7 @@ def test_v2_to_current_migration_is_additive_transactional_and_idempotent(tmp_pa
         user = connection.execute("SELECT username FROM users WHERE id = 7").fetchone()
         foreign_key_issues = connection.execute("PRAGMA foreign_key_check").fetchall()
 
-    assert version == SCHEMA_VERSION == 5
+    assert version == SCHEMA_VERSION == 6
     assert {"products", "product_recommendations", "orders", "chat_attachments"} <= tables
     assert {
         "idx_products_active_category",

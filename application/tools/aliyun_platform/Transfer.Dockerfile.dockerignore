@@ -1,0 +1,11 @@
+**
+!server/
+!server/platform_transfer.py
+!server/platform_transfer_assets.py
+!server/platform_transfer_package.py
+!tools/
+!tools/aliyun_platform/
+!tools/aliyun_platform/Transfer.Dockerfile
+!tools/aliyun_platform/Transfer.Dockerfile.dockerignore
+!tools/aliyun_platform/requirements-transfer-linux-lock.txt
+!tools/aliyun_platform/transfer.py

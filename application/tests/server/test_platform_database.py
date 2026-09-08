@@ -393,16 +393,17 @@ def test_constraint_errors_keep_compatibility_but_not_raw_secrets(database):
 
 
 def test_initialize_only_reads_shape_and_forced_probe_rechecks(database):
+    from server.platform_experience_schema import PLATFORM_COLUMNS as current_columns
     database.initialize()
 
     def count():
         return sum("LIMIT 0" in sql for sql, _ in database.engine.log)
 
-    assert count() == 27
+    assert count() == len(current_columns)
     database.initialize()
-    assert count() == 27
+    assert count() == len(current_columns)
     database.initialize(force=True)
-    assert count() == 54
+    assert count() == 2 * len(current_columns)
     assert not any(re.match(r"(?:CREATE|ALTER|INSERT)\b", sql) for sql, _ in database.engine.log)
     with pytest.raises(RuntimeError, match="no local SQLite"):
         _ = database.path

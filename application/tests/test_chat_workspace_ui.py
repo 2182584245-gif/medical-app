@@ -259,7 +259,10 @@ def test_followup_reuses_persisted_image_and_requests_fresh_upload_consent(
     page.send_message()
     qtbot.waitUntil(lambda: not page._request_running)
     assert [call[0] for call in calls] == ["vision", "vision"]
-    assert calls[1][1][0]["images"] == [raw]
+    # Personalization adds a system turn; the historical user image is still
+    # included verbatim and still requires fresh upload consent.
+    historical_user = next(message for message in calls[1][1] if message["role"] == "user")
+    assert historical_user["images"] == [raw]
     assert "images" not in calls[1][1][-1]
     assert confirmations == [{"has_images": True}, {"has_images": True}]
     messages = page.chat_service.list_messages(page.current_user.id)

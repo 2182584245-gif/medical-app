@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from PySide6.QtCore import Qt, QTimer
-from PySide6.QtWidgets import QFrame, QLabel, QScrollArea, QVBoxLayout, QWidget
+from PySide6.QtCore import Qt, QTimer, Signal
+from PySide6.QtWidgets import QFrame, QLabel, QPushButton, QScrollArea, QVBoxLayout, QWidget
 
 
 class MessageBubble(QFrame):
@@ -33,17 +33,6 @@ class MessageBubble(QFrame):
         layout.addWidget(self.status_label)
         self.set_status(status)
 
-        if role == "user":
-            self.setStyleSheet(
-                "QFrame#ChatMessageBubble { background: #e8f1ff; border: 1px solid #c6dcff; "
-                "border-radius: 12px; }"
-            )
-        else:
-            self.setStyleSheet(
-                "QFrame#ChatMessageBubble { background: #ffffff; border: 1px solid #dce2eb; "
-                "border-radius: 12px; }"
-            )
-
     def set_content(self, content: str) -> None:
         self.content_label.setText(content)
 
@@ -58,6 +47,8 @@ class MessageBubble(QFrame):
 
 
 class MessageList(QScrollArea):
+    suggestion_selected = Signal(str)
+
     def __init__(self) -> None:
         super().__init__()
         self.setWidgetResizable(True)
@@ -67,16 +58,45 @@ class MessageList(QScrollArea):
         self.layout = QVBoxLayout(self.container)
         self.layout.setContentsMargins(18, 18, 18, 18)
         self.layout.setSpacing(12)
+        self.welcome = QFrame()
+        self.welcome.setObjectName("ChatWelcome")
+        welcome_layout = QVBoxLayout(self.welcome)
+        welcome_layout.setContentsMargins(24, 28, 24, 20)
+        welcome_layout.setSpacing(14)
+        title = QLabel("您好，今天想聊些什么？")
+        title.setObjectName("Title")
+        title.setWordWrap(True)
+        welcome_layout.addWidget(title)
+        hint = QLabel("猜你想问")
+        hint.setObjectName("Subtitle")
+        welcome_layout.addWidget(hint)
+        self.suggestion_buttons: list[QPushButton] = []
+        for question in (
+            "按我的记录，今天吃饭要注意什么？",
+            "最近睡得怎么样，怎样睡得更踏实？",
+            "今天想出去散步，需要注意什么？",
+            "最近哪些生活习惯可以慢慢改善？",
+            "还没查天气，出门前可以准备什么？",
+        ):
+            button = QPushButton(question)
+            button.setMinimumHeight(48)
+            button.setToolTip(question)
+            button.clicked.connect(
+                lambda _checked=False, text=question: self.suggestion_selected.emit(text)
+            )
+            welcome_layout.addWidget(button)
+            self.suggestion_buttons.append(button)
+        self.layout.addWidget(self.welcome)
         self.layout.addStretch(1)
         self.setWidget(self.container)
         self._bubbles: dict[int, MessageBubble] = {}
 
     def clear_messages(self) -> None:
-        while self.layout.count() > 1:
-            item = self.layout.takeAt(0)
-            if widget := item.widget():
-                widget.deleteLater()
+        for bubble in self._bubbles.values():
+            self.layout.removeWidget(bubble)
+            bubble.deleteLater()
         self._bubbles.clear()
+        self.welcome.show()
 
     def add_message(
         self,
@@ -86,6 +106,7 @@ class MessageList(QScrollArea):
         status: str = "complete",
     ) -> MessageBubble:
         bubble = MessageBubble(role, content, status)
+        self.welcome.hide()
         alignment = Qt.AlignmentFlag.AlignRight if role == "user" else Qt.AlignmentFlag.AlignLeft
         self.layout.insertWidget(self.layout.count() - 1, bubble, 0, alignment)
         self._bubbles[message_id] = bubble

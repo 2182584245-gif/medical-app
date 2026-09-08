@@ -155,7 +155,8 @@ def test_main_window_injects_one_commerce_service_into_all_role_workspaces(
     commerce_panel = window.health_workspace.service_page.commerce_panel
     assert commerce_panel.product_list.count() == 1
     assert commerce_panel.recommendation_list.count() == 1
-    assert commerce_panel.order_list.count() == 2
+    # The new service page is cart/favorites-focused; historical order data is preserved.
+    assert len(commerce.list_orders(member.id)) == 2
     window._logout()
 
     advisor = records["advisor"]

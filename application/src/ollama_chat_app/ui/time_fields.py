@@ -8,32 +8,43 @@ from PySide6.QtCore import QDate, QDateTime, QEvent, QLocale, QObject, Qt, QTime
 from PySide6.QtGui import QKeyEvent, QKeySequence
 from PySide6.QtWidgets import QDateEdit, QDateTimeEdit, QWidget
 
-from ..time_utils import BEIJING_TIMEZONE, as_beijing, beijing_now, beijing_today
+from ..time_utils import (
+    as_beijing,
+    beijing_now,
+    beijing_today,
+    display_timezone,
+    display_timezone_label,
+    display_timezone_name,
+)
 
 BEIJING_QTIMEZONE = QTimeZone.fromSecondsAheadOfUtc(8 * 60 * 60)
 CHINESE_LOCALE = QLocale("zh_CN")
 EMPTY_DATE = QDate(1899, 12, 31)
 
 
+def current_qtimezone() -> QTimeZone:
+    return QTimeZone(display_timezone_name().encode("utf-8"))
+
+
 def beijing_qdatetime(value: datetime | str | QDateTime | None = None) -> QDateTime:
     if isinstance(value, QDateTime):
         if not value.isValid():
             raise ValueError("请选择有效日期和时间")
-        return value.toTimeZone(BEIJING_QTIMEZONE)
+        return value.toTimeZone(current_qtimezone())
     parsed = beijing_now() if value is None else as_beijing(value)
-    return QDateTime.fromMSecsSinceEpoch(int(parsed.timestamp() * 1000), BEIJING_QTIMEZONE)
+    return QDateTime.fromMSecsSinceEpoch(int(parsed.timestamp() * 1000), current_qtimezone())
 
 
 def datetime_iso(value: QDateTime) -> str:
     """Avoid Qt local ISO strings/toPython(), which can omit timezone information."""
     if not value.isValid():
         raise ValueError("请选择有效日期和时间")
-    parsed = datetime.fromtimestamp(value.toMSecsSinceEpoch() / 1000, BEIJING_TIMEZONE)
+    parsed = datetime.fromtimestamp(value.toMSecsSinceEpoch() / 1000, display_timezone())
     return parsed.isoformat(timespec="seconds")
 
 
 def set_editor_datetime(editor: QDateTimeEdit, value: datetime | str | QDateTime) -> None:
-    editor.setTimeZone(BEIJING_QTIMEZONE)
+    editor.setTimeZone(current_qtimezone())
     editor.setDateTime(beijing_qdatetime(value))
 
 
@@ -70,15 +81,15 @@ class BeijingDateTimeEdit(_DateEntryMixin, QDateTimeEdit):
     ) -> None:
         super().__init__(parent)
         self.setLocale(CHINESE_LOCALE)
-        self.setTimeZone(BEIJING_QTIMEZONE)
+        self.setTimeZone(current_qtimezone())
         self.setDisplayFormat("yyyy-MM-dd HH:mm")
         self.setCalendarPopup(True)
         self.setKeyboardTracking(False)
         self.setMinimumDate(QDate(1900, 1, 1))
         self.setMinimumWidth(260)
         self.setMinimumHeight(40)
-        self.setToolTip("北京时间（UTC+08:00），无需设置时区；可输入年月日、小时和分钟，或点击日历选择日期。")
-        self.setAccessibleName("日期和时间（北京时间）")
+        self.setToolTip("时间按右上角所选时区显示，默认北京时间；可输入或点击日历选择日期。")
+        self.setAccessibleName(f"日期和时间（{display_timezone_label()}）")
         self.setDateTime(beijing_qdatetime(value))
         self.calendarWidget().setLocale(CHINESE_LOCALE)
 

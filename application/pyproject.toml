@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "health-life-service-platform"
-version = "1.2.0"
+version = "1.4.0"
 description = "A portable local-first health-life service desktop app with pluggable AI providers."
 requires-python = ">=3.12,<3.14"
 dependencies = [
@@ -16,6 +16,7 @@ dependencies = [
     "pypdf==6.17.0",
     "rapidocr==3.9.2",
     "onnxruntime==1.29.0",
+    "tzdata==2026.3",
 ]
 
 [project.optional-dependencies]

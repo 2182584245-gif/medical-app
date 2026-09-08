@@ -6,3 +6,4 @@ vosk==0.3.45
 pypdf==6.17.0
 rapidocr==3.9.2
 onnxruntime==1.29.0
+tzdata==2026.3

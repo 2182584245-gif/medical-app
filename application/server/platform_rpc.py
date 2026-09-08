@@ -10,6 +10,8 @@ from uuid import UUID
 from ollama_chat_app.data.database import timestamp_to_db, utc_now
 from ollama_chat_app.services.cloud_rpc_codec import decode_rpc, encode_rpc
 
+from .platform_accounts import advisor_term_valid
+
 # These are application contracts, not names supplied to a generic getattr API.
 METHODS = {
     "auth": {"create_staff", "get_user"},
@@ -47,6 +49,12 @@ METHODS = {
         "update_reminder",
     },
     "service_management": {
+        "set_advisor_validity",
+        "reset_account_password",
+        "request_appointment",
+        "list_appointments",
+        "update_appointment",
+        "get_filtered_work_statistics",
         "bind_advisor",
         "complete_visit_task",
         "create_advisor",
@@ -64,6 +72,12 @@ METHODS = {
         "start_visit_task",
     },
     "commerce": {
+        "list_cart",
+        "set_cart_quantity",
+        "add_to_cart",
+        "list_favorites",
+        "set_favorite",
+        "checkout_cart",
         "create_order",
         "create_product",
         "delete_product",
@@ -110,6 +124,9 @@ METHODS = {
         "prepare_advisor_summary",
         "finish_advisor_summary",
     },
+    "preferences": {"get_preferences", "update_preferences"},
+    "sync": {"get_snapshot", "import_member", "apply_queued", "get_sync_manifest",
+             "get_sync_page", "get_file_chunk"},
 }
 ACTOR_ARGUMENTS = {"user_id", "actor_user_id", "advisor_user_id", "operator_user_id"}
 MAX_CACHED_RESPONSE_BYTES = 128 * 1024  # matches rpc_requests database CHECK
@@ -171,15 +188,21 @@ class RpcDispatcher:
         # A single operation is one database transaction, including legacy service substeps.
         # PlatformDatabase serializes its write transactions for this small test deployment.
         with self.database.transaction() as connection:
+            # Reads and cached mutation responses both require current account
+            # state; a valid token resolved earlier is insufficient after expiry.
+            actor = connection.execute(
+                "SELECT role_code, account_status FROM users WHERE id = ?", (actor_id,)
+            ).fetchone()
+            if (
+                actor is None
+                or actor["account_status"] != "active"
+                or not advisor_term_valid(connection, actor_id, str(actor["role_code"]))
+            ):
+                raise RpcError(403, "identity_unavailable")
             if mutation:
                 # Cache hits must not bypass a subsequent role change or revoked
                 # advisor binding. Read current scope inside the write lock, not
                 # from caller input or the earlier token-resolution snapshot.
-                actor = connection.execute(
-                    "SELECT role_code, account_status FROM users WHERE id = ?", (actor_id,)
-                ).fetchone()
-                if actor is None or actor["account_status"] != "active":
-                    raise RpcError(403, "identity_unavailable")
                 bindings = connection.execute(
                     "SELECT id, member_user_id, advisor_user_id FROM advisor_bindings "
                     "WHERE status = 'active' AND (member_user_id = ? OR advisor_user_id = ?) "
@@ -218,6 +241,12 @@ class RpcDispatcher:
                         raise RpcError(409, "request_conflict")
                     return json.loads(cached["response_json"])
             result = {"result": encode_rpc(function(*bound.args, **bound.kwargs))}
+            if service == "service_management" and method == "reset_account_password":
+                connection.execute(
+                    "UPDATE platform_sessions SET revoked_at = ? WHERE user_id = ? "
+                    "AND revoked_at IS NULL",
+                    (timestamp_to_db(utc_now()), bound.arguments["target_user_id"]),
+                )
             if mutation:
                 encoded = json.dumps(result, ensure_ascii=False, separators=(",", ":"))
                 if len(encoded.encode("utf-8")) > MAX_CACHED_RESPONSE_BYTES:

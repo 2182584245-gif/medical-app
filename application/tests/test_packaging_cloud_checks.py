@@ -158,8 +158,10 @@ def test_release_instructions_and_verifier_agree_about_local_cloud_boundaries(tm
     assert result["database"]["users"] == result["database"]["life_records"] == 0
     instructions = (destination / "使用说明.txt").read_text(encoding="utf-8-sig")
     assert "没有开启 Supabase/Render 云端同步" not in instructions
-    assert "云端能力需先部署并验证可用的服务" in instructions
-    assert "程序启动默认为本地模式" in instructions
+    assert "两条云数据库彼此独立" in instructions
+    assert "首次启动默认阿里云公网模式" in instructions
+    assert "更换地址" in instructions
+    assert "加密待提交队列" in instructions and "最长12小时" in instructions
     assert "本地和云端不会自动合并" in instructions
     assert "两种模式的账号相互独立" in instructions
     assert "云端登录令牌只存在内存" in instructions
@@ -167,6 +169,17 @@ def test_release_instructions_and_verifier_agree_about_local_cloud_boundaries(tm
 
 def test_build_security_document_has_current_version_and_no_result_claim():
     instructions = (PROJECT / "packaging" / "BUILD_SECURITY.md").read_text(encoding="utf-8")
-    assert "1.2.0" in instructions and "1.1.0" not in instructions
+    assert assemble.APP_VERSION in instructions and "1.1.0" not in instructions
     assert "不是本次成品已构建、已扫描或已通过公网验收的证明" in instructions
     assert "最终 EXE" in instructions and "缺模块" in instructions
+
+
+def test_cloud_availability_instructions_are_provider_neutral_without_fixed_recovery_promise():
+    instructions = assemble._instructions()
+    assert "服务可能因暂停或配额不足暂时不可用" in instructions
+    assert "请先核对服务状态或联系维护者" in instructions
+    assert "不能保证等待固定时间即可恢复" in instructions
+    assert "系统会用原请求编号核验" in instructions
+    assert "结果不确定时不要另建重复记录" in instructions
+    assert "Render 免费服务" not in instructions
+    assert "首次连接请等待约一分钟" not in instructions

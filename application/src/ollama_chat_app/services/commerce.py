@@ -109,6 +109,153 @@ class CommerceService:
             ).fetchall()
         return [self._product_from_row(row) for row in rows]
 
+    def list_cart(self, actor_user_id: int) -> list[dict[str, Any]]:
+        with self.database.connect() as connection:
+            self._require_role(connection, actor_user_id, ROLE_MEMBER)
+            rows = connection.execute(
+                "SELECT p.*, c.quantity FROM member_cart c JOIN products p ON p.id=c.product_id "
+                "WHERE c.user_id=? ORDER BY p.name, p.id",
+                (actor_user_id,),
+            ).fetchall()
+        return [
+            dict(
+                self._product_from_row(row),
+                quantity=int(row["quantity"]),
+                total_amount_cents=int(row["price_cents"]) * int(row["quantity"]),
+            )
+            for row in rows
+        ]
+
+    def set_cart_quantity(self, actor_user_id: int, product_id: int, quantity: int) -> None:
+        product_id = self._positive_id(product_id, "商品编号")
+        if isinstance(quantity, bool) or not isinstance(quantity, int) or not 0 <= quantity <= 999:
+            raise CommerceValidationError("购物车数量必须是 0 至 999 的整数")
+        with self.database.transaction() as connection:
+            self._require_role(connection, actor_user_id, ROLE_MEMBER)
+            product = self._product_row(connection, product_id, conceal=True)
+            if quantity and not bool(product["is_active"]):
+                raise CommerceValidationError("该商品当前未上架")
+            if quantity == 0:
+                connection.execute(
+                    "DELETE FROM member_cart WHERE user_id=? AND product_id=?",
+                    (actor_user_id, product_id),
+                )
+            else:
+                connection.execute(
+                    "INSERT INTO member_cart(user_id,product_id,quantity) VALUES(?,?,?) "
+                    "ON CONFLICT(user_id,product_id) DO UPDATE SET quantity=excluded.quantity",
+                    (actor_user_id, product_id, quantity),
+                )
+
+    def add_to_cart(self, actor_user_id: int, product_id: int, quantity: int = 1) -> None:
+        quantity = self._quantity(quantity)
+        product_id = self._positive_id(product_id, "商品编号")
+        with self.database.transaction() as connection:
+            self._require_role(connection, actor_user_id, ROLE_MEMBER)
+            product = self._product_row(connection, product_id, conceal=True)
+            if not bool(product["is_active"]):
+                raise CommerceValidationError("该商品当前未上架")
+            row = connection.execute(
+                "SELECT quantity FROM member_cart WHERE user_id=? AND product_id=?",
+                (actor_user_id, product_id),
+            ).fetchone()
+            total = (int(row["quantity"]) if row else 0) + quantity
+            if total > 999:
+                raise CommerceValidationError("单种商品最多可加入 999 件")
+            connection.execute(
+                "INSERT INTO member_cart(user_id,product_id,quantity) VALUES(?,?,?) "
+                "ON CONFLICT(user_id,product_id) DO UPDATE SET quantity=excluded.quantity",
+                (actor_user_id, product_id, total),
+            )
+
+    def list_favorites(self, actor_user_id: int) -> list[dict[str, Any]]:
+        with self.database.connect() as connection:
+            self._require_role(connection, actor_user_id, ROLE_MEMBER)
+            rows = connection.execute(
+                "SELECT p.* FROM member_favorites f JOIN products p ON p.id=f.product_id "
+                "WHERE f.user_id=? ORDER BY p.name, p.id",
+                (actor_user_id,),
+            ).fetchall()
+        return [self._product_from_row(row) for row in rows]
+
+    def set_favorite(self, actor_user_id: int, product_id: int, favorite: bool) -> None:
+        if not isinstance(favorite, bool):
+            raise CommerceValidationError("收藏状态无效")
+        product_id = self._positive_id(product_id, "商品编号")
+        with self.database.transaction() as connection:
+            self._require_role(connection, actor_user_id, ROLE_MEMBER)
+            self._product_row(connection, product_id, conceal=True)
+            if favorite:
+                connection.execute(
+                    "INSERT INTO member_favorites(user_id,product_id) VALUES(?,?) "
+                    "ON CONFLICT(user_id,product_id) DO NOTHING",
+                    (actor_user_id, product_id),
+                )
+            else:
+                connection.execute(
+                    "DELETE FROM member_favorites WHERE user_id=? AND product_id=?",
+                    (actor_user_id, product_id),
+                )
+
+    def checkout_cart(self, actor_user_id: int) -> list[dict[str, Any]]:
+        """Create all virtual orders atomically; never initiate payment or delivery."""
+        with self.database.transaction() as connection:
+            self._require_role(connection, actor_user_id, ROLE_MEMBER)
+            rows = connection.execute(
+                "SELECT p.*, c.quantity FROM member_cart c JOIN products p ON p.id=c.product_id "
+                "WHERE c.user_id=? ORDER BY p.id",
+                (actor_user_id,),
+            ).fetchall()
+            if not rows:
+                raise CommerceValidationError("购物车为空")
+            if any(not bool(row["is_active"]) for row in rows):
+                raise CommerceValidationError("购物车包含已下架商品，请移除后再购买")
+            result = []
+            now = timestamp_to_db(utc_now())
+            for row in rows:
+                order_no = f"SIM-{utc_now():%Y%m%d}-{uuid4().hex[:12].upper()}"
+                total = int(row["price_cents"]) * int(row["quantity"])
+                cursor = connection.execute(
+                    "INSERT INTO orders(order_no,member_user_id,product_id,product_name_snapshot,"
+                    "quantity,unit_price_cents,total_amount_cents,currency,status,created_at,updated_at)"
+                    " VALUES(?,?,?,?,?,?,?,'CNY','created',?,?)",
+                    (
+                        order_no,
+                        actor_user_id,
+                        row["id"],
+                        row["name"],
+                        row["quantity"],
+                        row["price_cents"],
+                        total,
+                        now,
+                        now,
+                    ),
+                )
+                order_id = int(cursor.lastrowid)
+                self._audit(
+                    connection,
+                    actor_user_id,
+                    "order.created",
+                    "order",
+                    order_id,
+                    {
+                        "via": "virtual_cart",
+                        "product_id": row["id"],
+                        "quantity": row["quantity"],
+                        "total_amount_cents": total,
+                    },
+                )
+                result.append(
+                    self._order_from_row(
+                        connection.execute(
+                            "SELECT * FROM orders WHERE id=?",
+                            (order_id,),
+                        ).fetchone()
+                    )
+                )
+            connection.execute("DELETE FROM member_cart WHERE user_id=?", (actor_user_id,))
+        return result
+
     def create_product(
         self,
         actor_user_id: int,

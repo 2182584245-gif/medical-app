@@ -1,6 +1,6 @@
 # Windows 安全构建约束
 
-本说明用于构建“健康生活服务平台”1.2.0 的 Windows `onedir` 版本。
+本说明用于构建“健康生活服务平台”1.4.0 的 Windows `onedir` 版本。
 这是构建与验收要求，不是本次成品已构建、已扫描或已通过公网验收的证明；必须以对应产物的实际报告为准。
 
 ## 构建前
@@ -17,15 +17,15 @@
 - 保持 `upx=False`，不压缩或加壳。
 - 保持 `uac_admin=False`、`uac_uiaccess=False`，以普通用户权限 `asInvoker` 运行。
 - 不添加自定义 runtime hook。
-- 不收集 `keyring`；Ollama Cloud API Key 只允许保存在当前应用会话的内存中。
-- DeepSeek API Key 和云端登录令牌同样只存在会话内存；`.local`、管理员/运行数据库配置、数据库密码、平台 token pepper 和私有证书配置不得进入发行包。
+- 不收集 `keyring`；API Key 可按用户选择使用 Windows 当前用户 DPAPI 加密，存于发布包外的私有目录。
+- 云端登录令牌只存在会话内存。AI Key、DPAPI 文件、`.local`、管理员/运行数据库配置、数据库密码、平台 token pepper 和私有证书配置不得进入发行包。
 - `app.spec` 会按二进制的源路径排除 `.cache/codex-runtimes` 中的所有文件。
 
 ## 构建后必须验证
 
 - 验证 `Analysis-00.toc` 时应按字段检查：运行时 Hook、实际收集的 Python 模块、二进制和数据中不得包含 `keyring`、`multiprocessing`、`setuptools` 或 `pkg_resources`；`excludes` 配置字段中出现这些名称是正常的。任何二进制或数据的来源路径均不得包含 `.cache\\codex-runtimes`、`.codex` 或其他宿主工具缓存。
 - 成品中不应包含来自其他开发工具运行时的 OpenSSL、Poppler、ICU 或 MSVC DLL。
-- EXE 的文件属性应显示产品名、说明和 `1.2.0` 版本。
+- EXE 的文件属性应显示产品名、说明和 `1.4.0` 版本。
 - EXE 的清单必须是 `requestedExecutionLevel="asInvoker"`、`uiAccess="false"`。
 - `verify_build.py` 必须确认构建目录包含五个云端模块：`cloud_config`、`services.cloud_client`、`services.cloud_rpc_codec`、`services.remote_services`、`workers.cloud_bridge`。
 - 使用构建所用的 Python 运行 `python packaging\verify_embedded_source.py "<最终发布目录>\健康生活服务平台.exe"`，直接读取最终 EXE 中唯一的 PYZ，确认上述云端模块和主入口/登录窗口模块实际存在，且全部应用字节码与当前已测试源码一致。报告记录该 EXE 的 SHA-256；这是代码归档检查，不会启动 EXE。

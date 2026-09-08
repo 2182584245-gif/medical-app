@@ -4,7 +4,7 @@
 ; file, so an ordinary uninstall does not deliberately delete user data.
 
 #define MyAppName "健康生活服务平台"
-#define MyAppVersion "1.2.0"
+#define MyAppVersion "1.4.0"
 #define MyAppPublisher "健康生活服务平台"
 #define MyAppExeName "健康生活服务平台.exe"
 #define MyAppId "{{8D35E158-4960-4A50-9D7D-66BDE27CC2FD}"

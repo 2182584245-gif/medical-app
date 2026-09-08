@@ -7,15 +7,25 @@ from collections.abc import Mapping
 from datetime import UTC, datetime
 from typing import Any
 
-from ..data.database import Database, User, timestamp_from_db, timestamp_to_db, utc_now
+from ..data.database import (
+    Database,
+    User,
+    timestamp_from_db,
+    timestamp_to_db,
+    user_from_row,
+    utc_now,
+)
+from ..security.passwords import hash_password
 from ..time_utils import as_beijing
-from .auth import AuthService
+from .auth import AuthService, RegistrationError
 
 ROLE_MEMBER = "member"
 ROLE_ADVISOR = "advisor"
 ROLE_OPERATOR = "operator"
 ACCOUNT_ACTIVE = "active"
-VISIT_TASK_STATUSES = frozenset({"pending", "in_progress", "completed", "cancelled"})
+VISIT_TASK_STATUSES = frozenset(
+    {"pending", "in_progress", "completed", "cancelled", "incomplete", "disabled"}
+)
 MEMBERSHIP_STATUSES = frozenset({"pending", "active", "expired", "cancelled"})
 
 
@@ -135,25 +145,118 @@ class ServiceManagementService:
         organization: str | None = None,
         specialty: str | None = None,
         bio: str | None = None,
+        valid_until: datetime | str | None = None,
     ) -> User:
-        """UI facade: create an advisor account, then its validated display profile."""
+        """Create the account, profile and optional validity in one transaction."""
 
         display = self._required_text(display_name, "顾问姓名", 100)
         organization_value = self._optional_text(organization, "机构", 200)
         specialty_value = self._optional_text(specialty, "专长", 200)
         bio_value = self._optional_text(bio, "顾问简介", 4_000)
-        user = AuthService(self.database).create_staff(
-            actor_user_id, username, password, ROLE_ADVISOR
+        expires = self._datetime_to_db(valid_until, "账号有效期限") if valid_until else None
+        if expires and expires <= timestamp_to_db(utc_now()):
+            raise ManagementValidationError("账号有效期限必须晚于现在")
+        display_username, normalized, password_hash = AuthService._prepare_new_account(
+            username, password
         )
-        self.save_advisor_profile(
-            actor_user_id,
-            user.id,
-            display_name=display,
-            organization=organization_value,
-            specialty=specialty_value,
-            bio=bio_value,
-        )
-        return user
+        now = timestamp_to_db(utc_now())
+        try:
+            with self.database.transaction() as connection:
+                self._require_operator(connection, actor_user_id)
+                row = AuthService._insert_account(
+                    connection,
+                    display_username=display_username,
+                    normalized_username=normalized,
+                    password_hash=password_hash,
+                    role_code=ROLE_ADVISOR,
+                    now=now,
+                )
+                advisor_id = int(row["id"])
+                connection.execute(
+                    "INSERT INTO advisor_profiles (user_id, display_name, organization, "
+                    "specialty, bio, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?) "
+                    "ON CONFLICT(user_id) DO UPDATE SET display_name = excluded.display_name, "
+                    "organization = excluded.organization, specialty = excluded.specialty, "
+                    "bio = excluded.bio, updated_at = excluded.updated_at",
+                    (advisor_id, display, organization_value, specialty_value, bio_value, now, now),
+                )
+                if expires:
+                    connection.execute(
+                        "INSERT INTO staff_account_terms (user_id, starts_at, ends_at, "
+                        "created_at, updated_at) VALUES (?, ?, ?, ?, ?)",
+                        (advisor_id, now, expires, now, now),
+                    )
+                self._audit(
+                    connection,
+                    actor_user_id,
+                    "staff.created",
+                    "user",
+                    advisor_id,
+                    {"role_code": ROLE_ADVISOR, "valid_until": expires},
+                )
+        except sqlite3.IntegrityError as exc:
+            raise RegistrationError("账号已存在或顾问信息不符合要求") from exc
+        return user_from_row(row)
+
+    def set_advisor_validity(
+        self, actor_user_id: int, advisor_user_id: int, *, valid_until: datetime | str
+    ) -> None:
+        expires = self._datetime_to_db(valid_until, "账号有效期限")
+        now = timestamp_to_db(utc_now())
+        if expires <= now:
+            raise ManagementValidationError("账号有效期限必须晚于现在")
+        with self.database.transaction() as connection:
+            self._require_operator(connection, actor_user_id)
+            self._require_target_role(
+                connection, advisor_user_id, ROLE_ADVISOR, require_active=False
+            )
+            connection.execute(
+                "INSERT INTO staff_account_terms (user_id, starts_at, ends_at, created_at, "
+                "updated_at) VALUES (?, ?, ?, ?, ?) ON CONFLICT(user_id) DO UPDATE SET "
+                "ends_at = excluded.ends_at, updated_at = excluded.updated_at",
+                (advisor_user_id, now, expires, now, now),
+            )
+            self._audit(
+                connection,
+                actor_user_id,
+                "advisor.validity_updated",
+                "user",
+                advisor_user_id,
+                {"ends_at": expires},
+            )
+
+    def reset_account_password(
+        self, actor_user_id: int, target_user_id: int, new_password: str
+    ) -> None:
+        """Reset to a one-way hash; never read, return or audit an existing password."""
+        with self.database.transaction() as connection:
+            self._require_operator(connection, actor_user_id)
+            target = connection.execute(
+                "SELECT role_code FROM users WHERE id = ?", (target_user_id,)
+            ).fetchone()
+            if target is None or target["role_code"] not in {ROLE_MEMBER, ROLE_ADVISOR}:
+                raise ManagementValidationError("仅可重置会员或顾问账号密码")
+            password_hash = hash_password(new_password)
+            connection.execute(
+                "UPDATE users SET password_hash = ?, updated_at = ? WHERE id = ?",
+                (password_hash, timestamp_to_db(utc_now()), target_user_id),
+            )
+            self._audit(connection, actor_user_id, "account.password_reset", "user", target_user_id)
+
+    def request_appointment(self, actor_user_id: int, **values: Any) -> int:
+        from .appointment_service import AppointmentService
+
+        return AppointmentService(self.database).create_request(actor_user_id, **values)
+
+    def list_appointments(self, actor_user_id: int) -> list[dict[str, Any]]:
+        from .appointment_service import AppointmentService
+
+        return AppointmentService(self.database)._list(actor_user_id)
+
+    def update_appointment(self, actor_user_id: int, appointment_id: int, **values: Any) -> None:
+        from .appointment_service import AppointmentService
+
+        AppointmentService(self.database).update_request(appointment_id, actor_user_id, **values)
 
     def list_members(self, actor_user_id: int) -> list[dict[str, Any]]:
         """Return all permitted members: all for operators, bound for advisors, self for members."""
@@ -182,6 +285,8 @@ class ServiceManagementService:
                 f"""
                 SELECT u.id, u.username, u.account_status,
                        p.display_name, p.phone, p.living_situation,
+                       prefs.preferences_json,
+                       CASE WHEN length(u.password_hash) > 0 THEN 1 ELSE 0 END AS password_set,
                        m.id AS membership_id, m.plan_code, m.status AS membership_status,
                        m.starts_at AS membership_starts_at, m.ends_at AS membership_ends_at,
                        m.benefits_json AS membership_benefits_json,
@@ -197,6 +302,7 @@ class ServiceManagementService:
                        ) AS next_visit_at
                 FROM users u
                 LEFT JOIN member_profiles p ON p.user_id = u.id
+                LEFT JOIN user_preferences prefs ON prefs.user_id = u.id
                 LEFT JOIN memberships m ON m.id = (
                     SELECT selected_membership.id FROM memberships selected_membership
                     WHERE selected_membership.user_id = u.id
@@ -275,14 +381,16 @@ class ServiceManagementService:
                 """
                 SELECT u.id, u.username, u.account_status,
                        p.display_name, p.organization, p.specialty, p.bio,
+                       terms.starts_at AS valid_from, terms.ends_at AS valid_until,
                        COUNT(b.id) AS active_member_count
                 FROM users u
                 LEFT JOIN advisor_profiles p ON p.user_id = u.id
+                LEFT JOIN staff_account_terms terms ON terms.user_id = u.id
                 LEFT JOIN advisor_bindings b
                   ON b.advisor_user_id = u.id AND b.status = 'active'
                 WHERE u.role_code = 'advisor'
                 GROUP BY u.id, u.username, u.account_status, p.display_name,
-                         p.organization, p.specialty, p.bio
+                         p.organization, p.specialty, p.bio, terms.starts_at, terms.ends_at
                 ORDER BY COALESCE(p.display_name, u.username), u.id
                 """
             ).fetchall()
@@ -370,6 +478,106 @@ class ServiceManagementService:
                 "仅展示数据库中已记录的顾问工作事实；未生成自动绩效分数、排名、"
                 "医疗评价或健康结论。总分钟数只累计明确填写服务时长的上门记录。"
             ),
+        }
+
+    def get_filtered_work_statistics(
+        self,
+        actor_user_id: int,
+        *,
+        advisor_user_id: int | None = None,
+        member_user_id: int | None = None,
+        starts_at: datetime | str | None = None,
+        ends_at: datetime | str | None = None,
+    ) -> dict[str, Any]:
+        """Filter auditable work by assignee/member and a half-open time interval."""
+        start = self._datetime_to_db(starts_at, "开始时间") if starts_at else None
+        end = self._datetime_to_db(ends_at, "结束时间") if ends_at else None
+        if start and end and start >= end:
+            raise ManagementValidationError("结束时间必须晚于开始时间")
+        advisors = self.list_advisors(actor_user_id)
+        if advisor_user_id is not None:
+            self._positive_id(advisor_user_id, "顾问编号")
+            advisors = [row for row in advisors if row["id"] == advisor_user_id]
+        if member_user_id is not None:
+            self._positive_id(member_user_id, "会员编号")
+        with self.database.connect() as connection:
+            self._require_operator(connection, actor_user_id)
+            work: dict[int, dict[str, Any]] = {}
+            for advisor in advisors:
+                advisor_id = int(advisor["id"])
+                member_clause = " AND member_user_id = ?" if member_user_id else ""
+                params: list[object] = [advisor_id]
+                if member_user_id:
+                    params.append(member_user_id)
+                bound = connection.execute(
+                    "SELECT COUNT(*) FROM advisor_bindings WHERE advisor_user_id = ? "
+                    "AND status = 'active'" + member_clause,
+                    params,
+                ).fetchone()[0]
+                work[advisor_id] = {
+                    **advisor,
+                    "advisor_user_id": advisor_id,
+                    "active_member_count": int(bound),
+                    "pending_task_count": 0,
+                    "completed_task_count": 0,
+                    "completed_visit_record_count": 0,
+                    "recorded_visit_minutes": 0,
+                    "records_without_duration_count": 0,
+                    "records_with_duration_count": 0,
+                }
+            clauses = ["advisor_user_id IS NOT NULL"]
+            params = []
+            for key, value in (
+                ("advisor_user_id", advisor_user_id),
+                ("member_user_id", member_user_id),
+            ):
+                if value is not None:
+                    clauses.append(f"{key} = ?")
+                    params.append(value)
+            task_clauses = list(clauses)
+            record_clauses = list(clauses)
+            for operator, value in ((">=", start), ("<", end)):
+                if value:
+                    task_clauses.append(f"COALESCE(scheduled_at, created_at) {operator} ?")
+                    record_clauses.append(f"visited_at {operator} ?")
+                    params.append(value)
+            tasks = connection.execute(
+                "SELECT advisor_user_id, status FROM visit_tasks WHERE "
+                + " AND ".join(task_clauses),
+                params,
+            ).fetchall()
+            records = connection.execute(
+                "SELECT advisor_user_id, visited_at, details_json FROM visit_records WHERE "
+                + " AND ".join(record_clauses)
+                + " ORDER BY visited_at",
+                params,
+            ).fetchall()
+        daily: dict[str, int] = {}
+        for task in tasks:
+            item = work.get(int(task["advisor_user_id"]))
+            if item is not None:
+                if task["status"] in {"pending", "in_progress"}:
+                    item["pending_task_count"] += 1
+                elif task["status"] == "completed":
+                    item["completed_task_count"] += 1
+        for record in records:
+            item = work.get(int(record["advisor_user_id"]))
+            if item is None:
+                continue
+            item["completed_visit_record_count"] += 1
+            minutes = self._recorded_visit_minutes(record["details_json"])
+            if minutes is None:
+                item["records_without_duration_count"] += 1
+            else:
+                item["records_with_duration_count"] += 1
+                item["recorded_visit_minutes"] += minutes
+            day = as_beijing(timestamp_from_db(record["visited_at"])).date().isoformat()
+            daily[day] = daily.get(day, 0) + 1
+        return {
+            "advisors": list(work.values()),
+            "daily": [{"date": day, "count": count} for day, count in sorted(daily.items())],
+            "notice": "任务按预约时间（未安排时按创建时间）筛选，上门记录按实际服务时间筛选；"
+            "负责会员数反映当前绑定。时长只累计已填写记录，图表不生成绩效评分。",
         }
 
     def save_advisor_profile(
@@ -891,17 +1099,21 @@ class ServiceManagementService:
                 clauses.append("t.member_user_id = ?")
                 parameters.append(requested_member)
             if status is not None:
-                clauses.append("t.status = ?")
+                clauses.append("COALESCE(d.outcome_status, t.status) = ?")
                 parameters.append(status)
             where = " AND ".join(clauses) if clauses else "1 = 1"
             parameters.append(limit_value)
             rows = connection.execute(
                 f"""
                 SELECT t.id, t.member_user_id, t.advisor_user_id, t.title,
-                       t.scheduled_at, t.status, t.notes, t.created_at, t.updated_at,
+                       t.scheduled_at, COALESCE(d.outcome_status, t.status) AS status,
+                       t.notes, t.created_at, t.updated_at,
+                       COALESCE(d.service_type, t.title) AS service_type,
+                       d.address, d.latitude, d.longitude, d.requested_by,
                        COALESCE(mp.display_name, member.username) AS member_name,
                        COALESCE(ap.display_name, advisor.username) AS advisor_name
                 FROM visit_tasks t
+                LEFT JOIN visit_task_details d ON d.task_id = t.id
                 JOIN users member ON member.id = t.member_user_id
                 LEFT JOIN member_profiles mp ON mp.user_id = t.member_user_id
                 LEFT JOIN users advisor ON advisor.id = t.advisor_user_id
@@ -1026,6 +1238,15 @@ class ServiceManagementService:
         ).fetchone()
         if row is None or str(row["account_status"]) != ACCOUNT_ACTIVE:
             raise PermissionDeniedError
+        if row["role_code"] == ROLE_ADVISOR:
+            term = connection.execute(
+                "SELECT starts_at, ends_at FROM staff_account_terms WHERE user_id = ?", (actor_id,)
+            ).fetchone()
+            now = utc_now()
+            if term is not None and not (
+                timestamp_from_db(term["starts_at"]) <= now < timestamp_from_db(term["ends_at"])
+            ):
+                raise PermissionDeniedError
         return row
 
     @staticmethod
@@ -1279,6 +1500,16 @@ class ServiceManagementService:
         except (TypeError, ValueError):
             parsed_benefits = None
         result["membership_benefits"] = parsed_benefits if isinstance(parsed_benefits, dict) else {}
+        raw_preferences = result.pop("preferences_json", None)
+        try:
+            preferences = json.loads(str(raw_preferences)) if raw_preferences else {}
+        except (TypeError, ValueError):
+            preferences = {}
+        result["nickname"] = (
+            str(preferences.get("nickname") or preferences.get("preferred_name") or "")
+            if isinstance(preferences, dict)
+            else ""
+        )
         return result
 
     @staticmethod

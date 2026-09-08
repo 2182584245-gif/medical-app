@@ -1,4 +1,4 @@
-"""Opaque-session authentication for the full 24-table desktop-compatible API.
+"""Opaque-session authentication for the desktop-compatible platform API.
 
 The application role comes only from the current database record. This module
 has no startup side effects, public bootstrap route, cloud configuration loader,
@@ -31,7 +31,9 @@ from ollama_chat_app.security.passwords import (
 )
 from ollama_chat_app.services.auth import AuthService, RegistrationError
 
-from .platform_schema import BUSINESS_TABLES
+from .platform_accounts import advisor_term_valid
+from .platform_experience_schema import BUSINESS_TABLES
+from .platform_leases import make_offline_lease
 from .platform_security import (
     PLATFORM_RUNTIME_ROLE,
     PLATFORM_SCHEMA,
@@ -176,6 +178,8 @@ class PlatformAuth:
                 or current["role_code"] != role
             ):
                 raise PlatformAuthError(401, "用户名或密码错误")
+            if not advisor_term_valid(connection, user_id, role):
+                raise PlatformAuthError(401, "顾问账号尚未生效或已到期，请联系运营人员。")
             connection.execute(
                 "UPDATE users SET password_hash = ?, last_login_at = ?, updated_at = ? "
                 "WHERE id = ?",
@@ -191,11 +195,17 @@ class PlatformAuth:
                 f"SELECT {USER_COLUMNS} FROM users WHERE id = ?",
                 (user_id,),
             ).fetchone()
+            offline_lease = make_offline_lease(
+                connection, user_id, role, now, expiry,
+                self.settings.token_pepper.get_secret_value(),
+            )
         return {
             "access_token": token,
             "token_type": "bearer",
             "expires_at": timestamp_to_db(expiry),
             "user": user_view(user_from_row(updated)),
+            "offline_lease": offline_lease,
+            "sync_protocol": 2,
         }
 
     @_safe_operation
@@ -220,6 +230,10 @@ class PlatformAuth:
                 f"SELECT {USER_COLUMNS} FROM users WHERE id = ?",
                 (int(session["user_id"]),),
             ).fetchone()
+            if row is not None and not advisor_term_valid(
+                connection, int(row["id"]), str(row["role_code"])
+            ):
+                raise PlatformAuthError(401, "顾问账号尚未生效或已到期，请联系运营人员。")
         if row is None or row["account_status"] != "active":
             raise PlatformAuthError(401, "需要重新登录")
         user = user_from_row(row)
@@ -259,7 +273,7 @@ class PlatformAuth:
         now = timestamp_to_db(utc_now())
         with self.identity(principal), self.database.transaction() as connection:
             current = connection.execute(
-                "SELECT password_hash, account_status FROM users WHERE id = ?"
+                "SELECT password_hash, account_status, role_code FROM users WHERE id = ?"
                 + self._lock_suffix(),
                 (principal.user.id,),
             ).fetchone()
@@ -271,6 +285,7 @@ class PlatformAuth:
             if (
                 current is None
                 or current["account_status"] != "active"
+                or not advisor_term_valid(connection, principal.user.id, str(current["role_code"]))
                 or session is None
                 or not hmac.compare_digest(str(current["password_hash"]), stored_hash)
             ):

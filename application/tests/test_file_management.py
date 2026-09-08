@@ -70,7 +70,7 @@ def test_v3_to_current_migration_preserves_file_features_and_is_idempotent(tmp_p
         }
         assert int(connection.execute("PRAGMA user_version").fetchone()[0]) == SCHEMA_VERSION
 
-    assert SCHEMA_VERSION == 5
+    assert SCHEMA_VERSION == 6
     assert tuple(reminder) == ("喝水", "none", "manual", None)
     assert "user_file_contents" in tables
     assert "chat_attachments" in tables

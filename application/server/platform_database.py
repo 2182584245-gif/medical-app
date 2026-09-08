@@ -20,7 +20,7 @@ from sqlalchemy import create_engine
 from sqlalchemy.engine import Connection, Engine, make_url
 from sqlalchemy.exc import DBAPIError, IntegrityError
 
-from .platform_schema import IDENTITY_TABLES, PLATFORM_COLUMNS, PLATFORM_SCHEMA
+from .platform_experience_schema import IDENTITY_TABLES, PLATFORM_COLUMNS, PLATFORM_SCHEMA
 
 
 @dataclass(frozen=True)

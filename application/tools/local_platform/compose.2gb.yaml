@@ -1,0 +1,36 @@
+# Local capacity test override only; never a public/cloud deployment.
+# API + PostgreSQL: 1536 MiB, 2 CPU-equivalents, no swap.
+# Leave 512 MiB of a 2 GiB planning budget for OS/engine/ingress (not measured here).
+# Both servers share CPUs 0-1. The external client uses CPU 2, outside that budget.
+services:
+  prepare:
+    image: medical-app-local-backend:2gb-test
+    mem_limit: 256m
+    memswap_limit: 256m
+    cpus: 0.5
+    cpuset: "0-1"
+  bootstrap:
+    image: medical-app-local-backend:2gb-test
+    mem_limit: 256m
+    memswap_limit: 256m
+    cpus: 0.5
+    cpuset: "0-1"
+  api:
+    image: medical-app-local-backend:2gb-test
+    mem_limit: 1024m
+    memswap_limit: 1024m
+    cpus: 1.5
+    cpuset: "0-1"
+    restart: "no"
+  postgres:
+    mem_limit: 512m
+    memswap_limit: 512m
+    cpus: 0.5
+    cpuset: "0-1"
+    restart: "no"
+  smoke:
+    image: medical-app-local-backend:2gb-test
+    mem_limit: 256m
+    memswap_limit: 256m
+    cpus: 1.0
+    cpuset: "2"

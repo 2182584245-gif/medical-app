@@ -1,0 +1,112 @@
+name: medical-app-aliyun
+x-api: &api
+  image: medical-app-aliyun-api:v2
+  build:
+    context: ${SOURCE_ROOT:-/opt/medical-app/source}
+    dockerfile: tools/aliyun_platform/Dockerfile
+  restart: unless-stopped
+  user: '10001:10001'
+  read_only: true
+  tmpfs: ['/tmp:rw,noexec,nosuid,size=64m']
+  cap_drop: [ALL]
+  security_opt: ['no-new-privileges:true']
+  mem_limit: 384m
+  pids_limit: 128
+  logging:
+    driver: json-file
+    options: {max-size: 10m, max-file: '3'}
+services:
+  postgres:
+    image: postgres:17-bookworm@sha256:7bade6d532592ca8ce7ee32def7399dad2607c4ea5583839fc4352a095a11ea6
+    restart: unless-stopped
+    command: ['postgres', '-c', 'config_file=/etc/postgresql/postgresql.conf']
+    environment:
+      POSTGRES_USER: aliyun_bootstrap
+      POSTGRES_DB: medical_app_aliyun
+      POSTGRES_PASSWORD_FILE: /run/db-secrets/bootstrap-password
+      POSTGRES_INITDB_ARGS: '--auth-host=scram-sha-256 --auth-local=scram-sha-256'
+    volumes:
+      - pg-data:/var/lib/postgresql/data
+      - ./secrets/postgres:/run/db-secrets:ro
+      - ./config/postgresql.conf:/etc/postgresql/postgresql.conf:ro
+      - ./config/pg_hba.conf:/etc/postgresql/pg_hba.conf:ro
+      - ./config/init.sql:/docker-entrypoint-initdb.d/10-owned.sql:ro
+      - ./backups:/backups
+    networks: [database]
+    mem_limit: 384m
+    shm_size: 128m
+    pids_limit: 128
+    healthcheck:
+      test: ['CMD', 'pg_isready', '-U', 'aliyun_bootstrap', '-d', 'medical_app_aliyun']
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    logging:
+      driver: json-file
+      options: {max-size: 10m, max-file: '3'}
+  bootstrap:
+    <<: *api
+    profiles: [maintenance]
+    restart: 'no'
+    user: '0:0'
+    cap_add: [DAC_OVERRIDE]
+    command: ['python', '-m', 'tools.aliyun_platform.bootstrap']
+    environment: {ALIYUN_DEPLOYMENT: 'medical-app:aliyun:v1'}
+    volumes:
+      - ./deployment.json:/run/deployment.json:ro
+      - ./secrets/postgres:/run/db-secrets:ro
+      - ./secrets/api-aliyun:/run/api-secrets:ro
+    networks: [database]
+    depends_on:
+      postgres: {condition: service_healthy}
+  api-aliyun:
+    <<: *api
+    environment:
+      ALIYUN_DEPLOYMENT: 'medical-app:aliyun:v1'
+      API_TARGET: aliyun
+    volumes:
+      - ./deployment.json:/run/deployment.json:ro
+      - ./secrets/api-aliyun:/run/api-secrets:ro
+    networks: [database, edge, outbound]
+    depends_on:
+      postgres: {condition: service_healthy}
+  api-supabase:
+    <<: *api
+    profiles: [supabase]
+    environment:
+      ALIYUN_DEPLOYMENT: 'medical-app:aliyun:v1'
+      API_TARGET: supabase
+    volumes:
+      - ./deployment.json:/run/deployment.json:ro
+      - ./secrets/api-supabase:/run/api-secrets:ro
+    networks: [edge, outbound]
+  caddy:
+    image: public.ecr.aws/docker/library/caddy:2-alpine@sha256:5f5c8640aae01df9654968d946d8f1a56c497f1dd5c5cda4cf95ab7c14d58648
+    restart: unless-stopped
+    ports: ['80:80', '443:443', '443:443/udp']
+    volumes:
+      - ./config/Caddyfile:/etc/caddy/Caddyfile:ro
+      - ./config/ca.crt:/run/ca.crt:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    networks: [edge, outbound]
+    mem_limit: 128m
+    pids_limit: 128
+    security_opt: ['no-new-privileges:true']
+    logging:
+      driver: json-file
+      options: {max-size: 10m, max-file: '3'}
+networks:
+  database: {internal: true}
+  edge: {internal: true}
+  outbound: {}
+volumes:
+  pg-data:
+    name: medical-app-aliyun-pg-data
+    labels: {medical-app.ownership: 'medical-app:aliyun:v1'}
+  caddy-data:
+    name: medical-app-aliyun-caddy-data
+    labels: {medical-app.ownership: 'medical-app:aliyun:v1'}
+  caddy-config:
+    name: medical-app-aliyun-caddy-config
+    labels: {medical-app.ownership: 'medical-app:aliyun:v1'}

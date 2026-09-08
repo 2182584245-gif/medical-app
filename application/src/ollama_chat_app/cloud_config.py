@@ -5,10 +5,11 @@ from __future__ import annotations
 import os
 
 from .services.cloud_client import CloudAPIError, validate_base_url
+from .config import DEFAULT_ALIYUN_ENDPOINT
 
-# Filled only after the application's real public service URL is verified.
-# An empty default keeps development builds local-first and makes no requests.
-DEFAULT_CLOUD_BASE_URL = ""
+# Public release gate: both routes must pass real HTTPS verification before packaging.
+# Constructing a window still makes no network request.
+DEFAULT_CLOUD_BASE_URL = DEFAULT_ALIYUN_ENDPOINT
 ENVIRONMENT_VARIABLE = "HEALTHLIFE_CLOUD_BASE_URL"
 
 

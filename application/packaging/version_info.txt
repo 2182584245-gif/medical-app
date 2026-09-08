@@ -1,8 +1,8 @@
 # UTF-8 Windows VERSIONINFO resource consumed by PyInstaller.
 VSVersionInfo(
   ffi=FixedFileInfo(
-    filevers=(1, 2, 0, 0),
-    prodvers=(1, 2, 0, 0),
+    filevers=(1, 4, 0, 0),
+    prodvers=(1, 4, 0, 0),
     mask=0x3f,
     flags=0x0,
     OS=0x40004,
@@ -18,12 +18,12 @@ VSVersionInfo(
           [
             StringStruct('CompanyName', '个人非商业项目（无公司主体）'),
             StringStruct('FileDescription', '健康生活服务平台桌面应用'),
-            StringStruct('FileVersion', '1.2.0.0'),
+            StringStruct('FileVersion', '1.4.0.0'),
             StringStruct('InternalName', 'HealthLifeServicePlatform'),
             StringStruct('LegalCopyright', 'Copyright © 2026 软件作者'),
             StringStruct('OriginalFilename', '健康生活服务平台.exe'),
             StringStruct('ProductName', '健康生活服务平台'),
-            StringStruct('ProductVersion', '1.2.0'),
+            StringStruct('ProductVersion', '1.4.0'),
             StringStruct(
               'Comments',
               '个人非商业原型；与 Ollama、DeepSeek 官方不存在隶属或背书关系。'

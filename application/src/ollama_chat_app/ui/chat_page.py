@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import hashlib
+import threading
 from collections.abc import Mapping
 from contextlib import suppress
 from pathlib import Path
@@ -7,6 +9,7 @@ from typing import Any
 
 from PySide6.QtCore import QStandardPaths, Qt, QThreadPool, Signal
 from PySide6.QtWidgets import (
+    QCheckBox,
     QComboBox,
     QDialog,
     QDialogButtonBox,
@@ -17,6 +20,7 @@ from PySide6.QtWidgets import (
     QLabel,
     QListWidget,
     QListWidgetItem,
+    QMenu,
     QMessageBox,
     QPlainTextEdit,
     QPushButton,
@@ -28,6 +32,7 @@ from PySide6.QtWidgets import (
 from ..config import (
     CLOUD_MODEL_PLACEHOLDER,
     DEEPSEEK_DEFAULT_MODEL,
+    DEEPSEEK_VISION_MODEL,
     DEFAULT_LOCAL_MODEL,
     MAX_CONTEXT_MESSAGES,
     MAX_MESSAGE_LENGTH,
@@ -43,10 +48,13 @@ from ..services.chat_attachments import (
     prepare_attachment,
     validate_attachments,
 )
+from ..services.chat_personalization import needs_life_context, personalized_system_message
+from ..services.offline_outbox import QueuedOperation
 from ..services.voice import OfflineSpeechRecognizer
 from ..time_utils import beijing_now
 from ..workers.task import FunctionTask
 from .ai_proposals_panel import AiProposalsPanel
+from .chat_settings_dialog import ChatSettingsDialog
 from .cloud_key_dialog import CloudKeyDialog
 from .deepseek_key_dialog import DeepSeekKeyDialog
 from .message_list import MessageList
@@ -56,6 +64,8 @@ from .voice_input import VoiceInputController
 class ChatPage(QWidget):
     logout_requested = Signal()
     data_changed = Signal()
+    preferences_changed = Signal(dict)
+    stream_progress = Signal(object)
 
     def __init__(
         self,
@@ -64,6 +74,7 @@ class ChatPage(QWidget):
         backup_service: PortableBackupService | None = None,
         ai_assistant_service: object | None = None,
         file_management_service: object | None = None,
+        preferences_service: object | None = None,
     ) -> None:
         super().__init__()
         self.chat_service = chat_service
@@ -71,6 +82,10 @@ class ChatPage(QWidget):
         self.backup_service = backup_service
         self.ai_assistant_service = ai_assistant_service
         self.file_management_service = file_management_service
+        self.preferences_service = preferences_service
+        self._preferences: dict[str, object] = {}
+        self._cancel_event = threading.Event()
+        self.stream_progress.connect(self._stream_update)
         self.current_user: Any | None = None
         self._session_keys: dict[str, str] = {}
         self._request_running = False
@@ -108,20 +123,20 @@ class ChatPage(QWidget):
 
         self.user_label = QLabel("未登录")
         self.user_label.setStyleSheet("font-weight: 600;")
+        self.user_label.setMaximumWidth(360)
         header_layout.addWidget(self.user_label)
         header_layout.addStretch(1)
 
-        header_layout.addWidget(QLabel("模式"))
         self.mode_combo = QComboBox()
         self.mode_combo.addItem("本地 Ollama", "local")
         self.mode_combo.addItem("Ollama Cloud", "ollama_cloud")
         self.mode_combo.addItem("DeepSeek Cloud", "deepseek_cloud")
         self.mode_combo.currentIndexChanged.connect(self._mode_changed)
-        header_layout.addWidget(self.mode_combo)
+        self.mode_combo.setParent(self)
+        self.mode_combo.hide()
 
-        header_layout.addWidget(QLabel("模型"))
         self.model_stack = QStackedWidget()
-        self.model_stack.setFixedWidth(260)
+        self.model_stack.setParent(self)
 
         self.local_model_combo = QComboBox()
         self.local_model_combo.setEditable(True)
@@ -140,16 +155,21 @@ class ChatPage(QWidget):
 
         self.deepseek_model_combo = QComboBox()
         self.deepseek_model_combo.addItem(DEEPSEEK_DEFAULT_MODEL, DEEPSEEK_DEFAULT_MODEL)
+        self.deepseek_model_combo.addItem(DEEPSEEK_VISION_MODEL, DEEPSEEK_VISION_MODEL)
         self.deepseek_model_combo.setToolTip(
             "文字使用 deepseek-v4-flash；当前上下文含图片时自动使用 DeepSeek 视觉模型。"
         )
         self.model_stack.addWidget(self.deepseek_model_combo)
-        header_layout.addWidget(self.model_stack)
+        self.model_stack.hide()
 
-        self.key_button = QPushButton("API Key")
+        self.key_button = QPushButton("更换 APIKEY")
         self.key_button.clicked.connect(self._manage_cloud_key)
         self.key_button.hide()
         header_layout.addWidget(self.key_button)
+
+        self.settings_button = QPushButton("设置")
+        self.settings_button.clicked.connect(self._open_settings)
+        header_layout.addWidget(self.settings_button)
 
         self.drafts_button = QPushButton("AI 待确认")
         self.drafts_button.setToolTip("查看 AI 提出的记录、档案或提醒草稿，并逐项决定是否保存。")
@@ -167,6 +187,7 @@ class ChatPage(QWidget):
         self.backup_button.clicked.connect(self._export_data_backup)
         self.backup_button.setEnabled(self.backup_service is not None)
         header_layout.addWidget(self.backup_button)
+        self.backup_button.hide()
 
         self.import_button = QPushButton("导入数据")
         self.import_button.setToolTip(
@@ -175,10 +196,12 @@ class ChatPage(QWidget):
         self.import_button.clicked.connect(self._import_data_backup)
         self.import_button.setEnabled(self.backup_service is not None)
         header_layout.addWidget(self.import_button)
+        self.import_button.hide()
 
         self.logout_button = QPushButton("退出登录")
         self.logout_button.clicked.connect(self.logout_requested)
         header_layout.addWidget(self.logout_button)
+        self.logout_button.hide()
         root.addWidget(header)
 
         self.status_label = QLabel("本地模式不会自动检测 Ollama；发送消息时才会连接本机服务。")
@@ -203,6 +226,7 @@ class ChatPage(QWidget):
         sidebar_layout.addWidget(self.rename_conversation_button)
         body.addWidget(sidebar)
         self.message_list = MessageList()
+        self.message_list.suggestion_selected.connect(self._send_suggestion)
         body.addWidget(self.message_list, 1)
         root.addLayout(body, 1)
 
@@ -211,6 +235,27 @@ class ChatPage(QWidget):
         self.attachment_label.setWordWrap(True)
         self.attachment_label.hide()
         root.addWidget(self.attachment_label)
+        self.attachment_cards = QWidget()
+        self.attachment_cards_layout = QHBoxLayout(self.attachment_cards)
+        self.attachment_cards_layout.setContentsMargins(0, 0, 0, 0)
+        self.attachment_cards.hide()
+        root.addWidget(self.attachment_cards)
+
+        self.context_checkbox = QCheckBox("结合我的生活资料回答")
+        self.context_checkbox.setChecked(False)
+        self.context_checkbox.toggled.connect(self._save_context_consent)
+        root.addWidget(self.context_checkbox)
+        self.context_notice = QLabel(
+            "发送生活相关问题时，会把本账号的有限档案、近期记录及提醒与本轮消息发送给所选 AI；"
+            "称呼与回答偏好也会用于回复。可取消勾选。"
+        )
+        self.context_notice.setObjectName("Hint")
+        self.context_notice.setWordWrap(True)
+        self.context_checkbox.setToolTip(self.context_notice.text())
+        # The first-use consent dialog explains the full scope. Keeping another
+        # multi-line copy permanently visible crowds out chat on smaller screens.
+        self.context_notice.hide()
+        root.addWidget(self.context_notice)
 
         input_frame = QFrame()
         input_frame.setObjectName("Card")
@@ -221,19 +266,31 @@ class ChatPage(QWidget):
         self.message_input = QPlainTextEdit()
         self.message_input.setPlaceholderText("输入消息；Ctrl+Enter 发送")
         self.message_input.setMaximumBlockCount(500)
-        self.message_input.setFixedHeight(92)
+        self.message_input.setFixedHeight(76)
         input_layout.addWidget(self.message_input, 1)
 
-        self.image_button = QPushButton("附加图片")
+        self.image_button = QPushButton("＋")
         self.image_button.setToolTip(
             "JPG、PNG、WEBP，每个不超过 10 MB；发送后随消息保存在本机。"
             "DeepSeek 会使用原生视觉模型，发送前会提示上传与计费。"
         )
-        self.image_button.setFixedWidth(92)
+        self.image_button.setFixedWidth(48)
         self.image_button.setFixedHeight(44)
         self.image_button.setEnabled(hasattr(chat_service, "database"))
-        self.image_button.clicked.connect(self._choose_images)
+        self.image_button.setAccessibleName("添加图片或文件")
+        self.image_button.clicked.connect(self._choose_any_attachment)
         input_layout.addWidget(self.image_button)
+
+        self.life_actions_button = QPushButton("生活动态生成")
+        self.life_actions_button.setMinimumHeight(44)
+        life_menu = QMenu(self.life_actions_button)
+        for label in ("生成生活总结", "饮食建议", "环境建议", "用药建议"):
+            action = life_menu.addAction(f"{label} · 敬请期待")
+            action.triggered.connect(
+                lambda _checked=False, text=label: self._set_status(f"{text}：敬请期待。", "hint")
+            )
+        self.life_actions_button.setMenu(life_menu)
+        input_layout.addWidget(self.life_actions_button)
 
         self.file_button = QPushButton("附加文件")
         self.file_button.setToolTip(
@@ -244,13 +301,17 @@ class ChatPage(QWidget):
         self.file_button.setEnabled(False)
         self.file_button.clicked.connect(self._choose_files)
         attachment_actions = QHBoxLayout()
-        attachment_actions.addWidget(self.file_button)
+        self.file_button.setParent(self)
+        self.file_button.hide()
         self.clear_attachments_button = QPushButton("移除附件")
         self.clear_attachments_button.clicked.connect(self._clear_pending_images)
         self.clear_attachments_button.setEnabled(False)
-        attachment_actions.addWidget(self.clear_attachments_button)
+        self.clear_attachments_button.setParent(self)
+        self.clear_attachments_button.hide()
         attachment_hint = QLabel("每条最多 4 个附件 · 单个 10 MB · 文件文字在本机提取")
         attachment_hint.setObjectName("Hint")
+        self.image_button.setToolTip(self.image_button.toolTip() + "\n" + attachment_hint.text())
+        attachment_hint.hide()
         attachment_actions.addWidget(attachment_hint)
         attachment_actions.addStretch(1)
         root.addLayout(attachment_actions)
@@ -262,6 +323,12 @@ class ChatPage(QWidget):
         self.send_button.clicked.connect(self.send_message)
         input_layout.addWidget(self.send_button)
 
+        self.cancel_button = QPushButton("停止回答")
+        self.cancel_button.setFixedHeight(44)
+        self.cancel_button.clicked.connect(self._cancel_request)
+        self.cancel_button.hide()
+        input_layout.addWidget(self.cancel_button)
+
         self.structured_button = QPushButton("生成生活草稿")
         self.structured_button.setToolTip(
             "AI 会读取已确认的有限本地上下文；可能的记录、档案或提醒只保存为待确认草稿。"
@@ -270,7 +337,8 @@ class ChatPage(QWidget):
         self.structured_button.setFixedHeight(44)
         self.structured_button.setEnabled(ai_assistant_service is not None)
         self.structured_button.clicked.connect(self.send_structured_message)
-        input_layout.addWidget(self.structured_button)
+        self.structured_button.setParent(self)
+        self.structured_button.hide()
 
         self.voice_button = QPushButton("开始语音")
         self.voice_button.setToolTip(
@@ -302,17 +370,29 @@ class ChatPage(QWidget):
         self._conversation_drafts.clear()
         self._session_keys.clear()
         self._clear_pending_images()
-        self.user_label.setText(f"当前用户：{user.username}")
+        self._preferences = {}
+        if self.preferences_service is not None:
+            with suppress(Exception):
+                self._preferences = dict(self.preferences_service.get(user.id))
+        self.user_label.setText(f"生活助手 · {self._preferences.get('nickname') or user.username}")
+        mode_index = self.mode_combo.findData(
+            self._preferences.get("ai_provider", "deepseek_cloud")
+        )
+        mode_index = max(0, mode_index)
         self.mode_combo.blockSignals(True)
-        self.mode_combo.setCurrentIndex(0)
+        self.mode_combo.setCurrentIndex(mode_index)
         self.mode_combo.blockSignals(False)
-        self._previous_mode_index = 0
-        self.model_stack.setCurrentIndex(0)
-        self.key_button.hide()
+        self._previous_mode_index = mode_index
+        self.model_stack.setCurrentIndex(mode_index)
+        self.key_button.setVisible(mode_index != 0)
+        self.context_checkbox.blockSignals(True)
+        self.context_checkbox.setChecked(bool(self._preferences.get("ai_context_consent", False)))
+        self.context_checkbox.blockSignals(False)
+        self._apply_model_preference()
         self.message_list.clear_messages()
         self.message_input.clear()
         self._set_status(
-            "本地模式不会自动检测 Ollama；发送消息时才会连接本机服务。",
+            "欢迎聊聊今天的生活。点击发送后开始回答，右上角可设置模型或更换 APIKEY。",
             "hint",
         )
         self._refresh_conversations()
@@ -320,6 +400,111 @@ class ChatPage(QWidget):
         self._refresh_busy_controls()
         self.message_input.setFocus()
         self._refresh_drafts()
+
+    def _apply_model_preference(self) -> None:
+        model = str(self._preferences.get("ai_model") or DEEPSEEK_DEFAULT_MODEL)
+        provider = self.mode_combo.currentData()
+        if provider == "deepseek_cloud":
+            index = self.deepseek_model_combo.findData(model)
+            self.deepseek_model_combo.setCurrentIndex(max(0, index))
+        elif provider == "local":
+            self.local_model_combo.setCurrentText(
+                DEFAULT_LOCAL_MODEL if model.startswith("deepseek-") else model
+            )
+        elif model and not model.startswith("deepseek-"):
+            index = self.cloud_model_combo.findData(model)
+            if index < 0:
+                self.cloud_model_combo.addItem(model, model)
+                index = self.cloud_model_combo.count() - 1
+            self.cloud_model_combo.setCurrentIndex(index)
+
+    def _open_settings(self) -> None:
+        if not self.current_user or self._request_running:
+            return
+        settings = {**self._preferences, "ai_provider": self.mode_combo.currentData()}
+        dialog = ChatSettingsDialog(settings, self)
+        if dialog.exec() != QDialog.DialogCode.Accepted:
+            return
+        patch = dialog.values()
+        try:
+            result = (self.preferences_service.update(self.current_user.id, patch)
+                      if self.preferences_service is not None
+                      else {**self._preferences, **patch})
+            if isinstance(result, QueuedOperation):
+                self._set_status("AI 设置已加密保存在本机待提交，联网确认后生效。", "info")
+                return
+            self._preferences = dict(result)
+        except Exception:
+            self._set_status("设置未能保存，请稍后重试。", "error")
+            return
+        index = max(0, self.mode_combo.findData(patch["ai_provider"]))
+        self.mode_combo.blockSignals(True)
+        self.mode_combo.setCurrentIndex(index)
+        self.mode_combo.blockSignals(False)
+        self._previous_mode_index = index
+        self._show_mode_controls(str(patch["ai_provider"]))
+        self._apply_model_preference()
+        self.preferences_changed.emit(dict(self._preferences))
+        self._set_status("AI 设置已保存。", "ok")
+
+    def _send_suggestion(self, question: str) -> None:
+        if self._request_running or not self.current_user:
+            return
+        self.message_input.setPlainText(question)
+        self.send_message()
+
+    def _save_context_consent(self, enabled: bool) -> None:
+        if self.current_user is None:
+            return
+        patch = {"ai_context_consent": enabled, "ai_context_consent_decided": True}
+        try:
+            result = (self.preferences_service.update(self.current_user.id, patch)
+                      if self.preferences_service is not None
+                      else {**self._preferences, **patch})
+            if isinstance(result, QueuedOperation):
+                # A queued opt-out is an immediate local veto, never permission
+                # to share. Other clients learn it only after server confirmation.
+                self._preferences.update(ai_context_consent=False, ai_context_consent_decided=True)
+                self.context_checkbox.setChecked(False)
+                self._set_status("本机已停止分享；此选择已排队，联网确认后同步到云端。", "info")
+                return
+            self._preferences = dict(result)
+        except Exception:
+            self.context_checkbox.blockSignals(True)
+            self.context_checkbox.setChecked(False)
+            self.context_checkbox.blockSignals(False)
+            self._preferences["ai_context_consent"] = False
+            self._set_status("未能保存分享选择，本次不会发送生活资料。", "error")
+
+    def _ensure_context_consent(self) -> bool:
+        if self.context_checkbox.isChecked():
+            return True
+        if self._preferences.get("ai_context_consent_decided", False):
+            return False
+        answer = QMessageBox.question(
+            self,
+            "是否结合您的生活资料？",
+            "为回答这个生活问题，是否允许把本账号的有限档案、近期生活记录和提醒"
+            "发送给所选 AI？您设置的称呼及回答偏好也会用于回复。\n\n"
+            "选择“否”仍可继续一般问答。之后可用输入框上方的勾选项改变选择。",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No,
+        )
+        enabled = answer == QMessageBox.StandardButton.Yes
+        self._save_context_consent(enabled)
+        enabled = enabled and bool(self._preferences.get("ai_context_consent"))
+        self.context_checkbox.blockSignals(True)
+        self.context_checkbox.setChecked(enabled)
+        self.context_checkbox.blockSignals(False)
+        return enabled
+
+    def _credential_identity(self) -> str:
+        if self.current_user is None:
+            raise ValueError("请先登录")
+        identity = "|".join(
+            str(getattr(self.current_user, name, "")) for name in ("id", "username", "created_at")
+        )
+        return hashlib.sha256(identity.encode("utf-8")).hexdigest()
 
     def _load_conversation_messages(self) -> None:
         if not self.current_user:
@@ -471,21 +656,23 @@ class ChatPage(QWidget):
         stack_indexes = {"local": 0, "ollama_cloud": 1, "deepseek_cloud": 2}
         self.model_stack.setCurrentIndex(stack_indexes.get(mode, 0))
         self.key_button.setVisible(mode != "local")
-        if mode == "ollama_cloud":
-            self.key_button.setText("Ollama Key")
-        elif mode == "deepseek_cloud":
-            self.key_button.setText("DeepSeek Key")
-        else:
-            self.key_button.setText("API Key")
+        self.key_button.setText("更换 APIKEY")
         self._refresh_busy_controls()
 
     def _safe_get_session_key(self, provider: str) -> str | None:
         if not self.current_user:
             return None
         try:
-            return self.secret_store.get_api_key(self.current_user.id, provider)
+            current = self.secret_store.get_api_key(self.current_user.id, provider)
+            if current:
+                return current
+            if provider == "deepseek_cloud" and hasattr(self.secret_store, "get_effective_api_key"):
+                return self.secret_store.get_effective_api_key(
+                    self._credential_identity(), provider
+                )
+            return None
         except Exception as exc:
-            self._show_warning("无法读取当前会话的 API Key", str(exc))
+            self._show_warning("无法读取 API Key", str(exc))
             return None
 
     def _cloud_key(self, provider: str = "ollama_cloud") -> str | None:
@@ -648,11 +835,18 @@ class ChatPage(QWidget):
             if provider == "deepseek_cloud"
             else CloudKeyDialog(current_key, self)
         )
+        dialog.key_input.setProperty("sensitive_input", True)
         if dialog.exec() != QDialog.DialogCode.Accepted:
             return False
 
         if dialog.remove_requested:
             try:
+                if provider == "deepseek_cloud" and hasattr(
+                    self.secret_store, "delete_persistent_api_key"
+                ):
+                    self.secret_store.delete_persistent_api_key(
+                        self._credential_identity(), provider
+                    )
                 self.secret_store.delete_api_key(self.current_user.id, provider)
             except Exception as exc:
                 self._show_warning("删除失败", str(exc))
@@ -661,7 +855,9 @@ class ChatPage(QWidget):
             if provider == "ollama_cloud":
                 self.cloud_model_combo.clear()
                 self.cloud_model_combo.addItem(CLOUD_MODEL_PLACEHOLDER, None)
-            self._set_status("已清除当前提供方在本次应用会话中的 API Key。", "ok")
+            self._set_status(
+                "已移除本账号的个人 API Key；若已配置本机默认 Key，将恢复使用默认 Key。", "ok"
+            )
             return False
 
         if not dialog.api_key:
@@ -669,10 +865,16 @@ class ChatPage(QWidget):
 
         self._session_keys[provider] = dialog.api_key
         try:
+            if provider == "deepseek_cloud" and hasattr(
+                self.secret_store, "save_persistent_api_key"
+            ):
+                self.secret_store.save_persistent_api_key(
+                    self._credential_identity(), dialog.api_key, provider
+                )
             self.secret_store.set_api_key(self.current_user.id, dialog.api_key, provider)
         except Exception as exc:
             self._session_keys.pop(provider, None)
-            self._show_warning("无法在当前会话中保存 API Key", str(exc))
+            self._show_warning("无法保存 API Key", str(exc))
             return False
         if provider == "ollama_cloud":
             self._populate_cloud_models(dialog.models)
@@ -725,6 +927,9 @@ class ChatPage(QWidget):
     def _choose_images(self) -> None:
         self._choose_attachments(images_only=True)
 
+    def _choose_any_attachment(self) -> None:
+        self._choose_attachments(images_only=False)
+
     def _choose_files(self) -> None:
         if self.mode_combo.currentData() != "deepseek_cloud":
             self._set_status("文件附件仅在 DeepSeek 模式下使用。", "error")
@@ -741,11 +946,11 @@ class ChatPage(QWidget):
             return
         selected, _ = QFileDialog.getOpenFileNames(
             self,
-            "选择图片（单个不超过 10 MB）" if images_only else "选择文件（单个不超过 10 MB）",
+            "选择图片或文件（自动识别类型，单个不超过 10 MB）",
             str(Path.home()),
             "图片 (*.jpg *.jpeg *.png *.webp)"
             if images_only
-            else "支持的文件 (*.pdf *.txt *.md *.markdown *.csv *.docx)",
+            else "图片与文件 (*.jpg *.jpeg *.png *.webp *.pdf *.txt *.md *.markdown *.csv *.docx)",
         )
         if not selected:
             return
@@ -782,6 +987,12 @@ class ChatPage(QWidget):
         )
 
     def _refresh_attachment_label(self) -> None:
+        while self.attachment_cards_layout.count():
+            item = self.attachment_cards_layout.takeAt(0)
+            if item.widget():
+                item.widget().deleteLater()
+        self.attachment_label.hide()
+        self.attachment_cards.setVisible(bool(self._pending_attachments))
         if not self._pending_attachments:
             self.attachment_label.clear()
             self.attachment_label.hide()
@@ -794,8 +1005,37 @@ class ChatPage(QWidget):
                 for item in self._pending_attachments
             )
         )
-        self.attachment_label.show()
+        for index, attachment in enumerate(self._pending_attachments):
+            card = QFrame()
+            card.setObjectName("AttachmentCard")
+            card.setMaximumWidth(280)
+            layout = QHBoxLayout(card)
+            label = QLabel(
+                f"{'图片' if attachment.is_image else '文件'} · {attachment.original_name}\n"
+                f"{len(attachment.content) / 1024:.0f} KB"
+            )
+            label.setTextFormat(Qt.TextFormat.PlainText)
+            label.setWordWrap(True)
+            layout.addWidget(label, 1)
+            remove = QPushButton("×")
+            remove.setFixedSize(40, 40)
+            remove.setAccessibleName(f"删除附件 {attachment.original_name}")
+            remove.setToolTip(f"删除 {attachment.original_name}")
+            remove.setDisabled(self._request_running or self._attachment_processing)
+            remove.clicked.connect(
+                lambda _checked=False, position=index: self._remove_attachment(position)
+            )
+            layout.addWidget(remove)
+            self.attachment_cards_layout.addWidget(card)
+        self.attachment_cards_layout.addStretch(1)
         self.clear_attachments_button.setEnabled(not self._request_running)
+
+    def _remove_attachment(self, index: int) -> None:
+        if self._request_running or self._attachment_processing or self._backup_running:
+            return
+        if 0 <= index < len(self._pending_attachments):
+            self._pending_attachments.pop(index)
+            self._refresh_attachment_label()
 
     def _pending_image_bytes(self) -> list[bytes]:
         if self._pending_attachments:
@@ -821,10 +1061,13 @@ class ChatPage(QWidget):
         self.attachment_label.hide()
         if hasattr(self, "clear_attachments_button"):
             self.clear_attachments_button.setEnabled(False)
+        if hasattr(self, "attachment_cards"):
+            self._refresh_attachment_label()
 
     def _confirm_deepseek_attachments(self, *, has_images: bool) -> bool:
         detail = (
-            "图片原件（包括当前对话最近消息中的历史图片）将发送到 DeepSeek 官方视觉模型。"
+            "图片原件（包括当前对话最近消息中的历史图片）将发送到 "
+            f"{DEEPSEEK_VISION_MODEL} 图片实验版。"
             "这是原生图片理解；系统不会先把图片 OCR 成文字。"
             if has_images
             else "附件在本机提取的文字将发送到 DeepSeek。"
@@ -868,6 +1111,31 @@ class ChatPage(QWidget):
         user_id = self.current_user.id
         conversation_id = self.current_conversation_id
         generation = self._session_generation
+        preferences = dict(self._preferences)
+        if self.preferences_service is not None:
+            try:
+                preferences = dict(self.preferences_service.get(user_id))
+            except Exception:
+                self._set_status("无法读取您的回答偏好，请稍后再试。", "error")
+                return
+            self.context_checkbox.blockSignals(True)
+            self.context_checkbox.setChecked(bool(preferences.get("ai_context_consent", False)))
+            self.context_checkbox.blockSignals(False)
+        context_service = (
+            self.ai_assistant_service
+            if getattr(self.current_user, "role_code", "member") == "member"
+            else None
+        )
+        self._preferences = preferences
+        share_context = self.context_checkbox.isChecked()
+        if (
+            context_service is not None
+            and callable(getattr(context_service, "build_member_context", None))
+            and needs_life_context(content)
+        ):
+            share_context = self._ensure_context_consent()
+        cancel_event = threading.Event()
+        self._cancel_event = cancel_event
         try:
             kinds = (
                 self.chat_service.context_attachment_kinds(
@@ -907,11 +1175,20 @@ class ChatPage(QWidget):
                 history = self.chat_service.context_for_provider(
                     user_id, limit=MAX_CONTEXT_MESSAGES - 1, **options
                 )
-                model_messages = history + [ChatTurn("user", content, attachments).as_dict()]
+                system_message = personalized_system_message(
+                    user_id, content, preferences, context_service, share_context=share_context
+                )
+                model_messages = [
+                    system_message,
+                    *history,
+                    ChatTurn("user", content, attachments).as_dict(),
+                ]
                 if hasattr(provider, "validate_request"):
                     effective_model = provider.validate_request(model, model_messages)
                 elif hasattr(provider, "resolve_model"):
                     effective_model = provider.resolve_model(model, model_messages)
+                if cancel_event.is_set():
+                    raise RuntimeError("已停止回答")
                 exchange = self.chat_service.begin_message(
                     user_id,
                     content,
@@ -920,7 +1197,25 @@ class ChatPage(QWidget):
                     attachments=attachments,
                     **options,
                 )
-                answer = str(provider.chat(effective_model, model_messages))
+                progress_base = {
+                    "generation": generation,
+                    "user_id": user_id,
+                    "conversation_id": conversation_id,
+                    "exchange": exchange,
+                }
+                self.stream_progress.emit({**progress_base, "content": ""})
+                if callable(getattr(provider, "chat_stream", None)):
+                    chunks: list[str] = []
+                    for chunk in provider.chat_stream(
+                        effective_model, model_messages, cancel_event=cancel_event
+                    ):
+                        chunks.append(chunk)
+                        self.stream_progress.emit({**progress_base, "content": "".join(chunks)})
+                    answer = "".join(chunks)
+                else:
+                    answer = str(provider.chat(effective_model, model_messages))
+                if cancel_event.is_set():
+                    raise RuntimeError("已停止回答")
                 self.chat_service.complete_message(
                     user_id,
                     exchange.assistant_message.id,
@@ -974,6 +1269,31 @@ class ChatPage(QWidget):
             FunctionTask(run_request), succeeded, failed, lambda: self._set_request_running(False)
         )
 
+    def _stream_update(self, progress: object) -> None:
+        if not isinstance(progress, dict) or self.current_user is None:
+            return
+        if (
+            progress.get("generation") != self._session_generation
+            or progress.get("user_id") != self.current_user.id
+            or progress.get("conversation_id") != self.current_conversation_id
+        ):
+            return
+        exchange = progress["exchange"]
+        if exchange.user_message.id not in self.message_list._bubbles:
+            self.message_list.add_message(
+                exchange.user_message.id, "user", exchange.user_message.content
+            )
+        assistant_id = exchange.assistant_message.id
+        if assistant_id not in self.message_list._bubbles:
+            self.message_list.add_message(assistant_id, "assistant", "", "pending")
+        self.message_list.update_message(assistant_id, str(progress.get("content", "")), "pending")
+
+    def _cancel_request(self) -> None:
+        if self._request_running:
+            self._cancel_event.set()
+            self.cancel_button.setDisabled(True)
+            self._set_status("正在停止回答，已保留输入；当前连接返回后会结束。", "busy")
+
     def send_structured_message(self) -> None:
         if (
             self._request_running
@@ -998,6 +1318,10 @@ class ChatPage(QWidget):
             return
         if len(content) > 4_000:
             self._set_status("生成生活草稿时，问题不能超过 4000 个字符。", "error")
+            return
+
+        if not self._ensure_context_consent():
+            self._set_status("生活草稿需要分享本人资料；您也可以直接发送进行一般问答。", "hint")
             return
 
         selection = self._selected_provider()
@@ -1323,6 +1647,14 @@ class ChatPage(QWidget):
         self.cloud_model_combo.setDisabled(busy)
         self.deepseek_model_combo.setDisabled(busy)
         self.key_button.setDisabled(busy)
+        self.settings_button.setDisabled(busy)
+        self.context_checkbox.setDisabled(busy)
+        self.life_actions_button.setDisabled(busy)
+        self.attachment_cards.setDisabled(busy)
+        self.cancel_button.setVisible(self._request_running)
+        self.cancel_button.setDisabled(not self._request_running)
+        for suggestion in self.message_list.suggestion_buttons:
+            suggestion.setDisabled(busy)
         self.logout_button.setDisabled(busy)
         self.backup_button.setDisabled(busy or self.backup_service is None)
         self.import_button.setDisabled(busy or self.backup_service is None)

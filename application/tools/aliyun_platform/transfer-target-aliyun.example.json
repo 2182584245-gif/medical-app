@@ -1,0 +1,10 @@
+{
+  "kind": "aliyun",
+  "label": "confirmed-aliyun-platform",
+  "host": "postgres",
+  "port": 5432,
+  "database": "medical_app_aliyun",
+  "user": "aliyun_bootstrap",
+  "password_file": "/run/db-secrets/bootstrap-password",
+  "sslrootcert": "/run/api-secrets/ca.crt"
+}

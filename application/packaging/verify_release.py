@@ -22,7 +22,10 @@ EXPECTED_ROOT_ENTRIES = {
     "SHA256SUMS.txt",
     "使用说明.txt",
 }
-MAX_ARCHIVE_BYTES = 512 * 1024 * 1024
+# Qt WebEngine's offline map view, OCR and speech runtimes make the verified
+# expanded desktop package approximately 1 GiB. Keep per-file limits separate.
+MAX_ARCHIVE_BYTES = 2 * 1024 * 1024 * 1024
+MAX_MEMBER_BYTES = 512 * 1024 * 1024
 
 
 def _sha256(path: Path) -> str:
@@ -186,13 +189,16 @@ def verify_directory(root: Path) -> dict[str, object]:
         "未知发布者",
         "视觉实验模型",
         "多个对话",
-        "程序启动默认为本地模式",
+        "首次启动默认阿里云公网模式",
+        "更换地址",
         "本地和云端不会自动合并",
         "两种模式的账号相互独立",
         "云端登录令牌只存在内存",
-        "网络失败不会偷偷保存到本地",
+        "未开启离线功能时",
+        "加密待提交队列",
+        "最长12小时",
         "后端不保存AI Key",
-        "云端能力需先部署并验证可用的服务",
+        "两条云数据库彼此独立",
     ):
         if required_text not in instructions:
             raise RuntimeError(f"使用说明缺少必要提示：{required_text}")
@@ -220,7 +226,7 @@ def _validate_member(info: zipfile.ZipInfo, root_name: str) -> PurePosixPath:
     mode = (info.external_attr >> 16) & 0xFFFF
     if stat.S_ISLNK(mode):
         raise RuntimeError(f"ZIP 包含符号链接：{name}")
-    if info.file_size > MAX_ARCHIVE_BYTES:
+    if info.file_size > MAX_MEMBER_BYTES:
         raise RuntimeError(f"ZIP 成员过大：{name}")
     return path
 

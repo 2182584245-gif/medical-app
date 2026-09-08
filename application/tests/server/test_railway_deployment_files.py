@@ -102,6 +102,8 @@ def test_public_settings_use_application_root_and_require_edge_review():
     "build/module.pyc", "dist/app.exe", ".venv/Lib/site-packages/PySide6/QtCore.pyd",
     "server/__pycache__/platform_app.cpython-313.pyc", "server/local-pilot.db",
     "server/.local/secret.py", "server/nested/test.py", "server/migrations/env.py",
+    "server/railway_secret_handoff.py",
+    "server/railway_connection.py", ".local/railway-project-token.json",
     "src/ollama_chat_app/__pycache__/config.cpython-313.pyc",
     "src/ollama_chat_app/main.py", "src/ollama_chat_app/ui/main_window.py",
     "src/ollama_chat_app/workers/cloud_bridge.py", "src/ollama_chat_app/data/private.db",
@@ -133,7 +135,8 @@ def test_no_broad_directory_exception_reopens_private_children():
 
 def test_minimal_allowed_python_layout_imports_without_ui_database_or_network(tmp_path):
     # Copy only explicitly public .py code, never enumerate .local or any user DB.
-    paths = list((PROJECT / "server").glob("*.py"))
+    paths = [path for path in (PROJECT / "server").glob("*.py")
+             if _allowed(path.relative_to(PROJECT).as_posix())]
     paths += [PROJECT / rule[1:] for rule in _rules()
               if rule.startswith("!src/") and rule.endswith(".py")]
     for source in paths:

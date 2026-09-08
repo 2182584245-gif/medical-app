@@ -62,7 +62,7 @@ def configure(**kwargs) -> None:
 
 def run() -> None:
     target = context.get_revision_argument() or "base"
-    if target not in {"head", "pilot_0001", "platform_0001", "base"}:
+    if target not in {"head", "pilot_0001", "platform_0001", "platform_0002", "base"}:
         raise RuntimeError("This pilot environment supports reviewed upgrade/downgrade only.")
     command = getattr(context.config, "cmd_opts", None)
     command_tuple = getattr(command, "cmd", None)
@@ -94,7 +94,7 @@ def run() -> None:
             run_steps()
     else:
         if (
-            target in {"head", "platform_0001"}
+            target in {"head", "platform_0001", "platform_0002"}
             and os.environ.get("SERVER_PLATFORM_CONFIRM") != "medical_app_platform"
         ):
             raise RuntimeError(

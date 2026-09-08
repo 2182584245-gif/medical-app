@@ -35,13 +35,14 @@ class DeepSeekKeyDialog(QDialog):
         layout.setContentsMargins(24, 22, 24, 22)
         layout.setSpacing(12)
 
-        title = QLabel("使用你自己的 DeepSeek API Key")
+        title = QLabel("更换 DeepSeek API Key")
         title.setObjectName("Title")
         layout.addWidget(title)
 
         description = QLabel(
             "请在 DeepSeek 官方平台创建 Key 后粘贴到这里。应用不会获取你的官网密码，"
-            "Key 只保留在本次运行的内存中，关闭应用后自动清除。\n"
+            "验证后使用 Windows 当前账户加密保存，重开应用仍可使用；"
+            "此处更换只作用于当前应用账号。\n"
             "点击“极小请求验证并使用”会调用一次 deepseek-v4-flash，并限制为 2 个输出 token，"
             "因此可能产生极少量用量。"
         )
@@ -64,9 +65,10 @@ class DeepSeekKeyDialog(QDialog):
 
         layout.addWidget(QLabel("API Key"))
         self.key_input = QLineEdit()
+        self.key_input.setProperty("sensitive_input", True)
         self.key_input.setEchoMode(QLineEdit.EchoMode.Password)
         self.key_input.setPlaceholderText(
-            "当前运行会话已有 Key；可留空继续使用" if current_key else "粘贴你的 API Key"
+            "已有可用 Key；可留空继续使用" if current_key else "粘贴你的 API Key"
         )
         self.key_input.setClearButtonEnabled(True)
         layout.addWidget(self.key_input)
@@ -78,7 +80,7 @@ class DeepSeekKeyDialog(QDialog):
 
         buttons = QHBoxLayout()
         if current_key:
-            remove_button = QPushButton("清除当前会话的 Key")
+            remove_button = QPushButton("移除个人 Key")
             remove_button.setObjectName("DangerButton")
             remove_button.clicked.connect(self._request_remove)
             buttons.addWidget(remove_button)
@@ -102,7 +104,8 @@ class DeepSeekKeyDialog(QDialog):
         answer = QMessageBox.question(
             self,
             "删除 API Key",
-            "清除当前会话中的这个 Key？这不会撤销 DeepSeek 官方平台上的 Key。",
+            "移除此应用账号的个人 Key？如本机已配置默认 Key，将恢复使用默认 Key。"
+            "这不会撤销 DeepSeek 官方平台上的 Key。",
         )
         if answer == QMessageBox.StandardButton.Yes:
             self.remove_requested = True

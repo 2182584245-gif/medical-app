@@ -21,6 +21,8 @@ class SyntheticDatabase:
         self.connection.row_factory = sqlite3.Row
         self.connection.execute("PRAGMA foreign_keys=ON")
         Database._create_schema_v5(self.connection)
+        from ollama_chat_app.data.experience_schema import migrate_experience
+        migrate_experience(self.connection)
         self.connection.execute(
             "CREATE TABLE platform_sessions (token_digest TEXT PRIMARY KEY, "
             "user_id INTEGER REFERENCES users(id), created_at TEXT, "

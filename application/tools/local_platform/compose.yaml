@@ -1,0 +1,131 @@
+# LOCAL LAB ONLY. Never use this file as a public Tencent Cloud deployment.
+name: medical-app-local-lab
+
+x-backend: &backend
+  image: medical-app-local-backend:1.2.0
+  build:
+    context: ../..
+    dockerfile: tools/local_platform/Dockerfile
+  environment:
+    LOCAL_CONTAINER_ONLY: "1"
+    TZ: Asia/Shanghai
+  read_only: true
+  tmpfs:
+    - /tmp:size=64m,mode=1777
+  cap_drop: [ALL]
+  security_opt: [no-new-privileges:true]
+  logging:
+    driver: local
+    options:
+      max-size: "10m"
+      max-file: "3"
+
+services:
+  prepare:
+    <<: *backend
+    user: "0:0"
+    cap_add: [CHOWN, DAC_OVERRIDE, FOWNER]
+    network_mode: none
+    command: [python, -m, tools.local_platform.prepare]
+    volumes:
+      - ca-private:/run/ca-private
+      - db-secrets:/run/db-secrets
+      - api-secrets:/run/api-secrets
+      - smoke-state:/run/smoke-state
+
+  postgres:
+    image: postgres:17-bookworm@sha256:051f7b7b3abdd564d5d1bd1e8c4b9c1b6e77087d1dd22020ede611c096a272e0
+    environment:
+      POSTGRES_USER: local_bootstrap
+      POSTGRES_DB: medical_app_local
+      POSTGRES_PASSWORD_FILE: /run/db-secrets/postgres-password
+      POSTGRES_INITDB_ARGS: --auth-host=scram-sha-256
+      TZ: Asia/Shanghai
+    command:
+      - postgres
+      - -c
+      - ssl=on
+      - -c
+      - ssl_cert_file=/run/db-secrets/server.crt
+      - -c
+      - ssl_key_file=/run/db-secrets/server.key
+      - -c
+      - hba_file=/etc/medical-app/pg_hba.conf
+      - -c
+      - medical_app.local_container=medical-app-local-v1
+      - -c
+      - max_connections=30
+      - -c
+      - log_min_error_statement=panic
+    depends_on:
+      prepare:
+        condition: service_completed_successfully
+    volumes:
+      - pg-data:/var/lib/postgresql/data
+      - db-secrets:/run/db-secrets:ro
+      - ./initdb.sql:/docker-entrypoint-initdb.d/10-medical-app-local.sql:ro
+      - ./pg_hba.conf:/etc/medical-app/pg_hba.conf:ro
+    networks: [isolated]
+    healthcheck:
+      test: [CMD-SHELL, "pg_isready -U local_bootstrap -d medical_app_local"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+      start_period: 10s
+    restart: unless-stopped
+    security_opt: [no-new-privileges:true]
+    logging:
+      driver: local
+      options: {max-size: "10m", max-file: "3"}
+
+  bootstrap:
+    <<: *backend
+    user: "0:0"
+    cap_add: [DAC_OVERRIDE]
+    command: [python, -m, tools.local_platform.bootstrap]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - db-secrets:/run/db-secrets:ro
+      - api-secrets:/run/api-secrets:ro
+    networks: [isolated]
+
+  api:
+    <<: *backend
+    depends_on:
+      bootstrap:
+        condition: service_completed_successfully
+    volumes:
+      - api-secrets:/run/api-secrets:ro
+    networks: [isolated]
+    healthcheck:
+      test: [CMD, python, -m, tools.local_platform.healthcheck]
+      interval: 15s
+      timeout: 10s
+      retries: 5
+      start_period: 20s
+    restart: unless-stopped
+
+  smoke:
+    <<: *backend
+    profiles: [test]
+    command: [python, -m, tools.local_platform.smoke]
+    depends_on:
+      api:
+        condition: service_healthy
+    volumes:
+      - api-secrets:/run/api-secrets:ro
+      - smoke-state:/run/smoke-state
+    networks: [isolated]
+
+networks:
+  isolated:
+    internal: true
+
+volumes:
+  pg-data:
+  ca-private:
+  db-secrets:
+  api-secrets:
+  smoke-state:

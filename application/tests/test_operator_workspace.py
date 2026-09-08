@@ -235,10 +235,15 @@ def test_operator_can_manage_products_and_simulate_delivery(qtbot, monkeypatch) 
 
     assert "家用保温杯" in workspace.product_list.item(0).text()
     assert "已上架" in workspace.product_list.item(0).text()
-    assert workspace.tabs.tabText(5) == "模拟订单"
+    assert "模拟订单" in [workspace.tabs.tabText(index) for index in range(workspace.tabs.count())]
+    order_index = next(
+        index
+        for index in range(workspace.tabs.count())
+        if workspace.tabs.tabText(index) == "模拟订单"
+    )
     assert any(
         "没有真实支付" in label.text()
-        for label in workspace.tabs.widget(5).findChildren(type(workspace.status_label))
+        for label in workspace.tabs.widget(order_index).findChildren(type(workspace.status_label))
     )
 
     workspace.product_list.setCurrentRow(0)

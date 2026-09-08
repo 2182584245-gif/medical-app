@@ -5,14 +5,20 @@ from pathlib import Path
 
 from PySide6.QtCore import QStandardPaths, QThreadPool, Signal
 from PySide6.QtWidgets import (
+    QApplication,
+    QDateEdit,
+    QDateTimeEdit,
     QFileDialog,
     QFrame,
     QHBoxLayout,
+    QInputDialog,
     QLabel,
     QMainWindow,
     QMessageBox,
     QPushButton,
+    QSizePolicy,
     QStackedWidget,
+    QToolBar,
     QVBoxLayout,
     QWidget,
 )
@@ -85,6 +91,9 @@ class MainWindow(QMainWindow):
         file_management_service: object | None = None,
         ai_assistant_service: object | None = None,
         cloud_base_url: str = "",
+        preferences_service: object | None = None,
+        appointment_service: object | None = None,
+        endpoint_store=None,
     ) -> None:
         super().__init__()
         self.auth_service = auth_service
@@ -96,19 +105,29 @@ class MainWindow(QMainWindow):
         self.commerce_service = commerce_service
         self.file_management_service = file_management_service
         self.ai_assistant_service = ai_assistant_service
+        self.preferences_service = preferences_service
+        self._current_user = None
+        self.cloud_sync_service = None
+        self.local_migration_source_path = None
+        self._last_snapshot_revision = None
         self.cloud_mode = bool(getattr(auth_service, "uses_network", False))
         self._tasks: list[FunctionTask] = []
         self._active_workspace: QWidget | None = None
 
         self.setWindowTitle(APP_NAME)
-        self.resize(1240, 820)
+        screen = QApplication.primaryScreen()
+        available = screen.availableGeometry() if screen else None
+        self.resize(
+            min(1500, available.width() - 40) if available else 1500,
+            min(960, available.height() - 60) if available else 960,
+        )
         self.setMinimumSize(980, 680)
 
         self.pages = QStackedWidget()
         self.setCentralWidget(self.pages)
 
-        self.login_page = LoginPage()
-        self.login_page.set_import_available(backup_service is not None and not self.cloud_mode)
+        self.login_page = LoginPage(endpoint_store=endpoint_store)
+        self.login_page.set_import_available(False)
         self.login_page.set_connection_context(
             "cloud" if self.cloud_mode else "local", cloud_base_url
         )
@@ -120,6 +139,7 @@ class MainWindow(QMainWindow):
             backup_service,
             ai_assistant_service,
             file_management_service,
+            preferences_service=preferences_service,
         )
         self.health_workspace = (
             HealthWorkspace(
@@ -128,6 +148,9 @@ class MainWindow(QMainWindow):
                 backup_service,
                 commerce_service=commerce_service,
                 file_management_service=file_management_service,
+                preferences_service=preferences_service,
+                ai_service=ai_assistant_service,
+                appointment_service=appointment_service,
             )
             if health_service is not None
             else None
@@ -155,6 +178,8 @@ class MainWindow(QMainWindow):
                 self.pages.addWidget(workspace)
 
         self.login_page.login_requested.connect(self._login)
+        self.login_page.set_login_options_enabled(self.cloud_mode)
+        self.login_page.login_options_requested.connect(self._login_with_options)
         self.login_page.register_requested.connect(self._show_register)
         self.login_page.import_requested.connect(self._import_data_from_login)
         self.login_page.operator_setup_requested.connect(self._open_operator_setup)
@@ -171,16 +196,204 @@ class MainWindow(QMainWindow):
         # logout method safely handles the member workspace forwarding it too.
         self.chat_page.logout_requested.connect(self._logout)
 
-        if self.cloud_mode:
-            # These ZIP operations target the entire LOCAL database, not a
-            # cloud-account export. Do not present them as cloud backup tools.
-            for surface in (self.login_page, self.chat_page, *self._role_workspaces.values()):
-                for name in ("backup_button", "export_button", "import_button"):
-                    button = getattr(surface, name, None)
-                    if button is not None:
-                        button.hide()
+        # The old whole-database ZIP import/export UI has been retired.
+        # Internal safety snapshots remain available to migration tooling.
+        for surface in (self.login_page, self.chat_page, *self._role_workspaces.values()):
+            for name in ("backup_button", "export_button", "import_button"):
+                button = getattr(surface, name, None)
+                if button is not None:
+                    button.hide()
+
+        toolbar = QToolBar("应用设置", self)
+        toolbar.setMovable(False)
+        self.offline_status_label = QLabel()
+        self.offline_status_label.setWordWrap(True)
+        self.offline_status_label.setMaximumWidth(620)
+        self.offline_status_label.setAccessibleName("离线授权与待提交状态")
+        self.offline_status_label.setStyleSheet(
+            "QLabel { color: #654c22; background: #fff1cd; padding: 8px; border-radius: 8px; }"
+        )
+        self.offline_status_label.hide()
+        toolbar.addWidget(self.offline_status_label)
+        spacer = QWidget()
+        spacer.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
+        toolbar.addWidget(spacer)
+        self.sync_button = QPushButton("数据与同步")
+        self.sync_button.clicked.connect(self._open_data_sync)
+        toolbar.addWidget(self.sync_button)
+        self.timezone_button = QPushButton("时区 · 北京")
+        self.timezone_button.setAccessibleName("设置时区，默认北京时间")
+        self.timezone_button.clicked.connect(self._choose_timezone)
+        toolbar.addWidget(self.timezone_button)
+        self.addToolBar(toolbar)
+        if hasattr(self.chat_page, "preferences_changed"):
+            self.chat_page.preferences_changed.connect(self.apply_preferences)
+        if self.health_workspace is not None:
+            self.health_workspace.my_platform_page.preferences_changed.connect(
+                self.apply_preferences
+            )
 
         self._show_login()
+
+    def configure_cloud_sync(self, client, *, sync_service=None):
+        from ..paths import user_data_dir
+        from ..services.cloud_sync import CloudMirrorStore, CloudSyncService
+
+        self.cloud_sync_service = sync_service or CloudSyncService(
+            client, CloudMirrorStore(user_data_dir() / "cloud-mirrors"), self
+        )
+        self.cloud_sync_service.setParent(self)
+        self.cloud_sync_service.status_changed.connect(self._sync_status_changed)
+        self.cloud_sync_service.authorization_lost.connect(self._cloud_authorization_lost)
+        self.cloud_sync_service.snapshot_changed.connect(self._snapshot_arrived)
+        self.cloud_sync_service.reauthentication_required.connect(self._reauthentication_required)
+        self.cloud_sync_service.outbox_changed.connect(self._outbox_changed)
+        self.chat_page.data_changed.connect(self.cloud_sync_service.sync_now)
+
+    def _sync_status_changed(self, state):
+        labels = {
+            "online": "已同步",
+            "syncing": "同步中",
+            "connecting": "连接中",
+            "offline": "离线镜像",
+            "unauthorized": "需登录",
+            "blocked": "需检查",
+        }
+        self.sync_button.setText("数据与同步 · " + labels.get(state["state"], "未连接"))
+        self.sync_button.setToolTip(state["message"])
+        pending, conflicts = state.get("pending_count", 0), state.get("conflict_count", 0)
+        parts = []
+        if state["state"] == "offline":
+            from ..time_utils import format_beijing
+
+            parts.append("当前离线，显示上次同步的记录")
+            expiry = state.get("offline_expires_at")
+            if expiry:
+                parts.append("离线查看到期：" + format_beijing(expiry))
+        if pending:
+            parts.append(f"{pending} 项尚未提交云端（其中 {conflicts} 项需处理）")
+        self.offline_status_label.setText("\n".join(parts))
+        self.offline_status_label.setVisible(bool(parts))
+
+    def _outbox_changed(self, _summary):
+        if self.cloud_sync_service is not None:
+            self._sync_status_changed(self.cloud_sync_service.state())
+
+    def _reauthentication_required(self, message):
+        if self._active_workspace is not None:
+            self._logout()
+        self.login_page.allow_offline_checkbox.setChecked(False)
+        self.login_page.clear_password()
+        self.login_page.show_error(message)
+
+    def _snapshot_arrived(self, snapshot):
+        from .snapshot_refresh import refresh_current_workspace
+
+        refresh_current_workspace(self, snapshot)
+        if snapshot["revision"] == self._last_snapshot_revision:
+            return
+        self._last_snapshot_revision = snapshot["revision"]
+        self.statusBar().showMessage("已载入完整云端镜像；离线修改会单独列为待提交。", 6000)
+
+    def _cloud_authorization_lost(self):
+        if self._active_workspace is not None:
+            self._logout()
+        self.login_page.show_error("云端身份或权限已失效。已锁定镜像，请重新在线登录。")
+
+    def _open_data_sync(self):
+        if not self.cloud_mode:
+            QMessageBox.information(
+                self,
+                "本地数据",
+                "当前使用本机数据库。\n\n"
+                "要连接云端，请退出登录，在登录页选择阿里云或 Supabase 数据源并登录云端账户。"
+                "之后可在这里验证本机源账户、预览首次迁移；不会自动上传历史数据。\n\n"
+                "原一键打包功能已移除，数据迁移不会删除本机原件。",
+            )
+            return
+        if self._current_user is None or self.cloud_sync_service is None:
+            QMessageBox.information(self, "数据与同步", "请先在线登录云端账户。")
+            return
+        from .data_sync_dialog import DataSyncDialog
+
+        options = {}
+        source_path = self.local_migration_source_path
+        if source_path is not None and self._current_user.role_code == "member":
+            from ..paths import user_data_dir
+            from ..services.cloud_migration import (
+                MemberMigrationPlanner,
+                MemberMigrationService,
+                MigrationJournal,
+            )
+            from .local_migration_auth import authenticate_local_migration
+
+            journal = MigrationJournal(
+                user_data_dir() / "cloud-mirrors" / "migration-journal.sqlite"
+            )
+            options = {
+                "planner": MemberMigrationPlanner(source_path, journal),
+                "migration_service": MemberMigrationService(
+                    self.cloud_client, journal, sync_service=self.cloud_sync_service
+                ),
+                "source_authenticator": lambda: authenticate_local_migration(source_path, self),
+            }
+        DataSyncDialog(self.cloud_sync_service, self, **options).exec()
+
+    def apply_preferences(self, preferences: dict) -> None:
+        from ..time_utils import set_display_timezone
+        from .theme import build_style
+        from .time_fields import current_qtimezone
+
+        name = str(preferences.get("timezone", "Asia/Shanghai"))
+        set_display_timezone(name)
+        self.timezone_button.setText("时区 · " + ("北京" if name == "Asia/Shanghai" else name))
+        self.setStyleSheet(
+            build_style(
+                preferences.get("font_size", 20),
+                preferences.get("theme_color", "sage"),
+                preferences.get("brightness", 100),
+            )
+        )
+        for editor in self.findChildren(QDateTimeEdit):
+            if isinstance(editor, QDateEdit):
+                # Birthdays and other civil dates are not instants.
+                continue
+            # A timezone change relabels an instant; it must not reschedule it.
+            instant = editor.dateTime()
+            editor.setTimeZone(current_qtimezone())
+            editor.setDateTime(instant.toTimeZone(current_qtimezone()))
+        for workspace in self._role_workspaces.values():
+            apply = getattr(workspace, "apply_preferences", None)
+            if callable(apply):
+                apply(preferences)
+        self.statusBar().showMessage("时间按所选时区显示；数据库统一保存标准时间。", 6000)
+
+    def _choose_timezone(self) -> None:
+        from ..time_utils import display_timezone_name
+        from .my_platform import TIMEZONES
+
+        labels = [label for label, _ in TIMEZONES]
+        names = [name for _, name in TIMEZONES]
+        current = names.index(display_timezone_name()) if display_timezone_name() in names else 0
+        chosen, accepted = QInputDialog.getItem(
+            self, "时区", "请选择显示与录入时间使用的时区：", labels, current, False
+        )
+        if not accepted:
+            return
+        patch = {"timezone": names[labels.index(chosen)]}
+        try:
+            if self._current_user is not None and self.preferences_service is not None:
+                patch = self.preferences_service.update(self._current_user.id, patch)
+                from .offline_feedback import show_queued_result
+
+                if show_queued_result(patch, self):
+                    return
+            self.apply_preferences(patch)
+            if self.health_workspace is self._active_workspace:
+                self.health_workspace.today_page.refresh()
+                self.health_workspace.my_platform_page.refresh()
+        except Exception:
+            QMessageBox.warning(self, "时区未保存", "无法保存时区，请检查连接后重试。")
 
     def _request_connection_change(self, mode: str, base_url: str) -> None:
         if self._tasks or self._active_workspace is not None:
@@ -190,6 +403,7 @@ class MainWindow(QMainWindow):
             return
         if mode == "cloud":
             from ..services.cloud_client import CloudAPIError, validate_base_url
+
             try:
                 base_url = validate_base_url(base_url)
             except CloudAPIError as error:
@@ -257,12 +471,25 @@ class MainWindow(QMainWindow):
         self.pages.setCurrentWidget(self.register_page)
         self.register_page.username_input.setFocus()
 
-    def _login(self, username: str, password: str) -> None:
+    def _login_with_options(self, username: str, password: str, options: dict) -> None:
+        self._login(
+            username, password,
+            allow_offline=options.get("allow_offline") is True,
+            remember_offline=options.get("remember_offline") is True,
+        )
+
+    def _login(
+        self, username: str, password: str, *, allow_offline=False, remember_offline=False
+    ) -> None:
         if not username.strip() or not password:
             self.login_page.show_error("用户名和密码不能为空。")
             return
         self.login_page.set_busy(True)
-        task = FunctionTask(self.auth_service.authenticate, username, password)
+        options = (
+            {"allow_offline": allow_offline, "remember_offline": remember_offline}
+            if self.cloud_mode else {}
+        )
+        task = FunctionTask(self.auth_service.authenticate, username, password, **options)
         self._start_task(
             task,
             self._login_succeeded,
@@ -278,7 +505,23 @@ class MainWindow(QMainWindow):
             self.login_page.show_error("账户角色无效，请联系运营人员检查账户。")
             self.pages.setCurrentWidget(self.login_page)
             return
+        if self.cloud_sync_service is not None:
+            self._last_snapshot_revision = None
+            try:
+                self.cloud_sync_service.start(user.id, role_code=user.role_code)
+            except Exception:
+                self.cloud_sync_service.stop()
+                self.auth_service.clear_session()
+                self.login_page.show_error("离线资料尚未准备好或授权已失效，请连接网络后登录。")
+                self.pages.setCurrentWidget(self.login_page)
+                return
         self._active_workspace = workspace
+        self._current_user = user
+        if self.preferences_service is not None:
+            try:
+                self.apply_preferences(self.preferences_service.get(user.id))
+            except Exception:
+                self.statusBar().showMessage("个人设置暂时未能读取，使用默认北京时间。")
         # Staff workspaces do not embed ChatPage, but its existing portable
         # backup handlers require an authenticated in-memory user marker.
         if role_code != "member":
@@ -429,7 +672,11 @@ class MainWindow(QMainWindow):
         workspace = self._active_workspace
         if workspace is None:
             return
+        if self.cloud_sync_service is not None:
+            self.cloud_sync_service.stop()
         self._active_workspace = None
+        self._current_user = None
+        self.apply_preferences({})
         workspace.end_session()
         if workspace is not self.member_workspace:
             self.chat_page.end_session()

@@ -3,6 +3,65 @@
 本目录只准备正式后端的构建规则和配置检查表，不代表镜像已构建、服务已启动、
 数据库认证成功或公网业务验收通过。无密钥探针成功只证明当时的基础网络条件。
 
+## 2026-09-07 实际部署交接状态
+
+- 项目 `astonishing-celebration`，正式服务 `medical-app`，环境 `production`。
+- 正式服务 ID：`afa6011e-0269-4fff-9b18-9a7b57f00093`；已绑定本仓库 `main`。
+- 已分配域名 `medical-app-production-3afc.up.railway.app`，目标端口 8080；
+  **分配域名不代表服务上线**。正式容器尚未构建/运行，不能作为已验收地址交付。
+- 页面暂存了源码根目录、Dockerfile、就绪检查及 7 项非秘密变量，共 15 项待部署变更；
+  这些是当时界面状态，继续操作前须重新核对。没有配置 TCP Proxy。
+- 本机专用运行账号已通过数据库与认证就绪检查，保留 `sslmode=verify-full`；
+  这不是 Railway 容器到数据库的验证，也没有迁移本地历史数据。
+- 临时本机交接页在初始导航阶段被 Edge 以 `ERR_BLOCKED_BY_CLIENT` 阻止，
+  没有触发一次性揭示；运行连接串、令牌 pepper 和 CA 尚未传入正式服务。
+  临时服务已停止，不得绕过浏览器或杀毒软件限制来继续。
+- 尚待：用户完成受控凭据交接、正式 Linux 构建、公开就绪检查、业务验收及精确测试清理，
+  然后才更新桌面默认地址、构建并检查新发行包。不要启动缺少运行凭据的待部署变更。
+- 官方支持仅限项目某一环境的 Project Token，可作为另外的授权方式；必须由用户明确
+  授权并通过本机隐藏输入接收，不要放入聊天、源码或发行包，不能提取浏览器登录凭据。
+  [Railway 官方 API 授权说明](https://docs.railway.com/integrations/api)
+
+`server/railway_secret_handoff.py` 是本机运维辅助工具，已由 Docker 专属忽略规则排除；
+不属于桌面软件，不应在云端启动。初始页面不读秘密；不得把其本机一次性 URL 视为
+公网部署地址，也不得截图、输出或保存揭示后的内容。
+
+### 项目令牌方式与当前账户限制
+
+用户已同意项目令牌及本机隐藏输入方式。随后实际检查发现：项目设置的 Tokens 页面
+明确提示 `Your account needs to be verified to create project tokens`；套餐页显示
+`Limited Trial`，账户页同时显示 GitHub 已连接。官方 `/verify` 入口回到了套餐页，
+本轮未取得可完成的免费验证流程。这是账户能力限制，不是 Python 依赖缺失。
+不得把已连接 GitHub 等同于已通过 Railway 自动验证；不得改用更广权限账户令牌、
+绑定卡片、购买方案、提取浏览器凭据或绕过安全屏障来替代用户授权。
+
+工具 `server/railway_connection.py` 只负责接收令牌和只读核对范围，不会创建令牌、
+解锁账户、部署服务、配置数据库变量或导入历史数据。该工具也被云镜像排除。
+
+在 Railway 允许创建项目令牌后，由用户在项目 `astonishing-celebration` 的
+Settings → Tokens（项目设置 → 令牌）创建仅属于 `production` 的 Project Token，
+建议命名 `medical-app-local-deploy`。不要使用 Account Token 或 Workspace Token。
+[项目令牌范围与授权头](https://docs.railway.com/integrations/api)、
+[试用与自动验证说明](https://docs.railway.com/pricing/free-trial)
+
+在本机源项目的交互式 PowerShell 中执行（命令不包含令牌）：
+
+```powershell
+$env:PYTHONPATH = $null
+& '.\.venv-server\Scripts\python.exe' -m server.railway_connection configure
+& '.\.venv-server\Scripts\python.exe' -m server.railway_connection check
+```
+
+也可双击 `tools/configure_railway.cmd`，它会先本机配置，再执行只读范围检查。
+必须在有 `.venv-server` 的源项目目录运行；源码副本中的启动器不会偷偷调用别处的解释器。
+`configure` 只通过 Windows 当前用户 DPAPI 加密保存 `.local/railway-project-token.json`，
+不联网；已有配置默认拒绝覆盖，明确需要更换时使用 `configure --replace`。
+`status` 只看配置是否存在，不解密、不联网。`check` 仅向固定 Railway 官方 HTTPS
+端点发送一次 `projectToken` 只读查询，验证项目和环境 ID，拒绝重定向、范围错误与
+GraphQL 错误，不打印原始响应或令牌；它不证明服务部署成功或服务级权限已经验证。
+不要在命令参数、聊天、环境文件或截图中填写令牌；部署验收完成后可由用户在官网撤销
+不再需要的令牌。Windows 当前用户加密不能防御以同一用户运行的恶意程序。
+
 ## 选用方案与目录关系
 
 正式路线使用 **Dockerfile**，不是自动识别桌面项目的 Railpack。

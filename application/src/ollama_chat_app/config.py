@@ -4,7 +4,7 @@ from __future__ import annotations
 # and migrated instead of appearing to disappear after the product rename.
 APP_NAME = "健康生活服务平台"
 APP_ID = "ollama-dual-chat"
-APP_VERSION = "1.2.0"
+APP_VERSION = "1.4.0"
 
 LOCAL_OLLAMA_HOST = "http://localhost:11434"
 DEFAULT_LOCAL_MODEL = "qwen3:4b"
@@ -37,3 +37,8 @@ DEEPSEEK_DOCS_URL = "https://api-docs.deepseek.com/zh-cn/"
 MAX_CONTEXT_MESSAGES = 20
 MAX_MESSAGE_LENGTH = 20_000
 REQUEST_TIMEOUT_SECONDS = 120.0
+
+# Public application API routes, never database URLs or credentials. Shipping a
+# build with these defaults still requires the deployment's strict-TLS acceptance.
+DEFAULT_ALIYUN_ENDPOINT = "https://39.106.166.15/aliyun"
+DEFAULT_SUPABASE_ENDPOINT = "https://39.106.166.15/supabase"

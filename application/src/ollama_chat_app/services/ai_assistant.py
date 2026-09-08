@@ -273,6 +273,51 @@ class AiAssistantService:
             "generated_at": timestamp_to_db(utc_now()),
         }
 
+    def propose_life_records(
+        self,
+        actor_user_id: int,
+        provider: ChatProvider,
+        provider_name: str,
+        model: str,
+        text: str,
+    ) -> list[dict[str, Any]]:
+        """Return validated suggestions without writing drafts or life records.
+
+        Desktop callers show these in editable forms. The usual member-owned
+        life-record service persists a row only after the member confirms it.
+        """
+        question = self._required_text(text, "生活描述", MAX_PROMPT_LENGTH)
+        self._reject_medical_request(question)
+        self._required_text(provider_name, "AI 服务", 80)
+        model_name = self._required_text(model, "模型", 160)
+        config = self.get_ai_config(actor_user_id)
+        self._require_ai_feature(config, "member_assistant_enabled", "会员 AI 助手")
+        with self.database.connect() as connection:
+            actor, member_id = self._authorise_member_context(connection, actor_user_id, None)
+        if str(actor["id"]) != str(member_id):
+            raise AiPermissionError("只能为当前会员本人整理生活记录")
+        # Form extraction needs only this description and the current timestamp.
+        # Existing health facts are unnecessary and were not part of its consent.
+        context = {"member_user_id": member_id, "generated_at": timestamp_to_db(utc_now())}
+        response = provider.chat(
+            model_name,
+            [
+                {
+                    "role": "system",
+                    "content": self._member_system_prompt(context)
+                    + (
+                        "\n本次只提取用户这段描述中的生活记录，proposals 只允许 life_record。"
+                        "不要把历史资料重新生成记录，不推测未提及的食物、数量、时间或身体事实。"
+                        "缺少时刻时可使用上下文 generated_at 并在 content 注明时间待用户确认。"
+                        "不确定的内容明确标注供用户编辑，不能生成用药记录。"
+                    ),
+                },
+                {"role": "user", "content": question},
+            ],
+        )
+        parsed = self._parse_response(response, allowed_types=frozenset({"life_record"}))
+        return [dict(item) for item in parsed["proposals"]]
+
     def create_member_draft(
         self,
         actor_user_id: int,
@@ -373,23 +418,18 @@ class AiAssistantService:
                 {
                     "role": "user",
                     "content": (
-                        "请基于给定事实生成本周期顾问工作摘要；"
-                        "没有证据的内容请写“暂无记录”。"
+                        "请基于给定事实生成本周期顾问工作摘要；没有证据的内容请写“暂无记录”。"
                     ),
                 },
             ],
         )
-        parsed = self._parse_response(
-            raw_response, allowed_types=frozenset({"advisor_summary"})
-        )
+        parsed = self._parse_response(raw_response, allowed_types=frozenset({"advisor_summary"}))
         if len(parsed["proposals"]) != 1:
             raise AiValidationError("顾问摘要必须且只能包含一个待确认摘要")
         proposal = dict(parsed["proposals"][0])
         now = timestamp_to_db(utc_now())
         with self.database.transaction() as connection:
-            self._require_active_advisor_binding(
-                connection, advisor_user_id, member_user_id
-            )
+            self._require_active_advisor_binding(connection, advisor_user_id, member_user_id)
             cursor = connection.execute(
                 """
                 INSERT INTO advisor_summaries (
@@ -437,9 +477,13 @@ class AiAssistantService:
         include_resolved: bool = False,
     ) -> list[dict[str, Any]]:
         actor_id = self._positive_id(actor_user_id, "操作者编号")
-        statuses = ("draft", "shown", "accepted", "dismissed") if include_resolved else (
-            "draft",
-            "shown",
+        statuses = (
+            ("draft", "shown", "accepted", "dismissed")
+            if include_resolved
+            else (
+                "draft",
+                "shown",
+            )
         )
         placeholders = ",".join("?" for _ in statuses)
         with self.database.connect() as connection:
@@ -459,9 +503,7 @@ class AiAssistantService:
             rows = connection.execute(query, parameters).fetchall()
             drafts = [self._draft_from_row(row) for row in rows]
             visible = [
-                draft
-                for draft in drafts
-                if self._draft_visible_to_actor(connection, actor, draft)
+                draft for draft in drafts if self._draft_visible_to_actor(connection, actor, draft)
             ]
         return visible
 
@@ -523,9 +565,7 @@ class AiAssistantService:
                 reminder_type=str(proposal["reminder_type"]),
             )
         elif proposal_type == "advisor_summary":
-            created_entity_id = self._confirm_advisor_summary(
-                actor_id, member_id, proposal
-            )
+            created_entity_id = self._confirm_advisor_summary(actor_id, member_id, proposal)
         elif proposal_type == "insight":
             created_entity_id = int(draft["id"])
         else:  # pragma: no cover - validated before persistence
@@ -708,9 +748,7 @@ class AiAssistantService:
             )
         return self.get_draft(actor_id, insight_id)
 
-    def _advisor_service_context(
-        self, advisor_user_id: int, member_user_id: int
-    ) -> dict[str, Any]:
+    def _advisor_service_context(self, advisor_user_id: int, member_user_id: int) -> dict[str, Any]:
         with self.database.connect() as connection:
             self._require_active_advisor_binding(connection, advisor_user_id, member_user_id)
             tasks = connection.execute(
@@ -735,9 +773,7 @@ class AiAssistantService:
             "visit_tasks": [_without_none(dict(row)) for row in tasks],
             "visit_records": [
                 {
-                    **_without_none(
-                        {key: row[key] for key in ("visited_at", "summary")}
-                    ),
+                    **_without_none({key: row[key] for key in ("visited_at", "summary")}),
                     "details": _loads_json_object(row["details_json"]),
                 }
                 for row in visits
@@ -765,8 +801,7 @@ class AiAssistantService:
             'environment|visit|membership|custom","scheduled_at":"带时区ISO时间"}\n'
             '{"type":"insight","content":"基于记录的温和一般性提示"}\n'
             f"可用安全档案字段：{','.join(sorted(SAFE_PROFILE_FIELDS))}。\n"
-            "稳定数据快照："
-            + json.dumps(context, ensure_ascii=False, separators=(",", ":"))
+            "稳定数据快照：" + json.dumps(context, ensure_ascii=False, separators=(",", ":"))
         )
 
     @staticmethod
@@ -792,9 +827,7 @@ class AiAssistantService:
         )
 
     @classmethod
-    def _parse_response(
-        cls, raw: str, *, allowed_types: frozenset[str]
-    ) -> dict[str, Any]:
+    def _parse_response(cls, raw: str, *, allowed_types: frozenset[str]) -> dict[str, Any]:
         if not isinstance(raw, str) or not raw.strip():
             raise AiValidationError("AI 返回了空内容，请重试")
         text = raw.strip()
@@ -813,15 +846,12 @@ class AiAssistantService:
         if not isinstance(raw_proposals, list) or len(raw_proposals) > MAX_PROPOSALS:
             raise AiValidationError("AI 待确认项必须是最多 8 项的列表")
         proposals = [
-            cls._validate_proposal(item, allowed_types=allowed_types)
-            for item in raw_proposals
+            cls._validate_proposal(item, allowed_types=allowed_types) for item in raw_proposals
         ]
         return {"answer": answer, "proposals": proposals}
 
     @classmethod
-    def _validate_proposal(
-        cls, value: Any, *, allowed_types: frozenset[str]
-    ) -> dict[str, Any]:
+    def _validate_proposal(cls, value: Any, *, allowed_types: frozenset[str]) -> dict[str, Any]:
         if not isinstance(value, dict):
             raise AiValidationError("AI 待确认项格式无效")
         proposal_type = value.get("type")
@@ -838,9 +868,10 @@ class AiAssistantService:
             **expected_fields,
             "life_record": {"type", "category", "occurred_at", "content"},
         }
-        if not required_fields[proposal_type] <= set(value) or not set(value) <= expected_fields[
-            proposal_type
-        ]:
+        if (
+            not required_fields[proposal_type] <= set(value)
+            or not set(value) <= expected_fields[proposal_type]
+        ):
             raise AiValidationError("AI 待确认项字段不完整或包含未知字段")
         item = dict(value)
         if proposal_type == "life_record":
@@ -872,13 +903,9 @@ class AiAssistantService:
             end = cls._require_date(item["period_end"], "摘要结束日期")
             if start > end:
                 raise AiValidationError("顾问摘要开始日期不能晚于结束日期")
-            item["content"] = cls._required_text(
-                item["content"], "顾问摘要", MAX_PROPOSAL_CONTENT
-            )
+            item["content"] = cls._required_text(item["content"], "顾问摘要", MAX_PROPOSAL_CONTENT)
         else:
-            item["content"] = cls._required_text(
-                item["content"], "生活提示", MAX_PROPOSAL_CONTENT
-            )
+            item["content"] = cls._required_text(item["content"], "生活提示", MAX_PROPOSAL_CONTENT)
         cls._ensure_safe_output(_proposal_searchable_text(item))
         try:
             encoded = json.dumps(item, ensure_ascii=False)
@@ -968,8 +995,10 @@ class AiAssistantService:
         actor = AiAssistantService._active_actor(connection, actor_user_id)
         actor_id = int(actor["id"])
         role = str(actor["role_code"])
-        member_id = actor_id if member_user_id is None else AiAssistantService._positive_id(
-            member_user_id, "会员编号"
+        member_id = (
+            actor_id
+            if member_user_id is None
+            else AiAssistantService._positive_id(member_user_id, "会员编号")
         )
         member = connection.execute(
             "SELECT id, role_code, account_status FROM users WHERE id = ?",
@@ -984,9 +1013,7 @@ class AiAssistantService:
         if role == "member" and actor_id == member_id:
             return actor, member_id
         if role == "advisor":
-            AiAssistantService._require_active_advisor_binding(
-                connection, actor_id, member_id
-            )
+            AiAssistantService._require_active_advisor_binding(connection, actor_id, member_id)
             return actor, member_id
         raise AiPermissionError("只有会员本人或当前绑定顾问可以读取该上下文")
 

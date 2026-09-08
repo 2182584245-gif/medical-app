@@ -1,0 +1,6 @@
+# Optional administrator transfer tool only; not a desktop/base API dependency.
+# Use alongside ../local_platform/requirements-linux-lock.txt (already pins cffi/pycparser).
+# Verified public PyPI wheel, Linux x86_64 glibc >= 2.34, CPython >= 3.11.
+# Downloaded and SHA256 checked 2026-09-08. No source builds.
+cryptography==50.0.1 \
+    --hash=sha256:51afcfceb15597cf2635068e4ac9a56b2abde622edde17f37d85fd7b5306497a

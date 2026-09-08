@@ -54,9 +54,14 @@ def test_empty_database_is_created_at_current_schema_with_health_and_commerce_ta
         "products",
         "product_recommendations",
         "orders",
+        "user_preferences",
+        "member_cart",
+        "member_favorites",
+        "staff_account_terms",
+        "visit_task_details",
     }
     with database.connect() as connection:
-        assert int(connection.execute("PRAGMA user_version").fetchone()[0]) == SCHEMA_VERSION == 5
+        assert int(connection.execute("PRAGMA user_version").fetchone()[0]) == SCHEMA_VERSION == 6
         table_names = {
             str(row[0])
             for row in connection.execute(
@@ -67,7 +72,7 @@ def test_empty_database_is_created_at_current_schema_with_health_and_commerce_ta
             str(row["name"]): row for row in connection.execute("PRAGMA table_info(users)")
         }
 
-    assert expected_tables <= table_names
+    assert expected_tables == table_names
     assert {"role_code", "account_status", "updated_at"} <= set(user_columns)
     assert user_columns["role_code"]["dflt_value"] == "'member'"
 

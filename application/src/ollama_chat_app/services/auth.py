@@ -239,6 +239,20 @@ class AuthService:
 
         now = timestamp_to_db(utc_now())
         with self.database.transaction() as connection:
+            # Recheck state under the write lock. An expired advisor must not
+            # receive a session even if a password was valid a moment earlier.
+            current = connection.execute(
+                "SELECT role_code, account_status FROM users WHERE id = ?", (int(row["id"]),)
+            ).fetchone()
+            if current is None or current["account_status"] != "active":
+                raise AuthenticationError
+            if current["role_code"] == "advisor":
+                term = connection.execute(
+                    "SELECT starts_at, ends_at FROM staff_account_terms WHERE user_id = ?",
+                    (int(row["id"]),),
+                ).fetchone()
+                if term is not None and not term["starts_at"] <= now < term["ends_at"]:
+                    raise AuthenticationError
             if verification.replacement_hash is None:
                 cursor = connection.execute(
                     "UPDATE users SET last_login_at = ?, updated_at = ? WHERE id = ?",

@@ -30,13 +30,14 @@ from PySide6.QtWidgets import (
 )
 
 from ..services.health import HealthService, HealthValidationError
-from ..time_utils import beijing_today, format_beijing
+from ..time_utils import beijing_today, display_timezone_label, format_beijing
+from .offline_feedback import show_queued_result
 from .time_fields import BeijingDateTimeEdit, beijing_qdatetime, datetime_iso
 
 CATEGORIES = (
     ("diet", "饮食"),
     ("water", "饮水"),
-    ("activity", "活动"),
+    ("activity", "运动"),
     ("sleep", "睡眠"),
     ("environment", "居住环境"),
 )
@@ -82,7 +83,10 @@ class LifeRecordDialog(QDialog):
         self.category_combo.setCurrentIndex(max(0, self.category_combo.findData(category)))
         form.addRow("记录类别", self.category_combo)
         self.time_input = BeijingDateTimeEdit()
-        form.addRow("发生时间（北京时间）", self.time_input)
+        form.addRow(f"发生时间（{display_timezone_label()}）", self.time_input)
+        self.location_input = QLineEdit()
+        self.location_input.setPlaceholderText("例如：家中、社区公园；可不填")
+        form.addRow("地点", self.location_input)
         root.addLayout(form)
 
         self.detail_stack = QStackedWidget()
@@ -126,6 +130,11 @@ class LifeRecordDialog(QDialog):
         self.calories.setSpecialValueText("未填写")
         diet.addRow("餐次", self.meal_type)
         diet.addRow("估算热量（千卡，可不填）", self.calories)
+        self.food_amount = QDoubleSpinBox()
+        self.food_amount.setRange(0, 20_000)
+        self.food_amount.setSpecialValueText("未填写")
+        self.food_amount.setSuffix(" 克")
+        diet.addRow("食物重量（可不填）", self.food_amount)
 
         water = QFormLayout(self._detail_pages["water"])
         self.water_amount = QSpinBox()
@@ -148,6 +157,11 @@ class LifeRecordDialog(QDialog):
         activity.addRow("活动方式", self.activity_type)
         activity.addRow("活动时长", self.activity_minutes)
         activity.addRow("步数", self.steps)
+        self.activity_energy = QSpinBox()
+        self.activity_energy.setRange(0, 20_000)
+        self.activity_energy.setSpecialValueText("未填写")
+        self.activity_energy.setSuffix(" 千卡")
+        activity.addRow("估算耗能（可不填）", self.activity_energy)
 
         sleep = QFormLayout(self._detail_pages["sleep"])
         self.sleep_hours = QDoubleSpinBox()
@@ -164,21 +178,58 @@ class LifeRecordDialog(QDialog):
 
         environment = QFormLayout(self._detail_pages["environment"])
         self.temperature = QDoubleSpinBox()
-        self.temperature.setRange(-80, 80)
+        self.temperature.setRange(-81, 80)
         self.temperature.setDecimals(1)
         self.temperature.setSuffix(" ℃")
         self.temperature.setSpecialValueText("未填写")
-        self.temperature.setValue(0)
+        self.temperature.setValue(-81)
         self.humidity = QDoubleSpinBox()
-        self.humidity.setRange(0, 100)
+        self.humidity.setRange(-1, 100)
         self.humidity.setDecimals(1)
         self.humidity.setSuffix(" %")
         self.humidity.setSpecialValueText("未填写")
+        self.humidity.setValue(-1)
         self.air_quality = QLineEdit()
         self.air_quality.setPlaceholderText("例如：通风良好、略有异味")
         environment.addRow("室内温度（可不填）", self.temperature)
         environment.addRow("室内湿度（可不填）", self.humidity)
         environment.addRow("环境描述", self.air_quality)
+        self.ventilation = QSpinBox()
+        self.ventilation.setRange(0, 1_440)
+        self.ventilation.setSpecialValueText("未填写")
+        self.ventilation.setSuffix(" 分钟")
+        environment.addRow("通风时长", self.ventilation)
+
+    def set_proposal(self, proposal: Mapping[str, Any]) -> None:
+        """Populate an editable proposal; accepting the dialog still never writes data."""
+        category = str(proposal.get("category", "diet"))
+        self.category_combo.setCurrentIndex(max(0, self.category_combo.findData(category)))
+        self.content_input.setPlainText(str(proposal.get("content", "")))
+        if proposal.get("occurred_at"):
+            self.time_input.setDateTime(beijing_qdatetime(proposal["occurred_at"]))
+        details = proposal.get("details") or {}
+        self.location_input.setText(str(details.get("location", "")))
+        for field, widget in {
+            "calories_kcal": self.calories,
+            "amount_g": self.food_amount,
+            "amount_ml": self.water_amount,
+            "duration_minutes": self.activity_minutes,
+            "energy_kcal": self.activity_energy,
+            "steps": self.steps,
+            "duration_hours": self.sleep_hours,
+            "quality": self.sleep_quality,
+            "temperature_c": self.temperature,
+            "humidity_percent": self.humidity,
+            "ventilation_minutes": self.ventilation,
+        }.items():
+            if isinstance(details.get(field), (int, float)):
+                value = details[field]
+                widget.setValue(int(value) if isinstance(widget, QSpinBox) else float(value))
+        self.activity_type.setText(str(details.get("activity_type", "")))
+        self.air_quality.setText(str(details.get("air_quality", "")))
+        if details.get("meal_type"):
+            self.meal_type.setCurrentIndex(max(0, self.meal_type.findData(details["meal_type"])))
+        self.setWindowTitle("确认智能填写的生活记录")
 
     def _show_category(self) -> None:
         category = str(self.category_combo.currentData())
@@ -198,6 +249,8 @@ class LifeRecordDialog(QDialog):
             details = {"meal_type": str(self.meal_type.currentData())}
             if self.calories.value():
                 details["calories_kcal"] = self.calories.value()
+            if self.food_amount.value():
+                details["amount_g"] = self.food_amount.value()
         elif category == "water":
             details = {}
             if self.water_amount.value():
@@ -210,6 +263,8 @@ class LifeRecordDialog(QDialog):
                 details["duration_minutes"] = self.activity_minutes.value()
             if self.steps.value():
                 details["steps"] = self.steps.value()
+            if self.activity_energy.value():
+                details["energy_kcal"] = self.activity_energy.value()
         elif category == "sleep":
             details = {}
             if self.sleep_hours.value():
@@ -218,12 +273,16 @@ class LifeRecordDialog(QDialog):
                 details["quality"] = self.sleep_quality.value()
         else:
             details = {}
-            if self.temperature.value():
+            if self.temperature.value() > -81:
                 details["temperature_c"] = self.temperature.value()
-            if self.humidity.value():
+            if self.humidity.value() >= 0:
                 details["humidity_percent"] = self.humidity.value()
             if self.air_quality.text().strip():
                 details["air_quality"] = self.air_quality.text().strip()
+            if self.ventilation.value():
+                details["ventilation_minutes"] = self.ventilation.value()
+        if self.location_input.text().strip():
+            details["location"] = self.location_input.text().strip()
         return {
             "category": category,
             "occurred_at": _local_iso(self.time_input.dateTime()),
@@ -256,7 +315,7 @@ class ReminderEditorDialog(QDialog):
         if isinstance(scheduled_at, (datetime, str)) and scheduled_at:
             initial = beijing_qdatetime(scheduled_at)
         self.time_input = BeijingDateTimeEdit(initial)
-        form.addRow("提醒时间（北京时间）", self.time_input)
+        form.addRow(f"提醒时间（{display_timezone_label()}）", self.time_input)
         hint = QLabel("提醒只用于饮水、饮食、睡眠、活动、环境、回访等生活事项，不提供药物提醒。")
         hint.setWordWrap(True)
         hint.setObjectName("HealthHint")
@@ -442,11 +501,7 @@ class HealthRecordsPanel(QWidget):
             return
         try:
             days = self.record_period.currentData()
-            start_date = (
-                None
-                if days is None
-                else (beijing_today() - timedelta(days=int(days) - 1))
-            )
+            start_date = None if days is None else (beijing_today() - timedelta(days=int(days) - 1))
             records = self.health_service.list_life_records(
                 self.user_id,
                 category=self.category_filter.currentData(),
@@ -549,7 +604,9 @@ class HealthRecordsPanel(QWidget):
         if dialog.exec() != QDialog.DialogCode.Accepted:
             return
         try:
-            self.health_service.add_life_record(self.user_id, **dialog.values)
+            result = self.health_service.add_life_record(self.user_id, **dialog.values)
+            if show_queued_result(result, self, label=self.status_label):
+                return
             self.refresh_records()
             self.refresh_statistics()
             self.record_changed.emit()
@@ -581,7 +638,9 @@ class HealthRecordsPanel(QWidget):
         if dialog.exec() != QDialog.DialogCode.Accepted:
             return
         try:
-            self.health_service.add_reminder(self.user_id, **dialog.values)
+            result = self.health_service.add_reminder(self.user_id, **dialog.values)
+            if show_queued_result(result, self, label=self.status_label):
+                return
             self.refresh_reminders()
             self.reminder_changed.emit()
         except Exception as error:
@@ -596,7 +655,11 @@ class HealthRecordsPanel(QWidget):
         if dialog.exec() != QDialog.DialogCode.Accepted:
             return
         try:
-            self.health_service.update_reminder(self.user_id, int(reminder["id"]), **dialog.values)
+            result = self.health_service.update_reminder(
+                self.user_id, int(reminder["id"]), **dialog.values
+            )
+            if show_queued_result(result, self, label=self.status_label):
+                return
             self.refresh_reminders()
             self.reminder_changed.emit()
         except Exception as error:
@@ -609,9 +672,11 @@ class HealthRecordsPanel(QWidget):
             return
         try:
             if bool(reminder["enabled"]):
-                self.health_service.pause_reminder(self.user_id, int(reminder["id"]))
+                result = self.health_service.pause_reminder(self.user_id, int(reminder["id"]))
             else:
-                self.health_service.resume_reminder(self.user_id, int(reminder["id"]))
+                result = self.health_service.resume_reminder(self.user_id, int(reminder["id"]))
+            if show_queued_result(result, self, label=self.status_label):
+                return
             self.refresh_reminders()
             self.reminder_changed.emit()
         except Exception as error:
@@ -646,6 +711,7 @@ class HealthRecordsPanel(QWidget):
         return dict(value) if isinstance(value, Mapping) else None
 
     def _show_error(self, title: str, error: Exception, *, modal: bool = True) -> None:
+        self.status_label.setObjectName("HealthError")
         if isinstance(error, HealthValidationError):
             self.status_label.setText(str(error))
         else:

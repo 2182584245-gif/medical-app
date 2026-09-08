@@ -26,8 +26,9 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from ..time_utils import format_beijing
+from ..time_utils import display_timezone_label, format_beijing
 from .advisor_ai_panel import AdvisorAiPanel
+from .staff_style import build_staff_style
 from .time_fields import BeijingDateTimeEdit, beijing_qdatetime, datetime_iso
 
 TASK_LABELS = {
@@ -144,7 +145,7 @@ class AdvisorVisitCompletionDialog(QDialog):
         form.addRow("下次上门", self.create_next_visit_input)
         self.next_visit_input = BeijingDateTimeEdit(beijing_qdatetime().addDays(30))
         self.next_visit_input.setEnabled(False)
-        form.addRow("下次上门时间（北京时间）", self.next_visit_input)
+        form.addRow(f"下次上门时间（{display_timezone_label()}）", self.next_visit_input)
         self.member_reminder_input = QCheckBox("同时为会员创建上门提醒")
         self.member_reminder_input.setChecked(True)
         self.member_reminder_input.setEnabled(False)
@@ -208,11 +209,7 @@ class AdvisorVisitCompletionDialog(QDialog):
         return {
             "summary": self.summary_input.toPlainText().strip(),
             "details": details,
-            "next_visit_at": (
-                datetime_iso(self.next_visit_input.dateTime())
-                if has_next
-                else None
-            ),
+            "next_visit_at": (datetime_iso(self.next_visit_input.dateTime()) if has_next else None),
             "next_visit_title": "定期复访",
             "create_member_reminder": has_next and self.member_reminder_input.isChecked(),
         }
@@ -272,7 +269,7 @@ class AdvisorWorkspace(QWidget):
         logout_button.clicked.connect(self.logout_requested)
         header_layout.addWidget(logout_button)
         root.addWidget(header)
-        timezone_hint = QLabel("日期和时间均按北京时间显示与保存。")
+        timezone_hint = QLabel("日期和时间按右上角所选时区显示，默认北京时间。")
         timezone_hint.setObjectName("AdvisorHint")
         root.addWidget(timezone_hint)
 
@@ -290,31 +287,10 @@ class AdvisorWorkspace(QWidget):
         self.tabs.addTab(self._build_products_tab(), "商品推荐")
         self.tabs.addTab(self.ai_panel, "AI 工作摘要")
         root.addWidget(self.tabs, 1)
-        self.setStyleSheet(
-            """
-            QWidget#AdvisorWorkspace { font-size: 16px; }
-            QFrame#AdvisorHeader, QFrame#AdvisorCard {
-                background: #ffffff; border: 1px solid #d8e2df; border-radius: 13px;
-            }
-            QLabel#AdvisorTitle { font-size: 25px; font-weight: 700; color: #21483e; }
-            QLabel#AdvisorMetricValue { font-size: 30px; font-weight: 700; color: #20705b; }
-            QLabel#AdvisorSectionTitle { font-size: 18px; font-weight: 700; color: #21483e; }
-            QLabel#AdvisorHint { color: #60726c; }
-            QLabel#AdvisorStatusSuccess {
-                color: #176b47; background: #eaf8f1; padding: 8px; border-radius: 8px;
-            }
-            QLabel#AdvisorStatusError {
-                color: #9c2f27; background: #fff1f0; padding: 8px; border-radius: 8px;
-            }
-            QPushButton { min-height: 42px; padding: 6px 14px; }
-            QTabBar::tab { min-width: 135px; min-height: 42px; font-weight: 600; }
-            QListWidget {
-                background: #ffffff; border: 1px solid #d8e2df;
-                border-radius: 9px; padding: 6px;
-            }
-            QListWidget::item { padding: 10px; }
-            """
-        )
+        self.apply_preferences({})
+
+    def apply_preferences(self, preferences: dict) -> None:
+        self.setStyleSheet(build_staff_style(preferences))
 
     def _build_overview_tab(self) -> QWidget:
         page = QWidget()
@@ -524,7 +500,7 @@ class AdvisorWorkspace(QWidget):
             self.ai_panel.set_members(self.members)
             self.ai_panel.refresh_drafts()
             if self._refresh_commerce():
-                self._set_status("工作台数据已刷新。", error=False)
+                self.status_label.hide()
         except Exception as exc:
             self._set_status(_error_text("读取顾问工作台", exc), error=True)
 
@@ -549,14 +525,68 @@ class AdvisorWorkspace(QWidget):
             self._set_status(_error_text("读取生活用品推荐", exc), error=True)
             return False
 
+    def refresh_snapshot(self, resources):
+        """Render only currently visible, mirrored lists without remote callbacks."""
+        if self.actor_user_id is None:
+            return ()
+        from .snapshot_refresh import preserve_views
+
+        tab = self.tabs.currentIndex()
+        if tab == 1:
+            selected = self._selected_member_id()
+            self.members = list(resources["members"])
+            with preserve_views(self.member_list):
+                self._fill_members(selected)
+            if self.member_list.currentRow() < 0:
+                self._show_member(None, None)  # Clears details, performs no read.
+            else:
+                member = self.member_list.currentItem().data(Qt.ItemDataRole.UserRole)
+                self.member_name_label.setText(
+                    str(
+                        member.get("nickname")
+                        or member.get("display_name")
+                        or member.get("username")
+                    )
+                )
+            self._set_status(
+                "会员列表已同步；右侧完整档案不是镜像内容，需主动重新选择会员在线读取。",
+                error=False,
+            )
+            return ("已绑定会员列表",)
+        if tab == 2:
+            selected = self._selected_task_id()
+            self.tasks = [
+                item
+                for item in resources["appointments"]
+                if item.get("status") in {"pending", "in_progress"}
+            ]
+            with preserve_views(self.task_list):
+                self._fill_tasks(selected)
+            self._task_selection_changed(self.task_list.currentItem(), None)
+            return ("顾问上门任务",)
+        if tab in {0, 3}:
+            # Visit-task count is not completed-visit-record count. Do not invent
+            # a dashboard/history aggregate from a different resource.
+            self._set_status(
+                "镜像已同步；概览及历史上门明细需点击刷新工作台在线读取。", error=False
+            )
+        return ()
+
     def _fill_members(self, selected_id: int = -1) -> None:
         self.member_list.clear()
         selected_row = -1
         for index, member in enumerate(self.members):
-            name = str(member.get("display_name") or member.get("username") or "会员")
+            name = str(
+                member.get("nickname")
+                or member.get("display_name")
+                or member.get("username")
+                or "会员"
+            )
             next_visit = _display_time(member.get("next_visit_at"))
             phone = str(member.get("phone") or "电话未填写")
-            item = QListWidgetItem(f"{name}｜{phone}\n下次上门（北京时间）：{next_visit}")
+            item = QListWidgetItem(
+                f"{name}｜{phone}\n下次上门（{display_timezone_label()}）：{next_visit}"
+            )
             item.setData(Qt.ItemDataRole.UserRole, member)
             self.member_list.addItem(item)
             if int(member["id"]) == selected_id:
@@ -709,7 +739,9 @@ class AdvisorWorkspace(QWidget):
             self.facts_text.clear()
             self.life_records_text.clear()
             return
-        name = str(member.get("display_name") or member.get("username") or "会员")
+        name = str(
+            member.get("nickname") or member.get("display_name") or member.get("username") or "会员"
+        )
         self.member_name_label.setText(name)
         try:
             overview = self.service.get_member_overview(
@@ -750,7 +782,7 @@ class AdvisorWorkspace(QWidget):
             self.facts_text.setPlainText(
                 "\n\n".join(
                     f"{fact.get('fact_key') or '事实'}：{_plain_value(fact.get('value'))}\n"
-                    f"来源：{fact.get('source') or '未填写'}｜生效（北京时间）："
+                    f"来源：{fact.get('source') or '未填写'}｜生效（{display_timezone_label()}）："
                     f"{_display_time(fact.get('effective_at'))}"
                     for fact in fact_values
                     if isinstance(fact, Mapping)
@@ -891,7 +923,7 @@ class AdvisorWorkspace(QWidget):
         )
         lines = [
             f"会员：{record.get('member_name') or '未填写'}",
-            f"上门时间（北京时间）：{_display_time(record.get('visited_at'))}",
+            f"上门时间（{display_timezone_label()}）：{_display_time(record.get('visited_at'))}",
             f"上门总结：{record.get('summary') or '未填写'}",
         ]
         for label, key in labels:

@@ -23,6 +23,7 @@ from alembic.config import Config
 from psycopg import sql
 from sqlalchemy.engine import URL
 
+from . import platform_schema as schema_v1
 from .cloud_connection import (
     DEFAULT_PROFILE,
     ca_file,
@@ -33,8 +34,10 @@ from .cloud_connection import (
 from .local_secret_store import load_secret_payload, save_secret_payload
 from .migrations.guards import REVISION_MARKER, SCHEMA_MARKER
 from .platform_config import PlatformSettings
-from .platform_schema import (
+from .platform_experience_schema import (
+    EXPIRY_TABLES,
     IDENTITY_TABLES,
+    NEW_COLUMNS,
     PLATFORM_COLUMNS,
     PLATFORM_MARKER,
     PLATFORM_REVISION,
@@ -254,6 +257,9 @@ def _inspect(connection) -> dict:
     }
     if schema is None:
         return result
+    legacy = revision == [schema_v1.PLATFORM_REVISION]
+    expected_columns = schema_v1.PLATFORM_COLUMNS if legacy else PLATFORM_COLUMNS
+    expected_rules = schema_v1.policy_rules() if legacy else policy_rules()
     tables = connection.execute(
         "SELECT c.relname, pg_catalog.obj_description(c.oid,'pg_class'), "
         "pg_catalog.pg_get_userbyid(c.relowner)=current_user, "
@@ -267,8 +273,8 @@ def _inspect(connection) -> dict:
     result.update(
         schema_owned=schema == (PLATFORM_MARKER, True)
         and all(row[1] == PLATFORM_MARKER and row[2] for row in tables),
-        expected_table_set={row[0] for row in tables} == set(PLATFORM_COLUMNS),
-        expected_columns=all(tuple(row[5]) == PLATFORM_COLUMNS.get(row[0]) for row in tables),
+        expected_table_set={row[0] for row in tables} == set(expected_columns),
+        expected_columns=all(tuple(row[5]) == expected_columns.get(row[0]) for row in tables),
         all_rls_forced=bool(tables) and all(row[3] and row[4] for row in tables),
         table_count=len(tables),
     )
@@ -281,9 +287,11 @@ def _inspect(connection) -> dict:
     codes = {"SELECT": "r", "INSERT": "a", "UPDATE": "w", "DELETE": "d"}
     expected = {
         (table, "platform_" + action.lower(), codes[action], True)
-        for table, rules in policy_rules().items()
+        for table, rules in expected_rules.items()
         for action in rules
     }
+    if not legacy:
+        expected |= {(table, "platform_staff_term", "*", False) for table in EXPIRY_TABLES}
     result["expected_policy_set"] = set(policies) == expected
     public_access = connection.execute(
         "SELECT r.rolname,c.relname, has_schema_privilege(r.oid,n.oid,'USAGE'), "
@@ -294,7 +302,7 @@ def _inspect(connection) -> dict:
         "AND n.nspname=%s AND c.relkind='r'",
         (PLATFORM_SCHEMA,),
     ).fetchall()
-    result["data_api_roles_no_access"] = len(public_access) == 3 * len(PLATFORM_COLUMNS) and all(
+    result["data_api_roles_no_access"] = len(public_access) == 3 * len(expected_columns) and all(
         not row[2] and not row[3] for row in public_access
     )
     return result
@@ -347,11 +355,15 @@ def migrate(*, confirm: str, pilot_confirm: str, profile: Path = DEFAULT_PROFILE
     before = inspect_catalog(profile)
     if _verified(before):
         return {**before, "status": "platform_migration_already_verified"}
-    if (
-        before["schema_exists"]
-        or not before["pilot_owned"]
-        or before["revisions"] != ["pilot_0001"]
-    ):
+    initial = (
+        not before["schema_exists"]
+        and before["pilot_owned"]
+        and before["revisions"] == ["pilot_0001"]
+    )
+    existing_v1 = before.get("revisions") == [schema_v1.PLATFORM_REVISION] and _verified(
+        {**before, "revisions": [PLATFORM_REVISION]}
+    )
+    if not initial and not existing_v1:
         raise PlatformAdminError("迁移前状态不符合预期；未接管、覆盖或修改已有对象。")
     try:
         with migration_environment(management_url(profile)):
@@ -367,7 +379,7 @@ def migrate(*, confirm: str, pilot_confirm: str, profile: Path = DEFAULT_PROFILE
         **after,
         "status": "platform_migration_verified",
         "tables_changed": True,
-        "created_tables": len(PLATFORM_COLUMNS),
+        "created_tables": len(NEW_COLUMNS) if existing_v1 else len(PLATFORM_COLUMNS),
     }
 
 
@@ -386,7 +398,7 @@ def _role_row(connection):
     ).fetchone()
 
 
-def _verify_role(connection, payload: dict) -> None:
+def _verify_role(connection, payload: dict, *, allow_missing_experience: bool = False) -> None:
     if _role_row(connection) != (
         _marker(payload),
         True,
@@ -432,7 +444,15 @@ def _verify_role(connection, payload: dict) -> None:
         for privilege in PRIVILEGES
     }
     observed = {(row[0], row[1]): bool(row[2]) for row in matrix}
-    if observed != expected or any(row[3] for row in matrix):
+    missing_only_new = (
+        allow_missing_experience
+        and set(observed) == set(expected)
+        and all(
+            observed[key] == value or (key[0] in NEW_COLUMNS and value and not observed[key])
+            for key, value in expected.items()
+        )
+    )
+    if (observed != expected and not missing_only_new) or any(row[3] for row in matrix):
         raise PlatformAdminError("平台逐表权限不符合审核的最小授权矩阵。")
     sequences = connection.execute(
         "SELECT c.relname,has_sequence_privilege(%s,c.oid,'USAGE'), "
@@ -532,6 +552,13 @@ def provision(
         if not existing:
             _create_role(connection, payload)
             created = True
+        else:
+            _verify_role(connection, payload, allow_missing_experience=True)
+            for table in NEW_COLUMNS:
+                connection.execute(
+                    f"GRANT {', '.join(policy_rules()[table])} ON TABLE "
+                    f"{PLATFORM_SCHEMA}.{table} TO {PLATFORM_RUNTIME_ROLE}"
+                )
         _verify_role(connection, payload)
     if payload["state"] != "ready":
         save_secret_payload(runtime_profile, {**payload, "state": "ready"}, replace=True)
