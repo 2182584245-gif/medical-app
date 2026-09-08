@@ -27,6 +27,9 @@ def test_harness_has_isolated_user_dirs_exact_hash_and_owned_process_only():
         "Stop-Process -Id $testProcess.Id",
         "startup-report.json",
         "packet_capture_performed=$false",
+        "健康生活服务平台 — 云端模式",
+        "HEALTHLIFE_CLOUD_BASE_URL",
+        "$env:HEALTHLIFE_CLOUD_BASE_URL = $null",
     ):
         assert required in text
     assert text.index("if (-not $ConfirmRun)") < text.index(

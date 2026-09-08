@@ -46,7 +46,8 @@ foreach ($directory in @($dataDirectory, $localDirectory, $roamingDirectory, $te
     New-Item -ItemType Directory -Path $directory | Out-Null
 }
 $isolatedNames = @('OLLAMA_DUAL_CHAT_DATA_DIR','LOCALAPPDATA','APPDATA','TEMP','TMP',
-    'QT_QPA_PLATFORM','PYTHONPATH','PYTHONHOME','DEEPSEEK_API_KEY','OLLAMA_API_KEY','OPENAI_API_KEY')
+    'QT_QPA_PLATFORM','PYTHONPATH','PYTHONHOME','DEEPSEEK_API_KEY','OLLAMA_API_KEY','OPENAI_API_KEY',
+    'HEALTHLIFE_CLOUD_BASE_URL')
 $priorEnvironment = @{}
 foreach ($name in $isolatedNames) {
     $priorEnvironment[$name] = [Environment]::GetEnvironmentVariable($name, 'Process')
@@ -94,6 +95,7 @@ try {
     $env:DEEPSEEK_API_KEY = $null
     $env:OLLAMA_API_KEY = $null
     $env:OPENAI_API_KEY = $null
+    $env:HEALTHLIFE_CLOUD_BASE_URL = $null
     & $resolvedPython -I -c 'import sys; from pathlib import Path; sys.path.insert(0,sys.argv[1]); from ollama_chat_app.data.database import Database; Database(Path(sys.argv[2])).initialize()' (Join-Path $sourceRoot 'src') (Join-Path $dataDirectory 'app.db')
     if ($LASTEXITCODE -ne 0) { throw 'Isolated empty database initialization failed.' }
     $testProcess = Start-Process -FilePath $resolvedExecutable -WorkingDirectory $testTarget -WindowStyle Hidden -PassThru
@@ -110,7 +112,7 @@ try {
     if ($ownedWindows.Count -ne 1) { throw 'Exactly one main window owned by this process is required.' }
     $window = $ownedWindows[0]
     $title = [MedicalReleaseStartupWindows]::Title($window)
-    if ($title -ne '健康生活服务平台 — 本地模式') { throw 'Startup did not show the expected local-mode main window.' }
+    if ($title -ne '健康生活服务平台 — 云端模式') { throw 'Startup did not show the expected default cloud-mode main window.' }
     $report.native_window_title = $title
     # Observe for a short stabilization period; do not click, focus or enter any data.
     Start-Sleep -Milliseconds 1000

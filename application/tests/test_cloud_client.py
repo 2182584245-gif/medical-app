@@ -21,6 +21,20 @@ def login_response():
             "user": USER}
 
 
+@pytest.mark.parametrize("detail,expected", [
+    ("offline_base_version_changed", "base_version"),
+    ("request_conflict", "idempotency"),
+    ("untrusted-private-error", "unknown"),
+])
+def test_conflict_body_only_exports_fixed_safe_category(make_client, detail, expected):
+    client = make_client(lambda request: httpx.Response(409, json={"detail": detail}))
+    client._token = TOKEN
+    with pytest.raises(CloudAPIError) as caught:
+        client.rpc("sync", "apply_queued", [3, {}], {})
+    assert caught.value.code == "conflict" and caught.value.conflict_kind == expected
+    assert detail not in str(caught.value)
+
+
 @pytest.fixture
 def make_client(monkeypatch):
     monkeypatch.setattr(CloudAPIClient, "_on_gui_thread", staticmethod(lambda: False))

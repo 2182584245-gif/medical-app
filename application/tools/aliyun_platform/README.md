@@ -1,4 +1,10 @@
-# 独立阿里云部署（需要管理员实际执行）
+# 独立阿里云部署与维护
+
+## 本次已上线实例（2026-09-08）
+
+已按用户授权部署到 `39.106.166.15`，两条公网 HTTPS 路线均已通过实际业务验收：默认 `https://39.106.166.15/aliyun`，备用 `https://39.106.166.15/supabase`。现有 Supabase 平台的 1 个账号、1 个会话和 1 条审计已复制到新建阿里云数据库，来源保留；没有上传桌面历史、AI Key 或在线令牌。实际部署与测试证据见 [VALIDATION.md](VALIDATION.md)。
+
+**以下“新部署顺序”只适用于另一个经批准的新环境，不要在当前运行实例重新执行 prepare 或重建数据卷。** 两条路线是独立数据库；切换地址不会自动合并账号，也不是两库持续互相复制。
 
 本目录只部署到 `/opt/medical-app` 和三个带所有权标签的专用 Compose 卷。不会读取、上传或导入任何桌面 SQLite 数据；不会调用 Supabase 管理接口。新数据库为 `medical_app_aliyun`，使用独立随机 bootstrap/runtime 密码、内部 CA、两套 API TLS 证书及独立会话 pepper。现有目录或专用卷存在时，prepare 拒绝，不能用删除卷/重新生成密钥来“修复”认证失败。
 
@@ -63,7 +69,7 @@ sudo python3 -m tools.aliyun_platform.maintenance capacity
 
 备份包含敏感记录，文件保持 root-only 权限。应另行批准加密异地备份、保留周期和恢复演练；仅同盘备份不能防主机/磁盘丢失。容量达到 85% 或空闲少于 2 GiB、36 小时无验证备份、私有证书剩余不足 30 天时，capacity 返回失败供监控接收。脚本不会自动删除旧备份，管理员须有告警接收人。
 
-随附 systemd service/timer 可在管理员审核后安装到 `/etc/systemd/system/` 并启用：每日约 03:15 主机本地时间备份、每小时容量检查。首次手动备份成功后再启用。单机资源限制只是保守起点，不是并发承诺。
+随附 systemd service/timer 可在管理员审核后安装到 `/etc/systemd/system/` 并启用：每日北京时间 03:15 加 0～15 分钟随机延迟备份、每小时加 0～5 分钟随机延迟检查容量。备份日历显式使用 `Asia/Shanghai`，不依赖主机的默认时区。本次实例已在首次手动备份与恢复核验成功后启用这两项定时器；容量检查目前通过日志与退出状态报告，没有配置外部消息接收渠道。单机资源限制只是保守起点，不是并发承诺。
 
 ## 官方依据（2026-09-08 核对）
 
@@ -73,4 +79,4 @@ sudo python3 -m tools.aliyun_platform.maintenance capacity
 - [Supabase SSL enforcement](https://supabase.com/docs/guides/platform/ssl-enforcement)：verify-full 同时验证 CA 与主机名，需要显式数据库 CA。
 - [Supabase changelog](https://supabase.com/changelog)：实现前已检查；Markdown 入口不可用时采用官方 HTML 和文档检索。
 
-离线自动化测试位于 `tests/server/test_aliyun_deployment.py`。正式云上线、ACME生产签发、真实远端 Supabase 连通和公网业务验收必须由主任务/管理员另行执行，不能由静态测试结果代替。
+离线自动化测试位于 `tests/server/test_aliyun_deployment.py`。本次正式云上线、ACME 生产签发、真实 Supabase 连通和公网业务验收已另行实际执行，结果见验收记录；未来的新部署也必须独立验收，不能直接沿用本次结论或以静态测试代替。

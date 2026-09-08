@@ -104,6 +104,9 @@ def test_same_archive_build_produces_distinct_clean_and_demo_packages(built_sour
         clean_verify._verify_database(target / "data/app.db")
     assert (target / "DEMO_ACCOUNTS.md").read_bytes() == (demo / "DEMO_ACCOUNTS.md").read_bytes()
     assert not (clean / "DEMO_ACCOUNTS.md").exists()
+    instructions = (target / "使用说明.txt").read_text(encoding="utf-8-sig")
+    assert "使用演示账号前，请主动选择“本地模式”并应用，再登录。" in instructions
+    assert "默认选择本地模式" not in instructions
 
 
 def test_old_or_incomplete_executable_is_refused_before_output(built_source, demo, tmp_path):
