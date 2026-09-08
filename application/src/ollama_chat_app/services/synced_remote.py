@@ -139,8 +139,14 @@ class SyncedRemoteService:
             and queued_method in OFFLINE_METHODS.get(self.service_name, ())
         ):
             intent_args = [actor]
-            intent_kwargs = {name: value for name, value in bound.arguments.items()
-                             if name != actor_field}
+            intent_kwargs = {}
+            for name, value in bound.arguments.items():
+                if name == actor_field:
+                    continue
+                if bound.signature.parameters[name].kind is inspect.Parameter.VAR_KEYWORD:
+                    intent_kwargs.update(value)
+                else:
+                    intent_kwargs[name] = value
             if queue_payload_allowed(intent_args, intent_kwargs):
                 return self._sync.submit_intent(
                     self.service_name, method, intent_args, intent_kwargs

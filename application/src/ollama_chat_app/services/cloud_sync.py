@@ -578,11 +578,17 @@ class CloudSyncService(QObject):
                 request_id=item["operation_id"],
             ))
         except CloudAPIError as error:
-            status = (
-                "conflict" if error.code == "conflict" else "rejected"
-                if error.code in {"validation", "not_found"} else "uncertain"
-                if error.outcome_uncertain else "queued"
-            )
+            if (item["status"] == "uncertain" or error.outcome_uncertain
+                    or (error.code == "conflict" and error.conflict_kind != "base_version")):
+                # Scope/journal conflicts do NOT prove that the original write
+                # failed. Neither do later 422/404 responses after a lost ACK.
+                status = "uncertain"
+            elif error.code == "conflict":
+                status = "conflict"
+            elif error.code in {"validation", "not_found"}:
+                status = "rejected"
+            else:
+                status = "queued"
             self.outbox.set_status(identity, item["operation_id"], status, error.code)
             self._notify_outbox()
             if (identity == self.identity and identity.actor_id == self.actor_id
@@ -651,7 +657,9 @@ class CloudSyncService(QObject):
                 self.files.fetch(self.client, identity, snapshot["resources"])
                 final = decode_rpc(self.client.rpc(
                     "sync", "get_sync_manifest", encode_rpc([actor_id]), {}))
-                if final["revision"] != snapshot["revision"]:
+                if (final["revision"] != snapshot["revision"]
+                        or final["actor_id"] != actor_id
+                        or final["server_instance_id"] != snapshot["server_instance_id"]):
                     raise CloudAPIError("conflict")
                 validate_snapshot(snapshot, actor_id)
                 return snapshot
@@ -690,10 +698,13 @@ class CloudSyncService(QObject):
             "not_authenticated",
             "permission",
         }
-        unsafe_error = isinstance(error, SyncError) or (
-            isinstance(error, CloudAPIError)
-            and (error.code in {"protocol", "configuration", "limit"} or error.status_code == 413)
-        )
+        # Only an actual unavailable transport may preserve the last authorized
+        # generation. A 409/422 page failure can mean a binding was removed;
+        # presenting that older scope as an offline snapshot would leak access.
+        transport_error = isinstance(error, CloudAPIError) and error.code in {
+            "network", "timeout", "unavailable",
+        }
+        unsafe_error = not auth_error and not transport_error
         if auth_error or unsafe_error:
             self._authorization_blocked = True
             self._resync = False

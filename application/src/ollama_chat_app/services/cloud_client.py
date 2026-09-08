@@ -42,11 +42,14 @@ class CloudAPIError(RuntimeError):
     """Contains only fixed messages and safe metadata; never a response/request object."""
 
     def __init__(
-        self, code: str, *, status_code: int | None = None, outcome_uncertain: bool = False
+        self, code: str, *, status_code: int | None = None, outcome_uncertain: bool = False,
+        conflict_kind: str = "unknown",
     ) -> None:
         self.code = code if code in _MESSAGES else "protocol"
         self.status_code = status_code
         self.outcome_uncertain = outcome_uncertain
+        self.conflict_kind = (conflict_kind if conflict_kind in {"base_version", "idempotency"}
+                              else "unknown")
         super().__init__(_MESSAGES[self.code])
 
 
@@ -284,8 +287,27 @@ class CloudAPIClient:
                             422: "validation",
                             429: "limited",
                         }.get(status, "unavailable")
+                        conflict_kind = "unknown"
+                        if status == 409:
+                            # Only fixed server codes influence replay safety.
+                            # Bound the untrusted body and never retain or show it.
+                            small_body = bytearray()
+                            for chunk in response.iter_bytes(chunk_size=1024):
+                                if len(small_body) + len(chunk) > 4096:
+                                    small_body.clear()
+                                    break
+                                small_body.extend(chunk)
+                            try:
+                                detail = json_module.loads(small_body).get("detail")
+                                conflict_kind = {
+                                    "offline_base_version_changed": "base_version",
+                                    "request_conflict": "idempotency",
+                                }.get(detail, "unknown")
+                            except (ValueError, TypeError, AttributeError):
+                                pass
                         raise CloudAPIError(
-                            code, status_code=status, outcome_uncertain=write and status >= 500
+                            code, status_code=status, outcome_uncertain=write and status >= 500,
+                            conflict_kind=conflict_kind,
                         )
                     if status == 204:
                         return None

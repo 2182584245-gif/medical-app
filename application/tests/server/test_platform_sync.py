@@ -216,6 +216,15 @@ def test_attachment_chunks_recheck_owner_and_hash(bundle):
     assert caught.value.status == 409
 
 
+def test_offline_appointment_intent_uses_normal_service_validation(bundle):
+    _, actor, _, _, dispatcher = bundle
+    intent = {"service": "service_management", "method": "request_appointment",
+              "args": [actor], "kwargs": {"service_type": "合成上门服务", "notes": "合成备注"},
+              "base_version": None}
+    identifier = invoke(dispatcher, actor, "apply_queued", intent)
+    assert type(identifier) is int and identifier > 0
+
+
 def test_snapshot_self_only_and_revision_detects_delete(bundle):
     database, actor, other, sync, dispatcher = bundle
     health = HealthService(database)

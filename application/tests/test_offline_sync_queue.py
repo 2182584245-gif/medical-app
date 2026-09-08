@@ -75,7 +75,7 @@ def test_conflict_preserved_until_explicit_rebase_and_identity_guard(qtbot, tmp_
     sync = coordinator(tmp_path)
     queued = sync.submit_intent("health", "save_profile", [1], {"values": {"display_name": "x"}})
     sync._state = "online"
-    sync.client.fail = CloudAPIError("conflict", status_code=409)
+    sync.client.fail = CloudAPIError("conflict", status_code=409, conflict_kind="base_version")
     sync._replay_pending(1)
     assert sync.get_pending(queued.operation_id)["status"] == "conflict"
     rebased = sync.rebase_pending(queued.operation_id)
@@ -84,6 +84,139 @@ def test_conflict_preserved_until_explicit_rebase_and_identity_guard(qtbot, tmp_
     sync.actor_id = 2
     with pytest.raises(CloudAPIError):
         sync.pending_operations()
+
+
+def test_remote_appointment_queue_flattens_only_variadic_keywords(qtbot, tmp_path):
+    from ollama_chat_app.services.remote_services import (
+        RemoteAppointmentService,
+        RemoteServiceManagementService,
+    )
+    from ollama_chat_app.services.synced_remote import SyncedRemoteService
+
+    sync = coordinator(tmp_path)
+    wrapped = SyncedRemoteService(RemoteServiceManagementService(sync.client), sync)
+    appointment = RemoteAppointmentService(sync.client, management=wrapped)
+    result = appointment.create_request(1, "合成上门服务", notes="合成备注")
+    assert isinstance(result, QueuedOperation)
+    item = sync.get_pending(result.operation_id)
+    assert "values" not in item["kwargs"]
+    assert item["kwargs"]["service_type"] == "合成上门服务"
+    assert item["args"] == [1] and not sync.client.calls
+
+
+@pytest.mark.parametrize("error", [
+    CloudAPIError("conflict", status_code=409, conflict_kind="idempotency"),
+    CloudAPIError("conflict", status_code=409, conflict_kind="base_version"),
+    CloudAPIError("conflict", status_code=409),
+    CloudAPIError("validation", status_code=422),
+    CloudAPIError("not_found", status_code=404),
+])
+def test_uncertain_never_becomes_rebasable_after_later_failure(qtbot, tmp_path, error):
+    sync = coordinator(tmp_path)
+    queued = sync.submit_intent("health", "add_life_record", [1], {"content": "synthetic"})
+    sync.outbox.set_status(sync.identity, queued.operation_id, "uncertain", "timeout")
+    sync._state, sync.client.fail = "online", error
+    sync._replay_pending(1)
+    assert sync.get_pending(queued.operation_id)["status"] == "uncertain"
+    with pytest.raises(CloudAPIError):
+        sync.rebase_pending(queued.operation_id)
+    with pytest.raises(CloudAPIError):
+        sync.discard_pending(queued.operation_id)
+    assert len(sync.pending_operations()) == 1
+
+
+def test_unknown_journal_conflict_is_uncertain_even_before_ack_was_recorded(qtbot, tmp_path):
+    sync = coordinator(tmp_path)
+    queued = sync.submit_intent("health", "add_life_record", [1], {"content": "synthetic"})
+    sync._state = "online"
+    sync.client.fail = CloudAPIError("conflict", status_code=409, conflict_kind="idempotency")
+    sync._replay_pending(1)
+    assert sync.get_pending(queued.operation_id)["status"] == "uncertain"
+    with pytest.raises(CloudAPIError):
+        sync.rebase_pending(queued.operation_id)
+
+
+@pytest.mark.parametrize("code,status", [("conflict", 409), ("validation", 422),
+                                         ("not_found", 404), ("protocol", 200)])
+def test_nontransport_snapshot_failure_locks_old_scope(qtbot, tmp_path, code, status):
+    from ollama_chat_app.services.cloud_sync import SyncError
+
+    sync = coordinator(tmp_path)
+    lost = []
+    sync.authorization_lost.connect(lambda: lost.append(True))
+    sync._failed(sync.cache_generation, CloudAPIError(code, status_code=status))
+    assert not sync.mirror.authorized and not sync.mirror._fresh
+    assert sync.authorization_blocked and len(lost) == 1
+    with pytest.raises((SyncError, CloudAPIError)):
+        sync.authorized_snapshot(1, ENDPOINT)
+
+
+def test_committed_lost_ack_scope_change_cannot_duplicate_via_rebase(qtbot, tmp_path):
+    """Exercise the real journal, not only a mocked generic HTTP conflict."""
+    import sys
+    from pathlib import Path
+
+    from ollama_chat_app.services.chat import ChatService
+    from ollama_chat_app.services.cloud_rpc_codec import decode_rpc
+    from ollama_chat_app.services.health import HealthService
+    from ollama_chat_app.services.preferences import PreferencesService
+    from ollama_chat_app.services.service_management import ServiceManagementService
+
+    # Reuse a fully isolated :memory: schema, never the active desktop Database.
+    sys.path.insert(0, str(Path(__file__).parent / "server"))
+    try:
+        from platform_test_support import PEPPER, SyntheticDatabase
+
+        from server.platform_rpc import RpcDispatcher, RpcError
+        from server.platform_sync import PlatformSyncService
+    finally:
+        sys.path.pop(0)
+    database = SyntheticDatabase()
+    try:
+        actor = database.account("synthetic-lost-ack")
+        advisor = database.account("synthetic-new-binding", role="advisor")
+        services = {"health": HealthService(database), "preferences": PreferencesService(database),
+                    "chat": ChatService(database),
+                    "service_management": ServiceManagementService(database)}
+        services["sync"] = PlatformSyncService(database, services, PEPPER)
+        dispatcher = RpcDispatcher(database, services)
+        sync = coordinator(tmp_path)
+        assert actor == 1
+        queued = sync.submit_intent("health", "add_life_record", [actor], {
+            "category": "water", "occurred_at": "2026-09-08T10:00:00+08:00",
+            "content": "synthetic exactly once",
+        })
+
+        def rpc(service, method, args, kwargs, **options):
+            try:
+                return dispatcher.invoke(actor, service, method, {
+                    "args": args, "kwargs": kwargs, "request_id": options["request_id"],
+                })["result"]
+            except RpcError as error:
+                raise CloudAPIError("conflict", status_code=error.status,
+                                     conflict_kind="idempotency") from None
+
+        item = sync.get_pending(queued.operation_id)
+        intent = {key: item[key] for key in ("service", "method", "args", "kwargs", "base_version")}
+        decode_rpc(rpc("sync", "apply_queued", encode_rpc([actor, intent]), {},
+                       request_id=queued.operation_id))
+        sync.outbox.set_status(sync.identity, queued.operation_id, "uncertain", "timeout")
+        with database.transaction() as connection:
+            connection.execute(
+                "INSERT INTO advisor_bindings(member_user_id,advisor_user_id,status,"
+                "created_at,updated_at) VALUES(?,?,?,?,?)",
+                (actor, advisor, "active", "2026-09-08T00:00:00+00:00",
+                 "2026-09-08T00:00:00+00:00"),
+            )
+        sync.client.rpc = rpc
+        sync._state = "online"
+        sync._replay_pending(actor)
+        assert sync.get_pending(queued.operation_id)["status"] == "uncertain"
+        with pytest.raises(CloudAPIError):
+            sync.rebase_pending(queued.operation_id)
+        assert len(services["health"].list_life_records(actor)) == 1
+    finally:
+        database.close()
 
 
 def test_large_encrypted_snapshot_encoding_does_not_reuse_whole_rpc_budget(tmp_path):
