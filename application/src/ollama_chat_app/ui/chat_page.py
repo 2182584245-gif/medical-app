@@ -38,6 +38,7 @@ from ..config import (
     MAX_MESSAGE_LENGTH,
 )
 from ..providers.deepseek_cloud import DeepSeekCloudProvider
+from ..providers.demo_life import DEMO_MODEL, DemoLifeProvider
 from ..providers.local_ollama import LocalOllamaProvider
 from ..providers.ollama_cloud import OllamaCloudProvider
 from ..security.secret_store import SecretStore
@@ -46,9 +47,11 @@ from ..services.chat import ChatService, ChatTurn
 from ..services.chat_attachments import (
     ChatAttachment,
     prepare_attachment,
+    prepare_attachment_bytes,
     validate_attachments,
 )
 from ..services.chat_personalization import needs_life_context, personalized_system_message
+from ..services.life_agent import ConversationAgentProvider
 from ..services.offline_outbox import QueuedOperation
 from ..services.voice import OfflineSpeechRecognizer
 from ..time_utils import beijing_now
@@ -57,7 +60,9 @@ from .ai_proposals_panel import AiProposalsPanel
 from .chat_settings_dialog import ChatSettingsDialog
 from .cloud_key_dialog import CloudKeyDialog
 from .deepseek_key_dialog import DeepSeekKeyDialog
+from .meal_capture_dialog import MealCaptureDialog
 from .message_list import MessageList
+from .sleep_check_dialog import SleepCheckDialog
 from .voice_input import VoiceInputController
 
 
@@ -91,6 +96,7 @@ class ChatPage(QWidget):
         self._request_running = False
         self._backup_running = False
         self._voice_processing = False
+        self._last_voice_text = ""
         self._attachment_processing = False
         self.current_conversation_id: int | None = None
         self._session_generation = 0
@@ -245,6 +251,15 @@ class ChatPage(QWidget):
         self.context_checkbox.setChecked(False)
         self.context_checkbox.toggled.connect(self._save_context_consent)
         root.addWidget(self.context_checkbox)
+        self.demo_checkbox = QCheckBox("无 Key 演示（本机规则模拟，非 DeepSeek）")
+        self.demo_checkbox.setToolTip("勾选后不连接模型服务；可体验记录、偏好、提醒草稿及确认保存。")
+        root.addWidget(self.demo_checkbox)
+        self.speak_checkbox = QCheckBox("把回复读给我听（使用本机语音）")
+        self.speak_checkbox.toggled.connect(
+            lambda enabled: self._stop_speaking() if not enabled else None
+        )
+        root.addWidget(self.speak_checkbox)
+        self._speech_output = None
         self.context_notice = QLabel(
             "发送生活相关问题时，会把本账号的有限档案、近期记录及提醒与本轮消息发送给所选 AI；"
             "称呼与回答偏好也会用于回复。可取消勾选。"
@@ -257,6 +272,19 @@ class ChatPage(QWidget):
         self.context_notice.hide()
         root.addWidget(self.context_notice)
 
+        daily_actions = QHBoxLayout()
+        daily_actions.setSpacing(12)
+        self.meal_button = QPushButton("拍下这一餐")
+        self.meal_button.clicked.connect(self._capture_meal)
+        self.activity_button = QPushButton("记一下活动")
+        self.activity_button.clicked.connect(self._activity_entry)
+        self.sleep_button = QPushButton("早上报睡眠")
+        self.sleep_button.clicked.connect(self._sleep_entry)
+        for button in (self.meal_button, self.activity_button, self.sleep_button):
+            button.setMinimumHeight(56)
+            daily_actions.addWidget(button)
+        root.addLayout(daily_actions)
+
         input_frame = QFrame()
         input_frame.setObjectName("Card")
         input_layout = QHBoxLayout(input_frame)
@@ -264,7 +292,7 @@ class ChatPage(QWidget):
         input_layout.setSpacing(10)
 
         self.message_input = QPlainTextEdit()
-        self.message_input.setPlaceholderText("输入消息；Ctrl+Enter 发送")
+        self.message_input.setPlaceholderText("可以直接说话，也可以在这里打字；吃饭优先拍照")
         self.message_input.setMaximumBlockCount(500)
         self.message_input.setFixedHeight(76)
         input_layout.addWidget(self.message_input, 1)
@@ -284,10 +312,11 @@ class ChatPage(QWidget):
         self.life_actions_button = QPushButton("生活动态生成")
         self.life_actions_button.setMinimumHeight(44)
         life_menu = QMenu(self.life_actions_button)
-        for label in ("生成生活总结", "饮食建议", "环境建议", "用药建议"):
-            action = life_menu.addAction(f"{label} · 敬请期待")
+        for label, prompt in (("看看近期生活", "请总结最近的生活记录"),
+                              ("设置生活提醒", "我想设置一个生活提醒")):
+            action = life_menu.addAction(label)
             action.triggered.connect(
-                lambda _checked=False, text=label: self._set_status(f"{text}：敬请期待。", "hint")
+                lambda _checked=False, text=prompt: self._send_suggestion(text)
             )
         self.life_actions_button.setMenu(life_menu)
         input_layout.addWidget(self.life_actions_button)
@@ -347,7 +376,8 @@ class ChatPage(QWidget):
         self.voice_button.setFixedWidth(112)
         self.voice_button.setFixedHeight(44)
         self.voice_button.clicked.connect(self._toggle_voice_recording)
-        input_layout.addWidget(self.voice_button)
+        self.voice_button.setMinimumHeight(56)
+        daily_actions.insertWidget(0, self.voice_button)
         root.addWidget(input_frame)
 
         self.message_input.installEventFilter(self)
@@ -605,6 +635,7 @@ class ChatPage(QWidget):
                 self._set_status(str(exc), "error")
 
     def end_session(self) -> None:
+        self._stop_speaking()
         self._session_generation += 1
         self.voice_controller.cancel()
         self.current_user = None
@@ -865,9 +896,8 @@ class ChatPage(QWidget):
 
         self._session_keys[provider] = dialog.api_key
         try:
-            if provider == "deepseek_cloud" and hasattr(
-                self.secret_store, "save_persistent_api_key"
-            ):
+            if (provider == "deepseek_cloud" and getattr(dialog, "persist_key", True)
+                    and hasattr(self.secret_store, "save_persistent_api_key")):
                 self.secret_store.save_persistent_api_key(
                     self._credential_identity(), dialog.api_key, provider
                 )
@@ -923,6 +953,63 @@ class ChatPage(QWidget):
         self.cloud_model_combo.addItem(CLOUD_MODEL_PLACEHOLDER, None)
         self.cloud_model_combo.setDisabled(False)
         self._set_status(str(error) or "读取云端模型失败。", "error")
+
+    def _stop_speaking(self) -> None:
+        if self._speech_output is not None:
+            self._speech_output.stop()
+
+    def _speak_answer(self, text: str) -> None:
+        if not self.speak_checkbox.isChecked():
+            return
+        try:
+            from PySide6.QtCore import QLocale
+            from PySide6.QtTextToSpeech import QTextToSpeech
+
+            if self._speech_output is None:
+                self._speech_output = QTextToSpeech(self)
+                self._speech_output.setLocale(QLocale("zh_CN"))
+            if self._speech_output.state() == QTextToSpeech.State.Error:
+                self._set_status("本机语音朗读不可用，回答已保留为文字。", "hint")
+                return
+            self._speech_output.say(text[:4000])
+        except Exception:
+            self._set_status("本机没有可用的中文朗读组件，回答已保留为文字。", "hint")
+
+    def _activity_entry(self) -> None:
+        self.message_input.setPlaceholderText("例如：我现在出去散步了；没有时长也可以先记录")
+        self.message_input.setFocus()
+        self._set_status("点“开始语音”说一句就好，也可以打字；时长不清楚会留空。", "hint")
+
+    def _sleep_entry(self) -> None:
+        dialog = SleepCheckDialog(self)
+        if dialog.exec() == QDialog.DialogCode.Accepted:
+            existing = self.message_input.toPlainText().strip()
+            self.message_input.setPlainText((existing + "\n" + dialog.prompt()).strip())
+            self._set_status("已整理您自报的入睡和起床时间，点击发送后核对记录。", "ok")
+
+    def _capture_meal(self) -> None:
+        if len(self._pending_attachments) >= 4:
+            self._set_status("一条消息最多附加 4 张照片，请先发送或移除附件。", "error")
+            return
+        dialog = MealCaptureDialog(self)
+        if dialog.exec() != QDialog.DialogCode.Accepted:
+            return
+        try:
+            attachment = (prepare_attachment(dialog.file_path) if dialog.file_path else
+                          prepare_attachment_bytes("这一餐.jpg", dialog.image_bytes))
+            result = [*self._pending_attachments, attachment]
+            validate_attachments(result)
+            self._pending_attachments = result
+            self._refresh_attachment_label()
+            instruction = (
+                "这是我这一餐的照片。请识别照片里看得见的食物，整理饮食草稿让我确认。"
+                "看不清楚请问我，不要猜重量、热量、配料或是否已经吃完。"
+            )
+            existing = self.message_input.toPlainText().strip()
+            self.message_input.setPlainText((existing + "\n" + instruction).strip())
+            self._set_status("餐食照片已就绪，点击发送识别；结果确认后才保存。", "ok")
+        except Exception as exc:
+            self._set_status(f"照片未能添加：{exc}", "error")
 
     def _choose_images(self) -> None:
         self._choose_attachments(images_only=True)
@@ -1165,6 +1252,17 @@ class ChatPage(QWidget):
             self._set_status(f"无法检查对话附件：{exc}", "error")
             return
 
+        agent_enabled = (
+            share_context
+            and context_service is not None
+            and callable(getattr(context_service, "create_member_draft", None))
+        )
+        if agent_enabled and len(content) > 4000:
+            self._set_status("生活智能体单条消息请控制在 4000 字以内。", "error")
+            return
+        agent_result: dict[str, Any] = {}
+        input_source = "voice" if content == self._last_voice_text else "text"
+
         def run_request() -> str:
             exchange = None
             effective_model = model
@@ -1175,8 +1273,19 @@ class ChatPage(QWidget):
                 history = self.chat_service.context_for_provider(
                     user_id, limit=MAX_CONTEXT_MESSAGES - 1, **options
                 )
+                # Configuration applies to all conversation intents, including small talk.
+                if context_service is not None:
+                    config_reader = getattr(context_service, "get_ai_config", None)
+                    if callable(config_reader):
+                        config = config_reader(user_id)
+                        if not config.get("enabled", True) or not config.get(
+                            "member_assistant_enabled", True
+                        ):
+                            raise ValueError("会员 AI 助手当前已关闭，未发送资料。")
                 system_message = personalized_system_message(
-                    user_id, content, preferences, context_service, share_context=share_context
+                    user_id, content, preferences,
+                    None if agent_enabled else context_service,
+                    share_context=share_context,
                 )
                 model_messages = [
                     system_message,
@@ -1204,7 +1313,19 @@ class ChatPage(QWidget):
                     "exchange": exchange,
                 }
                 self.stream_progress.emit({**progress_base, "content": ""})
-                if callable(getattr(provider, "chat_stream", None)):
+                if agent_enabled:
+                    agent = ConversationAgentProvider(
+                        provider, history, ChatTurn("user", content, attachments).as_dict(),
+                        cancel_event, input_source=input_source,
+                        answer_settings=preferences,
+                    )
+                    result = context_service.create_member_draft(
+                        user_id, agent, provider_name, effective_model, content,
+                        images=[a.content for a in attachments if a.is_image],
+                    )
+                    agent_result.update(result)
+                    answer = str(result["answer"])
+                elif callable(getattr(provider, "chat_stream", None)):
                     chunks: list[str] = []
                     for chunk in provider.chat_stream(
                         effective_model, model_messages, cancel_event=cancel_event
@@ -1253,8 +1374,17 @@ class ChatPage(QWidget):
                 self._conversation_drafts.pop(conversation_id, None)
             self._load_conversation_messages()
             self._refresh_conversations()
-            self._set_status("回答完成。附件会随当前对话最近的消息用于后续理解。", "ok")
+            if agent_result:
+                self._refresh_drafts()
+                pending = len(agent_result.get("proposals", []))
+                self._set_status(
+                    f"回答完成，{pending} 项待确认；点击右上角“AI 待确认”核对保存。"
+                    if pending else "回答完成，本轮没有需要保存的内容。", "ok"
+                )
+            else:
+                self._set_status("回答完成。附件会随当前对话最近的消息用于后续理解。", "ok")
             self.data_changed.emit()
+            self._speak_answer(str(_answer))
 
         def failed(error: object) -> None:
             if not still_current():
@@ -1414,6 +1544,8 @@ class ChatPage(QWidget):
         )
 
     def _selected_provider(self) -> tuple[object, str, str] | None:
+        if self.demo_checkbox.isChecked():
+            return DemoLifeProvider(), "workflow_demo", DEMO_MODEL
         mode = self.mode_combo.currentData()
         if mode == "local":
             model = self.local_model_combo.currentText().strip()
@@ -1526,6 +1658,7 @@ class ChatPage(QWidget):
                 self.current_user.id, insight_id, proposal_id
             )
             self._refresh_drafts()
+            self._set_status("已确认保存，可在生活记录、档案或提醒中查看。", "ok")
             self.data_changed.emit()
         except Exception as exc:
             if self._draft_panel is not None:
@@ -1587,6 +1720,7 @@ class ChatPage(QWidget):
         if self.voice_controller.is_recording:
             self.voice_controller.stop()
         else:
+            self._stop_speaking()
             self.voice_controller.start()
 
     def _voice_recording_started(self) -> None:
@@ -1615,7 +1749,8 @@ class ChatPage(QWidget):
         recognized = str(result).strip()
         existing = self.message_input.toPlainText().strip()
         self.message_input.setPlainText(f"{existing}\n{recognized}".strip())
-        self._set_status("语音已在本机转为文字，请检查后点击发送。", "ok")
+        self._last_voice_text = self.message_input.toPlainText().strip()
+        self._set_status("已听到您说的话，点击发送即可；也可以先改一下。", "ok")
 
     def _voice_recognition_finished(self) -> None:
         self._voice_processing = False
@@ -1649,6 +1784,9 @@ class ChatPage(QWidget):
         self.key_button.setDisabled(busy)
         self.settings_button.setDisabled(busy)
         self.context_checkbox.setDisabled(busy)
+        self.demo_checkbox.setDisabled(busy)
+        for button in (self.meal_button, self.activity_button, self.sleep_button):
+            button.setDisabled(busy)
         self.life_actions_button.setDisabled(busy)
         self.attachment_cards.setDisabled(busy)
         self.cancel_button.setVisible(self._request_running)

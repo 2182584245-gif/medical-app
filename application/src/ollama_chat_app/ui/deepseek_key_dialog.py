@@ -3,6 +3,7 @@ from __future__ import annotations
 from PySide6.QtCore import QThreadPool, QUrl
 from PySide6.QtGui import QDesktopServices
 from PySide6.QtWidgets import (
+    QCheckBox,
     QDialog,
     QHBoxLayout,
     QLabel,
@@ -41,7 +42,7 @@ class DeepSeekKeyDialog(QDialog):
 
         description = QLabel(
             "请在 DeepSeek 官方平台创建 Key 后粘贴到这里。应用不会获取你的官网密码，"
-            "验证后使用 Windows 当前账户加密保存，重开应用仍可使用；"
+            "默认只在本次运行内存中使用；勾选后可使用 Windows 当前账户加密保存。"
             "此处更换只作用于当前应用账号。\n"
             "点击“极小请求验证并使用”会调用一次 deepseek-v4-flash，并限制为 2 个输出 token，"
             "因此可能产生极少量用量。"
@@ -73,6 +74,12 @@ class DeepSeekKeyDialog(QDialog):
         self.key_input.setClearButtonEnabled(True)
         layout.addWidget(self.key_input)
 
+        self.persist_checkbox = QCheckBox("记住此 Key（仅支持 Windows 账户加密存储）")
+        import sys
+
+        self.persist_checkbox.setEnabled(sys.platform == "win32")
+        layout.addWidget(self.persist_checkbox)
+
         self.status_label = QLabel("应用不会把 Key 写入数据库、日志或数据备份。")
         self.status_label.setObjectName("Hint")
         self.status_label.setWordWrap(True)
@@ -99,6 +106,10 @@ class DeepSeekKeyDialog(QDialog):
     @property
     def api_key(self) -> str | None:
         return self._verified_key
+
+    @property
+    def persist_key(self) -> bool:
+        return self.persist_checkbox.isChecked()
 
     def _request_remove(self) -> None:
         answer = QMessageBox.question(
