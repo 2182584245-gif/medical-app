@@ -5,6 +5,7 @@ from typing import Any
 
 from PySide6.QtCore import QThreadPool
 from PySide6.QtWidgets import (
+    QCheckBox,
     QComboBox,
     QDialog,
     QHBoxLayout,
@@ -17,6 +18,7 @@ from PySide6.QtWidgets import (
 
 from ..config import DEEPSEEK_DEFAULT_MODEL, DEFAULT_LOCAL_MODEL
 from ..providers.deepseek_cloud import DeepSeekCloudProvider
+from ..providers.demo_life import DEMO_MODEL, DemoLifeProvider
 from ..providers.local_ollama import LocalOllamaProvider
 from ..providers.ollama_cloud import OllamaCloudProvider
 from ..workers.task import FunctionTask
@@ -78,6 +80,8 @@ class AdvisorAiPanel(QWidget):
         self.generate_button.clicked.connect(self.generate_summary)
         controls.addWidget(self.generate_button)
         root.addLayout(controls)
+        self.demo_checkbox = QCheckBox("无 Key 演示（本机规则模拟，非 DeepSeek）")
+        root.addWidget(self.demo_checkbox)
 
         self.status_label = QLabel()
         self.status_label.setWordWrap(True)
@@ -167,6 +171,8 @@ class AdvisorAiPanel(QWidget):
         return True
 
     def _provider(self) -> tuple[object, str, str] | None:
+        if self.demo_checkbox.isChecked():
+            return DemoLifeProvider(), "workflow_demo", DEMO_MODEL
         mode = str(self.mode_combo.currentData())
         if mode == "local":
             model = self.model_combo.currentText().strip()
@@ -277,6 +283,7 @@ class AdvisorAiPanel(QWidget):
         self.generate_button.setDisabled(busy or self.ai_service is None)
         self.member_combo.setDisabled(busy)
         self.mode_combo.setDisabled(busy)
+        self.demo_checkbox.setDisabled(busy)
         self.model_combo.setDisabled(busy)
         self.key_button.setDisabled(busy)
 
