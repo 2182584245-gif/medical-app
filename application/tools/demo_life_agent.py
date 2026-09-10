@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import sys
 import tempfile
 import threading
 from pathlib import Path
@@ -88,6 +89,8 @@ def run(directory: Path, *, show_ui: bool = False) -> None:
 
 
 if __name__ == "__main__":
+    # Windows redirected output can default to a non-Chinese code page.
+    sys.stdout.reconfigure(encoding="utf-8")
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--ui", action="store_true", help="打开真实桌面组件，使用临时虚构数据")
     arguments = parser.parse_args()
