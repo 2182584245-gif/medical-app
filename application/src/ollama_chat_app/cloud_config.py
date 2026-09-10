@@ -4,8 +4,8 @@ from __future__ import annotations
 
 import os
 
-from .services.cloud_client import CloudAPIError, validate_base_url
 from .config import DEFAULT_ALIYUN_ENDPOINT
+from .services.cloud_client import CloudAPIError, validate_base_url
 
 # Public release gate: both routes must pass real HTTPS verification before packaging.
 # Constructing a window still makes no network request.

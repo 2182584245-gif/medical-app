@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import base64
+from contextlib import suppress
 
 from PySide6.QtCore import QBuffer, QIODevice, Qt, Signal
 from PySide6.QtGui import QImageReader, QPixmap
@@ -215,12 +216,10 @@ class MyPlatformPanel(QWidget):
     def _show_avatar(self):
         pixmap = QPixmap()
         if self._avatar_data:
-            try:
+            with suppress(ValueError, IndexError):
                 pixmap.loadFromData(
                     base64.b64decode(self._avatar_data.split(",", 1)[1], validate=True)
                 )
-            except (ValueError, IndexError):
-                pass
         if pixmap.isNull():
             self.avatar.setText("☺")
         else:
