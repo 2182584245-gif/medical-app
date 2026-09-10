@@ -34,6 +34,7 @@ def test_receiver_checks_identity_and_exact_payload(monkeypatch):
 
 
 def test_handoff_secret_only_in_stdin_pinned_host(monkeypatch, tmp_path):
+    monkeypatch.setattr(handoff_runtime, "os", SimpleNamespace(name="nt"))
     import server.cloud_connection as connection
     import server.platform_admin as admin
     private = "c" * 64

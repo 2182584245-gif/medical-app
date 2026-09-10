@@ -34,11 +34,11 @@ jobs:
             application/requirements.txt
             application/requirements-dev.txt
       - name: Install desktop dependencies
-        run: python -m pip install -r requirements-dev.txt
+        run: python -m pip install -r requirements-dev.txt pytest-timeout==2.4.0
       - name: Lint desktop sources and tests
         run: python -m ruff check src tests packaging
       - name: Desktop regression suite
-        run: python -m pytest tests --ignore=tests/server --junitxml=outputs/desktop-tests.xml
+        run: python -m pytest -v tests --ignore=tests/server --timeout=90 --junitxml=outputs/desktop-tests.xml
       - name: No-key agent acceptance journey
         run: python tools/demo_life_agent.py
       - name: Upload test report
@@ -66,9 +66,13 @@ jobs:
           cache: pip
           cache-dependency-path: application/requirements-server.txt
       - name: Install server dependencies
-        run: python -m pip install -r requirements-server.txt
+        run: |
+          python -m pip install -r requirements-server.txt
+          python -m pip install --no-deps --require-hashes -r tools/aliyun_platform/requirements-transfer-linux-lock.txt
       - name: Server regression suite
-        run: python -m pytest tests/server --junitxml=outputs/server-tests.xml
+        # Deployment ownership tests exercise chown and root-only key directories
+        # against temporary synthetic files on this disposable hosted runner.
+        run: sudo env PYTHONPATH=src:. "$pythonLocation/bin/python" -m pytest tests/server --junitxml=outputs/server-tests.xml
       - name: Upload test report
         if: always()
         uses: actions/upload-artifact@v4
