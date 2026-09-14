@@ -158,6 +158,8 @@ class PlatformBoundary:
         large = scope["path"] in {
             "/v1/rpc/files/upload_bytes",
             "/v1/rpc/chat/begin_message",
+            "/v1/ai/chat",
+            "/v1/ai/chat/stream",
         }
         if self.settings.require_https and scope["scheme"] != "https" and not health_request:
             return await JSONResponse({"detail": "HTTPS required"}, 426)(scope, receive, send)
@@ -199,6 +201,8 @@ class PlatformBoundary:
             )
             if scope["path"].startswith("/v1/rpc/sync/"):
                 limit = min(limit, 1024 * 1024)
+            if scope["path"].startswith("/v1/ai/"):
+                limit = min(limit, 4 * 1024 * 1024)
             boundary = RequestBoundary(
                 self.app,
                 settings=SimpleNamespace(
@@ -213,7 +217,7 @@ class PlatformBoundary:
                 self._large.release()
 
 
-def create_app(settings=None, *, database=None):
+def create_app(settings=None, *, database=None, ai_proxy_settings=None, ai_transport=None):
     from .platform_auth import PlatformAuth, PlatformAuthError, create_auth_router
     from .platform_database import PlatformDatabase
 
@@ -263,6 +267,12 @@ def create_app(settings=None, *, database=None):
     application.state.settings = settings
     application.state.services = services
     application.include_router(create_auth_router(auth))
+    from .platform_ai_proxy import PlatformAIProxy, create_ai_router
+
+    application.state.ai_proxy = PlatformAIProxy(
+        auth, settings=ai_proxy_settings, transport=ai_transport
+    )
+    application.include_router(create_ai_router(application.state.ai_proxy))
     application.add_middleware(PlatformBoundary, settings=settings, auth=auth)
     allowed_hosts = list(settings.allowed_hosts)
     if settings.railway_proxy and settings.railway_edge_only:

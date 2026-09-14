@@ -384,6 +384,12 @@ class PlatformDatabase:
         if self._initialized and not force:
             return
         with self.connect() as connection:
+            from .platform_medical_schema import CATEGORY_CHECK, category_check
+
+            if category_check(connection, placeholder="?") != (CATEGORY_CHECK, True):
+                raise sqlite3.OperationalError(
+                    "云端医疗记录结构尚未升级或约束不匹配，请管理员先升级"
+                )
             for table, columns in PLATFORM_COLUMNS.items():
                 column_sql = ", ".join(f'"{column}"' for column in columns)
                 connection.execute(f'SELECT {column_sql} FROM {PLATFORM_SCHEMA}."{table}" LIMIT 0')

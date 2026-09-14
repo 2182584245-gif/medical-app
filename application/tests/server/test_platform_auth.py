@@ -342,7 +342,7 @@ def test_bucket_space_is_keyed_and_strictly_bounded(platform_database, platform_
     assert first.bucket_ids("client", "name") != second.bucket_ids("client", "name")
     for index in range(1000):
         global_id, ip_id, name_id = first.bucket_ids(str(index), str(index))
-        assert global_id == 0 and 1 <= ip_id <= 8192 and 8193 <= name_id <= 16384
+        assert global_id == 0 and 1 <= ip_id <= 4095 and 4096 <= name_id <= 8190
     with platform_database.transaction() as connection, pytest.raises(sqlite3.IntegrityError):
         connection.execute("INSERT INTO auth_rate_buckets VALUES (16385,0,1)")
 

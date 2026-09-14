@@ -1,9 +1,10 @@
 """Shared, fail-closed authentication budgets for the full platform backend.
 
 PostgreSQL is the production coordinator; SQLite is an explicit offline test
-backend. Buckets store no IP address or username. A keyed hash maps each axis
-into 8,192 slots, so even hostile high-cardinality input cannot grow this table
-beyond 16,385 rows. Hash collisions can only throttle more conservatively.
+backend. Buckets store no IP address or username. A keyed hash maps each auth
+axis into 4,095 slots (IDs 0..8190 including the global bucket). Default AI owns
+the remaining disjoint IDs; the shared table still cannot exceed 16,385 rows.
+Hash collisions can only throttle more conservatively.
 Windows are fixed UTC minutes, so the documented boundary burst is at most 2x.
 """
 
@@ -19,7 +20,8 @@ from .security import AuthCapacityError, Security
 
 PLATFORM_SCHEMA = "medical_app_platform"
 PLATFORM_RUNTIME_ROLE = "medical_app_platform_runtime"
-BUCKETS_PER_AXIS = 8192
+BUCKETS_PER_AXIS = 4095
+AUTH_BUCKET_MAX = 8190  # 8191..16384 are reserved for default-AI quota domains.
 
 
 class PlatformAuthSettings(BaseModel):
@@ -97,7 +99,8 @@ class SharedAuthLimiter:
                 window = now // 60 * 60
                 connection.execute(
                     "DELETE FROM auth_rate_buckets WHERE bucket_id IN "
-                    "(SELECT bucket_id FROM auth_rate_buckets WHERE window_start < ? "
+                    "(SELECT bucket_id FROM auth_rate_buckets WHERE bucket_id <= 8190 "
+                    "AND window_start < ? "
                     "ORDER BY window_start, bucket_id LIMIT 128)",
                     (window - 120,),
                 )

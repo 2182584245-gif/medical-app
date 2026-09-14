@@ -50,6 +50,7 @@ def verified_report():
         "all_rls_forced": True,
         "expected_policy_set": True,
         "data_api_roles_no_access": True,
+        "expected_record_categories": True,
         "revisions": [admin.PLATFORM_REVISION],
     }
 
@@ -191,7 +192,7 @@ def test_existing_v1_upgrade_adds_only_five_tables_and_rejects_incomplete_catalo
     if valid:
         result = admin.migrate(confirm=admin.PLATFORM_SCHEMA, pilot_confirm=admin.PRIVATE_SCHEMA)
         assert result["created_tables"] == 5
-        assert calls == ["platform_0002"]
+        assert calls == ["platform_0003"]
     else:
         with pytest.raises(admin.PlatformAdminError, match="未接管"):
             admin.migrate(confirm=admin.PLATFORM_SCHEMA, pilot_confirm=admin.PRIVATE_SCHEMA)
@@ -399,7 +400,7 @@ def test_exact_role_and_privilege_matrix_is_verified(monkeypatch, bad):
         assert len(queries) == 3  # batched table matrix, not 216 network round-trips
 
 
-@pytest.mark.parametrize("bad", [None, "schema", "columns", "rls", "policies", "api"])
+@pytest.mark.parametrize("bad", [None, "schema", "columns", "rls", "policies", "api", "category"])
 def test_catalog_metadata_only_inspection(monkeypatch, bad):
     statements = []
 
@@ -436,6 +437,8 @@ def test_catalog_metadata_only_inspection(monkeypatch, bad):
             rows += [(table, "platform_staff_term", "*", False) for table in admin.EXPIRY_TABLES]
             if bad == "policies":
                 rows.pop()
+        elif "pg_catalog.pg_constraint" in text:
+            rows = [(admin.OLD_CATEGORY_CHECK if bad == "category" else admin.CATEGORY_CHECK, True)]
         elif "has_table_privilege" in text:
             rows = [
                 (role, table, bad == "api", False)

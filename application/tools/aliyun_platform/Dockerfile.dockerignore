@@ -18,10 +18,12 @@ server/**
 !server/platform_security.py
 !server/platform_schema.py
 !server/platform_experience_schema.py
+!server/platform_medical_schema.py
 !server/platform_accounts.py
 !server/platform_rpc.py
 !server/platform_uploads.py
 !server/platform_ai.py
+!server/platform_ai_proxy.py
 !server/platform_sync.py
 !server/platform_sync_pages.py
 !src/
@@ -37,6 +39,7 @@ src/ollama_chat_app/data/**
 !src/ollama_chat_app/data/__init__.py
 !src/ollama_chat_app/data/database.py
 !src/ollama_chat_app/data/experience_schema.py
+!src/ollama_chat_app/data/medical_schema.py
 !src/ollama_chat_app/data/staff_schema.py
 !src/ollama_chat_app/providers/
 src/ollama_chat_app/providers/**
@@ -75,4 +78,5 @@ tools/aliyun_platform/**
 !tools/aliyun_platform/__init__.py
 !tools/aliyun_platform/guard.py
 !tools/aliyun_platform/bootstrap.py
+!tools/aliyun_platform/upgrade_medical.py
 !tools/aliyun_platform/api_entrypoint.py

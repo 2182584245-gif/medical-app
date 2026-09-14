@@ -16,9 +16,11 @@ from PySide6.QtWidgets import (
     QHBoxLayout,
     QHeaderView,
     QLabel,
+    QLayout,
     QLineEdit,
     QMessageBox,
     QPushButton,
+    QScrollArea,
     QSpinBox,
     QStackedWidget,
     QTableWidget,
@@ -31,8 +33,11 @@ from PySide6.QtWidgets import (
 
 from ..services.health import HealthService, HealthValidationError
 from ..time_utils import beijing_today, display_timezone_label, format_beijing
+from .dialog_layout import fit_dialog, scroll_form_dialog
 from .offline_feedback import show_queued_result
-from .time_fields import BeijingDateTimeEdit, beijing_qdatetime, datetime_iso
+from .segmented_time import SegmentedDateTimeEdit as BeijingDateTimeEdit
+from .selection_actions import deletion_prompt, selected_rows
+from .time_fields import beijing_qdatetime, datetime_iso
 
 CATEGORIES = (
     ("diet", "饮食"),
@@ -40,6 +45,7 @@ CATEGORIES = (
     ("activity", "运动"),
     ("sleep", "睡眠"),
     ("environment", "居住环境"),
+    ("medical", "医疗"),
 )
 CATEGORY_LABELS = dict(CATEGORIES)
 REMINDER_TYPES = (
@@ -68,13 +74,22 @@ def _message(parent: QWidget, title: str, error: Exception) -> None:
 
 
 class LifeRecordDialog(QDialog):
-    """Five-category fact entry form; it deliberately contains no diagnosis fields."""
+    """Six peer categories of confirmed facts; never medication decision support."""
 
     def __init__(self, category: str = "diet", parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self.setWindowTitle("新增生活记录")
         self.setMinimumWidth(560)
-        root = QVBoxLayout(self)
+        self.resize(730, 760)
+        outer = QVBoxLayout(self)
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QFrame.Shape.NoFrame)
+        body = QWidget()
+        root = QVBoxLayout(body)
+        root.setSizeConstraint(QLayout.SizeConstraint.SetMinimumSize)
+        scroll.setWidget(body)
+        outer.addWidget(scroll, 1)
         form = QFormLayout()
 
         self.category_combo = QComboBox()
@@ -96,11 +111,15 @@ class LifeRecordDialog(QDialog):
             self._detail_pages[code] = page
             self.detail_stack.addWidget(page)
         self._build_detail_pages()
+        for page in self._detail_pages.values():
+            page.layout().setRowWrapPolicy(QFormLayout.RowWrapPolicy.WrapAllRows)
         root.addWidget(self.detail_stack)
 
         root.addWidget(QLabel("事实描述（例如：午餐吃了一碗米饭和蔬菜）"))
         self.content_input = QTextEdit()
-        self.content_input.setPlaceholderText("只记录实际发生的内容，不填写疾病诊断或治疗结论。")
+        self.content_input.setPlaceholderText(
+            "例如：今天到社区门诊复查。只写本人实际发生的事实，不让 AI 判断诊断或增减药量。"
+        )
         self.content_input.setMinimumHeight(110)
         root.addWidget(self.content_input)
 
@@ -111,9 +130,11 @@ class LifeRecordDialog(QDialog):
         buttons.button(QDialogButtonBox.StandardButton.Cancel).setText("取消")
         buttons.accepted.connect(self._validate)
         buttons.rejected.connect(self.reject)
-        root.addWidget(buttons)
+        outer.addWidget(buttons)
         self.category_combo.currentIndexChanged.connect(self._show_category)
         self._show_category()
+        form.setRowWrapPolicy(QFormLayout.RowWrapPolicy.WrapAllRows)
+        fit_dialog(self)
 
     def _build_detail_pages(self) -> None:
         diet = QFormLayout(self._detail_pages["diet"])
@@ -128,20 +149,20 @@ class LifeRecordDialog(QDialog):
         self.calories = QSpinBox()
         self.calories.setRange(0, 20_000)
         self.calories.setSpecialValueText("未填写")
-        diet.addRow("餐次", self.meal_type)
-        diet.addRow("估算热量（千卡，可不填）", self.calories)
+        diet.addRow("餐次（如午餐）", self.meal_type)
+        diet.addRow("热量（如包装注明 200 千卡）", self.calories)
         self.food_amount = QDoubleSpinBox()
         self.food_amount.setRange(0, 20_000)
         self.food_amount.setSpecialValueText("未填写")
         self.food_amount.setSuffix(" 克")
-        diet.addRow("食物重量（可不填）", self.food_amount)
+        diet.addRow("食物重量（如称重 150 克）", self.food_amount)
 
         water = QFormLayout(self._detail_pages["water"])
         self.water_amount = QSpinBox()
         self.water_amount.setRange(0, 10_000)
         self.water_amount.setSuffix(" 毫升")
         self.water_amount.setSpecialValueText("未填写")
-        water.addRow("饮水量", self.water_amount)
+        water.addRow("饮水量（如一杯 300 毫升）", self.water_amount)
 
         activity = QFormLayout(self._detail_pages["activity"])
         self.activity_type = QLineEdit()
@@ -155,13 +176,13 @@ class LifeRecordDialog(QDialog):
         self.steps.setSuffix(" 步")
         self.steps.setSpecialValueText("未填写")
         activity.addRow("活动方式", self.activity_type)
-        activity.addRow("活动时长", self.activity_minutes)
-        activity.addRow("步数", self.steps)
+        activity.addRow("活动时长（如散步 30 分钟）", self.activity_minutes)
+        activity.addRow("步数（如手环记录 2000 步）", self.steps)
         self.activity_energy = QSpinBox()
         self.activity_energy.setRange(0, 20_000)
         self.activity_energy.setSpecialValueText("未填写")
         self.activity_energy.setSuffix(" 千卡")
-        activity.addRow("估算耗能（可不填）", self.activity_energy)
+        activity.addRow("耗能（如手环估算 120 千卡）", self.activity_energy)
 
         sleep = QFormLayout(self._detail_pages["sleep"])
         self.sleep_hours = QDoubleSpinBox()
@@ -173,8 +194,8 @@ class LifeRecordDialog(QDialog):
         self.sleep_quality = QSpinBox()
         self.sleep_quality.setRange(0, 5)
         self.sleep_quality.setSpecialValueText("未填写")
-        sleep.addRow("睡眠时长", self.sleep_hours)
-        sleep.addRow("主观质量（1 至 5）", self.sleep_quality)
+        sleep.addRow("睡眠时长（如 7.5 小时）", self.sleep_hours)
+        sleep.addRow("主观质量（1 较差，3 一般，5 很好）", self.sleep_quality)
 
         environment = QFormLayout(self._detail_pages["environment"])
         self.temperature = QDoubleSpinBox()
@@ -191,14 +212,37 @@ class LifeRecordDialog(QDialog):
         self.humidity.setValue(-1)
         self.air_quality = QLineEdit()
         self.air_quality.setPlaceholderText("例如：通风良好、略有异味")
-        environment.addRow("室内温度（可不填）", self.temperature)
-        environment.addRow("室内湿度（可不填）", self.humidity)
+        environment.addRow("室内温度（如温度计 24 ℃）", self.temperature)
+        environment.addRow("室内湿度（如湿度计 50%）", self.humidity)
         environment.addRow("环境描述", self.air_quality)
         self.ventilation = QSpinBox()
         self.ventilation.setRange(0, 1_440)
         self.ventilation.setSpecialValueText("未填写")
         self.ventilation.setSuffix(" 分钟")
-        environment.addRow("通风时长", self.ventilation)
+        environment.addRow("通风时长（如开窗 20 分钟）", self.ventilation)
+
+        medical = QFormLayout(self._detail_pages["medical"])
+        self.medical_type = QComboBox()
+        for value, label in (
+            ("consultation", "看病 / 复查"),
+            ("medication", "已发生的用药"),
+            ("other", "其他医疗事实"),
+        ):
+            self.medical_type.addItem(label, value)
+        self.medical_name = QLineEdit()
+        self.medical_name.setPlaceholderText("例如：社区门诊复查；或本人已服用的药品名称")
+        self.medical_description = QLineEdit()
+        self.medical_description.setPlaceholderText(
+            "例如：按现有处方完成上午用药；不填写 AI 推测或调药建议"
+        )
+        medical.addRow("事项（如看病或已用药）", self.medical_type)
+        medical.addRow("名称（可不填）", self.medical_name)
+        medical.addRow("事实说明（可不填）", self.medical_description)
+        notice = QLabel(
+            "上方发生时间就是本次看病或用药时间。这里只保存已经发生的事实，不能据此决定开始、停止或调整药物。示例不是健康目标或处方。"
+        )
+        notice.setWordWrap(True)
+        medical.addRow(notice)
 
     def set_proposal(self, proposal: Mapping[str, Any]) -> None:
         """Populate an editable proposal; accepting the dialog still never writes data."""
@@ -227,6 +271,11 @@ class LifeRecordDialog(QDialog):
                 widget.setValue(int(value) if isinstance(widget, QSpinBox) else float(value))
         self.activity_type.setText(str(details.get("activity_type", "")))
         self.air_quality.setText(str(details.get("air_quality", "")))
+        self.medical_type.setCurrentIndex(
+            max(0, self.medical_type.findData(details.get("event_type", "other")))
+        )
+        self.medical_name.setText(str(details.get("name", "")))
+        self.medical_description.setText(str(details.get("description", "")))
         if details.get("meal_type"):
             self.meal_type.setCurrentIndex(max(0, self.meal_type.findData(details["meal_type"])))
         self.setWindowTitle("确认智能填写的生活记录")
@@ -238,6 +287,11 @@ class LifeRecordDialog(QDialog):
     def _validate(self) -> None:
         if not self.content_input.toPlainText().strip():
             QMessageBox.warning(self, "内容未填写", "请先填写发生过的事实。")
+            return
+        try:
+            self.time_input.dateTime()
+        except ValueError as error:
+            QMessageBox.warning(self, "时间需要检查", str(error))
             return
         self.accept()
 
@@ -271,6 +325,12 @@ class LifeRecordDialog(QDialog):
                 details["duration_hours"] = self.sleep_hours.value()
             if self.sleep_quality.value():
                 details["quality"] = self.sleep_quality.value()
+        elif category == "medical":
+            details = {"event_type": str(self.medical_type.currentData())}
+            if self.medical_name.text().strip():
+                details["name"] = self.medical_name.text().strip()
+            if self.medical_description.text().strip():
+                details["description"] = self.medical_description.text().strip()
         else:
             details = {}
             if self.temperature.value() > -81:
@@ -316,6 +376,23 @@ class ReminderEditorDialog(QDialog):
             initial = beijing_qdatetime(scheduled_at)
         self.time_input = BeijingDateTimeEdit(initial)
         form.addRow(f"提醒时间（{display_timezone_label()}）", self.time_input)
+        self.repeat_combo = QComboBox()
+        for value, label in (
+            ("none", "仅一次"),
+            ("daily", "每天"),
+            ("weekly", "每周同一天"),
+            ("monthly", "每月同一天"),
+        ):
+            self.repeat_combo.addItem(label, value)
+        self.repeat_combo.setCurrentIndex(
+            max(0, self.repeat_combo.findData((reminder or {}).get("repeat_rule")))
+        )
+        form.addRow("重复（如每天晚 9 点）", self.repeat_combo)
+        repeat_hint = QLabel(
+            "重复提醒按个人设置的时区计算。每月没有对应日期则跳过，夏令时不存在的钟点跳过、重复钟点只提醒一次。"
+        )
+        repeat_hint.setWordWrap(True)
+        form.addRow(repeat_hint)
         hint = QLabel("提醒只用于饮水、饮食、睡眠、活动、环境、回访等生活事项，不提供药物提醒。")
         hint.setWordWrap(True)
         hint.setObjectName("HealthHint")
@@ -328,10 +405,16 @@ class ReminderEditorDialog(QDialog):
         buttons.accepted.connect(self._validate)
         buttons.rejected.connect(self.reject)
         form.addRow(buttons)
+        scroll_form_dialog(self, form)
 
     def _validate(self) -> None:
         if not self.title_input.text().strip():
             QMessageBox.warning(self, "内容未填写", "请先填写提醒内容。")
+            return
+        try:
+            self.time_input.dateTime()
+        except ValueError as error:
+            QMessageBox.warning(self, "时间需要检查", str(error))
             return
         self.accept()
 
@@ -341,6 +424,7 @@ class ReminderEditorDialog(QDialog):
             "title": self.title_input.text().strip(),
             "reminder_type": str(self.type_combo.currentData()),
             "scheduled_at": _local_iso(self.time_input.dateTime()),
+            "repeat_rule": self.repeat_combo.currentData(),
         }
 
 
@@ -407,6 +491,7 @@ class HealthRecordsPanel(QWidget):
         self.record_table = QTableWidget(0, 4)
         self.record_table.setHorizontalHeaderLabels(["时间", "类别", "事实描述", "详情"])
         self.record_table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
+        self.record_table.setSelectionMode(QTableWidget.SelectionMode.ExtendedSelection)
         self.record_table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
         header = self.record_table.horizontalHeader()
         header.setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents)
@@ -414,6 +499,7 @@ class HealthRecordsPanel(QWidget):
         header.setSectionResizeMode(2, QHeaderView.ResizeMode.Stretch)
         header.setSectionResizeMode(3, QHeaderView.ResizeMode.Stretch)
         layout.addWidget(self.record_table, 1)
+        layout.addWidget(QLabel("可按 Ctrl 多选，或按 Shift 连选；删除前会显示已选条数。"))
         return page
 
     def _build_statistics_tab(self) -> QWidget:
@@ -473,6 +559,7 @@ class HealthRecordsPanel(QWidget):
         self.reminder_table = QTableWidget(0, 4)
         self.reminder_table.setHorizontalHeaderLabels(["提醒内容", "类型", "时间", "状态"])
         self.reminder_table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
+        self.reminder_table.setSelectionMode(QTableWidget.SelectionMode.ExtendedSelection)
         self.reminder_table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
         header = self.reminder_table.horizontalHeader()
         header.setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
@@ -614,17 +701,19 @@ class HealthRecordsPanel(QWidget):
             self._show_error("保存生活记录失败", error)
 
     def delete_selected_record(self) -> None:
-        record = self._selected_data(self.record_table)
-        if self.user_id is None or record is None:
+        records = selected_rows(self.record_table)
+        if self.user_id is None or not records:
             QMessageBox.information(self, "尚未选择", "请先选择要删除的生活记录。")
             return
         if (
-            QMessageBox.question(self, "确认删除", "确定删除所选生活事实吗？")
+            QMessageBox.question(self, "确认删除", deletion_prompt(records, "记录"))
             != QMessageBox.StandardButton.Yes
         ):
             return
         try:
-            self.health_service.delete_life_record(self.user_id, int(record["id"]))
+            self.health_service.delete_life_records(
+                self.user_id, [record["id"] for record in records]
+            )
             self.refresh_records()
             self.refresh_statistics()
             self.record_changed.emit()
@@ -683,17 +772,17 @@ class HealthRecordsPanel(QWidget):
             self._show_error("更新提醒状态失败", error)
 
     def delete_selected_reminder(self) -> None:
-        reminder = self._selected_data(self.reminder_table)
-        if self.user_id is None or reminder is None:
+        reminders = selected_rows(self.reminder_table)
+        if self.user_id is None or not reminders:
             QMessageBox.information(self, "尚未选择", "请先选择要删除的提醒。")
             return
         if (
-            QMessageBox.question(self, "确认删除", "确定删除所选提醒吗？")
+            QMessageBox.question(self, "确认删除", deletion_prompt(reminders, "提醒"))
             != QMessageBox.StandardButton.Yes
         ):
             return
         try:
-            self.health_service.delete_reminder(self.user_id, int(reminder["id"]))
+            self.health_service.delete_reminders(self.user_id, [item["id"] for item in reminders])
             self.refresh_reminders()
             self.reminder_changed.emit()
         except Exception as error:

@@ -185,7 +185,7 @@ def test_member_navigation_today_reminders_and_local_illustrations(qtbot, contex
     workspace.start_session(context.member)
     assert [button.text() for button in workspace.navigation_buttons] == [
         "今日记录",
-        "档案与统计",
+        "记录统计",
         "服务",
         "AI 助手",
         "我的平台",

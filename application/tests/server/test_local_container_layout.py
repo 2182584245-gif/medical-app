@@ -112,12 +112,38 @@ def _linux_lock():
     return content, result
 
 
-def test_linux_lock_pins_all_35_runtime_and_test_dependencies_with_hashes():
+def test_linux_lock_pins_all_36_runtime_and_test_dependencies_with_hashes():
     content, entries = _linux_lock()
     assert "Linux x86_64" in content and "CPython 3.13.15" in content
-    assert len(entries) == 35
-    assert {"fastapi", "psycopg", "psycopg-binary", "pydantic-core", "greenlet"} <= entries.keys()
+    assert len(entries) == 36
+    assert {
+        "fastapi",
+        "psycopg",
+        "psycopg-binary",
+        "pydantic-core",
+        "greenlet",
+        "cryptography",
+        "cffi",
+        "pycparser",
+    } <= entries.keys()
     assert not ({"pyside6", "onnxruntime", "vosk", "rapidocr", "ollama"} & entries.keys())
+
+
+def test_linux_aes_envelope_dependencies_match_verified_target_wheels():
+    _content, entries = _linux_lock()
+    assert entries["cryptography"] == (
+        "50.0.1",
+        "51afcfceb15597cf2635068e4ac9a56b2abde622edde17f37d85fd7b5306497a",
+    )
+    # CPython 3.13: cryptography requires cffi>=2.0.0; cffi requires pycparser.
+    assert entries["cffi"] == (
+        "2.1.1",
+        "a931079504ecc49efed7744c476a5c343a92fabf66dec2db95edb1b2fdc770e2",
+    )
+    assert entries["pycparser"] == (
+        "3.0",
+        "b727414169a36b7d524c1c3e31839a521725078d7b2ff038656844266160a992",
+    )
 
 
 def test_linux_lock_retains_current_server_direct_versions():

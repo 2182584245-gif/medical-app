@@ -194,7 +194,11 @@ def test_staff_workspace_table_navigation_and_charts_use_synthetic_records(staff
         assert workspace.grab().save(str(tmp_path / f"staff-{mode}.png"))
     dialog = CreateAdvisorDialog()
     qtbot.addWidget(dialog)
-    assert dialog.layout().rowCount() == 5  # Four requested fields plus actions.
+    # Four fields; confirmation actions stay outside the scrollable form.
+    assert dialog.form_scroll.widget().layout().rowCount() == 4
+    from PySide6.QtWidgets import QDialogButtonBox
+
+    assert dialog.findChild(QDialogButtonBox) is not None
     assert "valid_until" in dialog.values
     workspace.end_session()
     assert workspace.member_table.rowCount() == 0

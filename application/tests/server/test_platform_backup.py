@@ -212,7 +212,8 @@ def test_cloud_export_readonly_shared_snapshot_and_ownership_gate(monkeypatch, t
     monkeypatch.setattr(backup, "ca_file", lambda _path: "C:/trusted/ca.pem")
     gates = {key: True for key in (
         "pilot_owned", "schema_owned", "expected_table_set", "expected_columns",
-        "all_rls_forced", "expected_policy_set", "data_api_roles_no_access")}
+        "all_rls_forced", "expected_policy_set", "data_api_roles_no_access",
+        "expected_record_categories")}
     gates.update(schema_owned=valid, revisions=["platform_0001"])
     monkeypatch.setattr(backup, "_inspect", lambda _connection: gates)
     monkeypatch.setattr(backup, "source_inventory", lambda _connection: {"synthetic": True})

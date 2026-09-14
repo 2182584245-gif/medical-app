@@ -1,6 +1,9 @@
-# Local Docker laboratory only; not a desktop or production dependency lock.
+# Headless Linux API and local Docker laboratory; never a desktop dependency lock.
 # Scope: Debian bookworm Linux x86_64, CPython 3.13.15 (non-free-threaded).
-# Generated 2026-09-07 from the 35 packages in the successful local backend image.
+# Original 35 packages verified in the 2026-09-07 local backend image.
+# Updated 2026-09-09: cryptography 50.0.1 plus its cffi/pycparser wheel metadata
+# and SHA256 rechecked using downloaded public PyPI wheels (36 packages total).
+# cryptography uses cp311-abi3-manylinux_2_34_x86_64, compatible with this CPython/glibc.
 # SHA256 values: pip installation report, public PyPI binary wheels for this scope.
 # All direct and transitive requirements are pinned; no source builds are permitted.
 # Regenerate and test on the target Linux image when Python/architecture/dependencies change.
@@ -24,6 +27,8 @@ cffi==2.1.1 \
     --hash=sha256:a931079504ecc49efed7744c476a5c343a92fabf66dec2db95edb1b2fdc770e2
 click==8.5.0 \
     --hash=sha256:255bc9599cf7748b4b1a446ccc735421bd08a2ae529a8b88597d3de5664ee360
+cryptography==50.0.1 \
+    --hash=sha256:51afcfceb15597cf2635068e4ac9a56b2abde622edde17f37d85fd7b5306497a
 fastapi==0.141.1 \
     --hash=sha256:bfb91aa2d334c61cb35ba9a116fc123b3d3df31640b801cf57a7a78ec3f603b3
 greenlet==3.5.5 \

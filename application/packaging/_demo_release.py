@@ -2,11 +2,13 @@
 
 from __future__ import annotations
 
+import hashlib
 import importlib.util
 import json
 import re
 import sqlite3
 from contextlib import closing
+from datetime import date, timedelta
 from pathlib import Path
 
 from PIL import Image
@@ -24,7 +26,7 @@ ACCOUNTS = {
     "demo-member-1": ("member", "示例陈奶奶"),
     "demo-member-2": ("member", "示例吴爷爷"),
 }
-COUNTS = {
+LEGACY_COUNTS = {
     "users": 5,
     "messages": 0,
     "member_profiles": 2,
@@ -55,12 +57,14 @@ COUNTS = {
     "staff_account_terms": 2,
     "visit_task_details": 16,
 }
+COUNTS = {**LEGACY_COUNTS, "life_records": 156, "audit_logs": 209}
 MANIFEST_COUNTS = {
     key: COUNTS[key]
     for key in ("users", "life_records", "visit_tasks", "visit_records", "products")
 }
 IMAGES = {f"assets/products/demo-{index}.png" for index in range(1, 7)}
-PAYLOAD_FILES = IMAGES | {"data/app.db", "demo_manifest.json", "DEMO_ACCOUNTS.md"}
+LEGACY_PAYLOAD_FILES = IMAGES | {"data/app.db", "demo_manifest.json", "DEMO_ACCOUNTS.md"}
+PAYLOAD_FILES = LEGACY_PAYLOAD_FILES | {"DEMO_ACCOUNTS.txt"}
 SECRET_PATTERN = re.compile(
     r"(?i)(sk-[a-z0-9_-]{16,}|postgres(?:ql)?(?:\+psycopg)?://|"
     r"-----BEGIN [A-Z ]*PRIVATE KEY-----|bearer\s+[a-z0-9._-]{20,}|"
@@ -75,6 +79,7 @@ REQUIRED_MODULES = {
     "ollama_chat_app.services.cloud_sync",
     "ollama_chat_app.services.offline_access",
     "ollama_chat_app.services.offline_outbox",
+    "ollama_chat_app.services.sqlite_outbox",
     "ollama_chat_app.services.sync_files",
     "ollama_chat_app.services.sync_protocol",
     "ollama_chat_app.endpoint_settings",
@@ -82,6 +87,20 @@ REQUIRED_MODULES = {
     "ollama_chat_app.ui.outbox_dialog",
     "ollama_chat_app.data.experience_schema",
     "ollama_chat_app.data.staff_schema",
+    "ollama_chat_app.data.medical_schema",
+    "ollama_chat_app.services.health",
+    "ollama_chat_app.services.backup",
+    "ollama_chat_app.services.member_statistics",
+    "ollama_chat_app.services.reminder_scheduler",
+    "ollama_chat_app.services.ai_provider_resolver",
+    "ollama_chat_app.providers.platform_deepseek",
+    "ollama_chat_app.ui.segmented_time",
+    "ollama_chat_app.ui.selection_actions",
+    "ollama_chat_app.ui.address_fields",
+    "ollama_chat_app.ui.dialog_layout",
+    "ollama_chat_app.ui.art_icons",
+    "ollama_chat_app.ui.time_phrase",
+    "ollama_chat_app.ui.china_regions",
     "ollama_chat_app.ui.operator_workspace",
     "ollama_chat_app.ui.advisor_workspace",
     "ollama_chat_app.ui.health_workspace",
@@ -167,24 +186,62 @@ def credentials(root: Path) -> dict[str, str]:
 
 
 def verify_payload(root: Path) -> dict:
+    """Release verifier accepts only the current schema7 six-category contract."""
+    return _verify_payload(root, legacy=False)
+
+
+def verify_legacy_seed(root: Path) -> dict:
+    """Read-only input gate for the separate copy-upgrade tool, never a release pass."""
+    return _verify_payload(root, legacy=True)
+
+
+def _verify_payload(root: Path, *, legacy: bool) -> dict:
+    expected_counts = LEGACY_COUNTS if legacy else COUNTS
+    expected_payload = LEGACY_PAYLOAD_FILES if legacy else PAYLOAD_FILES
     files = ordinary_tree(root)
-    if not files >= PAYLOAD_FILES or {p for p in files if p.startswith("data/")} != {"data/app.db"}:
+    if not files >= expected_payload or {p for p in files if p.startswith("data/")} != {
+        "data/app.db"
+    }:
         raise RuntimeError("示例资料文件不完整，或 data 中含有额外资料。")
     if {p for p in files if p.startswith("assets/")} != IMAGES:
         raise RuntimeError("仅允许六幅生成器输出的本地商品示意图。")
+    if (root / "demo_manifest.json").stat().st_size > 65536:
+        raise RuntimeError("示例清单过大。")
     manifest = json.loads((root / "demo_manifest.json").read_text(encoding="utf-8"))
     if (
         manifest.get("synthetic_demo") is not True
         or manifest.get("database") != "data/app.db"
-        or manifest.get("counts") != MANIFEST_COUNTS
+        or manifest.get("counts") != {key: expected_counts[key] for key in MANIFEST_COUNTS}
         or manifest.get("ai_calls") != 0
-        or manifest.get("record_days") != 14
-        or manifest.get("record_categories") != 5
+        or manifest.get("record_days") != (14 if legacy else 15)
+        or manifest.get("record_categories") != (5 if legacy else 6)
         or manifest.get("integrity_check") != "ok"
         or manifest.get("foreign_key_violations") != 0
     ):
         raise RuntimeError("只接受通过固定虚构示例契约的 demo_manifest。")
     passwords = credentials(root)
+    if not legacy:
+        if (
+            manifest.get("schema_version") != 7
+            or manifest.get("preserved_legacy_records") != 140
+            or manifest.get("added_records") != 16
+            or manifest.get("cloud_imported") is not False
+            or not re.fullmatch(r"[a-f0-9]{64}", str(manifest.get("source_database_sha256", "")))
+        ):
+            raise RuntimeError("新版示例必须声明升级来源、原记录保留及尚未云导入。")
+        if (root / "DEMO_ACCOUNTS.txt").stat().st_size > 20000:
+            raise RuntimeError("示例账号 TXT 过大。")
+        text = (root / "DEMO_ACCOUNTS.txt").read_text(encoding="utf-8-sig")
+        lines = [line.split("\t") for line in text.splitlines() if line.startswith("demo-")]
+        if (
+            len(lines) != 5
+            or any(len(line) != 2 for line in lines)
+            or dict(lines) != passwords
+            or "虚构" not in text
+            or "尚未云导入" not in text
+            or SECRET_PATTERN.search(text)
+        ):
+            raise RuntimeError("TXT 只能列出与说明一致的五个虚构账号凭据。")
     for name in IMAGES:
         path = root / name
         if path.stat().st_size > 2 * 1024 * 1024:
@@ -200,11 +257,24 @@ def verify_payload(root: Path) -> dict:
         sqlite3.connect(database.as_uri() + "?mode=ro&immutable=1", uri=True)
     ) as connection:
         connection.row_factory = sqlite3.Row
-        if (
-            connection.execute("PRAGMA user_version").fetchone()[0] != SCHEMA_VERSION
-            or SCHEMA_VERSION != 6
-        ):
-            raise RuntimeError("示例发布要求完整 schema 6。")
+        schema_version = connection.execute("PRAGMA user_version").fetchone()[0]
+        if schema_version not in ({6, 7} if legacy else {7}) or SCHEMA_VERSION != 7:
+            raise RuntimeError("示例发布要求完整 schema 7；旧数据只允许先在独立副本升级。")
+        from ollama_chat_app.services.backup import _expected_schema_signature, _schema_signature
+
+        if _schema_signature(connection) != _expected_schema_signature(schema_version):
+            raise RuntimeError("示例完整结构签名不匹配，不能只靠 user_version 声明通过。")
+        from ollama_chat_app.data.medical_schema import NEW_CATEGORIES, OLD_CATEGORIES
+
+        definition = connection.execute(
+            "SELECT sql FROM sqlite_schema WHERE type='table' AND name='life_records'"
+        ).fetchone()[0]
+        if (NEW_CATEGORIES if schema_version == 7 else OLD_CATEGORIES) not in definition:
+            raise RuntimeError("分类 CHECK 与声明结构版本不匹配。")
+        if connection.execute(
+            "SELECT 1 FROM sqlite_schema WHERE type IN ('trigger','view')"
+        ).fetchone():
+            raise RuntimeError("示例不得包含未审核触发器或视图。")
         if (
             connection.execute("PRAGMA integrity_check").fetchone()[0] != "ok"
             or connection.execute("PRAGMA foreign_key_check").fetchall()
@@ -217,13 +287,29 @@ def verify_payload(root: Path) -> dict:
             )
         }
         if tables != set(COUNTS):
-            raise RuntimeError("示例数据库表集合不符合 schema 6 固定契约。")
+            raise RuntimeError("示例数据库表集合不符合固定契约。")
         actual = {
             table: connection.execute(f'SELECT count(*) FROM "{table}"').fetchone()[0]
             for table in COUNTS
         }
-        if actual != COUNTS:
+        if actual != expected_counts:
             raise RuntimeError("示例数据库记录数偏离固定合成数据，拒绝使用。")
+        if not legacy:
+            preserved = manifest.get("preserved_rows_sha256")
+            if not isinstance(preserved, dict) or set(preserved) != set(LEGACY_COUNTS):
+                raise RuntimeError("缺少完整原资料保留指纹。")
+            for table, count in LEGACY_COUNTS.items():
+                original_rows = [
+                    tuple(row)
+                    for row in connection.execute(
+                        f'SELECT * FROM "{table}" ORDER BY rowid LIMIT ?', (count,)
+                    )
+                ]
+                actual_hash = hashlib.sha256(
+                    json.dumps(original_rows, ensure_ascii=False, separators=(",", ":")).encode()
+                ).hexdigest()
+                if preserved[table] != actual_hash:
+                    raise RuntimeError("原示例资料保留指纹不符；不得以计数相同代替原数据保留。")
         users = connection.execute("SELECT * FROM users").fetchall()
         if {row["username"] for row in users} != set(ACCOUNTS):
             raise RuntimeError("数据库含有非示例账号。")
@@ -277,8 +363,47 @@ def verify_payload(root: Path) -> dict:
             "SELECT user_id,category,count(*),count(DISTINCT local_date) "
             "FROM life_records GROUP BY user_id,category"
         ).fetchall()
-        if len(groups) != 10 or any(row[2] != 14 or row[3] != 14 for row in groups):
-            raise RuntimeError("生活记录必须为两会员、五类别、各十四天。")
+        expected_categories = {"diet", "water", "activity", "sleep", "environment"}
+        if not legacy:
+            expected_categories.add("medical")
+        member_ids = {row["id"] for row in users if row["role_code"] == "member"}
+        if {(row[0], row[1]) for row in groups} != {
+            (member, category) for member in member_ids for category in expected_categories
+        } or any(
+            row[2] != (3 if row[1] == "medical" else 14 if legacy else 15) or row[3] != row[2]
+            for row in groups
+        ):
+            raise RuntimeError("六类/旧五类示例的逐会员记录数与日期分布不匹配。")
+        if not legacy:
+            try:
+                experience_day = date.fromisoformat(manifest["experience_day"])
+            except (KeyError, TypeError, ValueError):
+                raise RuntimeError("示例日期无效。") from None
+            for member in member_ids:
+                for category in expected_categories:
+                    dates = {
+                        row[0]
+                        for row in connection.execute(
+                            "SELECT local_date FROM life_records WHERE user_id=? AND category=?",
+                            (member, category),
+                        )
+                    }
+                    if dates != {
+                        (experience_day - timedelta(days=offset)).isoformat()
+                        for offset in range(3 if category == "medical" else 15)
+                    }:
+                        raise RuntimeError("逐会员六类示例的日期跨度或今日记录不匹配。")
+                medical = connection.execute(
+                    "SELECT details_json FROM life_records WHERE user_id=? AND category='medical'",
+                    (member,),
+                ).fetchall()
+                details = [json.loads(row[0]) for row in medical]
+                if {item.get("event_type") for item in details} != {
+                    "consultation",
+                    "medication",
+                    "other",
+                } or any(not item.get("name", "").startswith("示例") for item in details):
+                    raise RuntimeError("医疗示例必须是三类已有事实且名称明确示例。")
         products = connection.execute("SELECT sku,name,image_path FROM products").fetchall()
         if (
             {row[0] for row in products} != {f"DEMO-{n:03d}" for n in range(1, 7)}
@@ -288,7 +413,7 @@ def verify_payload(root: Path) -> dict:
             raise RuntimeError("商品必须精确匹配六个示例商品与本地图片。")
     return {
         "synthetic": True,
-        "schema_version": SCHEMA_VERSION,
+        "schema_version": schema_version,
         "counts": actual,
         "account_count": 5,
         "integrity_check": "ok",

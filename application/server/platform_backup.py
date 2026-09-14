@@ -271,9 +271,10 @@ def export_cloud(profile: Path) -> dict:
         connection.execute("SET LOCAL idle_in_transaction_session_timeout = '300000ms'")
         report = _inspect(connection)
         gates = ("pilot_owned", "schema_owned", "expected_table_set", "expected_columns",
-                 "all_rls_forced", "expected_policy_set", "data_api_roles_no_access")
+                 "all_rls_forced", "expected_policy_set", "data_api_roles_no_access",
+                 "expected_record_categories")
         if not all(report.get(key) for key in gates) or report.get("revisions") not in (
-            ["platform_0001"], ["platform_0002"]
+            ["platform_0001"], ["platform_0002"], ["platform_0003"]
         ):
             raise BackupError("源库归属、版本或权限边界检查未通过；未执行导出。")
         snapshot = connection.execute("SELECT pg_export_snapshot()").fetchone()[0]

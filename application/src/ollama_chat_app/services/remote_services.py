@@ -36,6 +36,7 @@ SERVICE_METHODS = {
                 "get_conversation",
                 "list_conversations",
                 "create_conversation",
+                "delete_conversations",
                 "rename_conversation",
                 "list_messages",
                 "get_message",
@@ -58,6 +59,7 @@ SERVICE_METHODS = {
                 "add_life_record",
                 "get_record_statistics",
                 "delete_life_record",
+                "delete_life_records",
                 "get_profile",
                 "save_profile",
                 "list_reminders",
@@ -67,6 +69,7 @@ SERVICE_METHODS = {
                 "resume_reminder",
                 "toggle_reminder",
                 "delete_reminder",
+                "delete_reminders",
                 "get_service_summary",
             }
         ),

@@ -8,7 +8,7 @@ import pytest
 os.environ["QT_QPA_PLATFORM"] = "offscreen"
 
 from PySide6.QtCore import QLocale
-from PySide6.QtWidgets import QDateTimeEdit, QDialog, QMessageBox
+from PySide6.QtWidgets import QDialog, QMessageBox
 
 from ollama_chat_app.ui import advisor_workspace, operator_workspace
 from ollama_chat_app.ui.advisor_workspace import AdvisorVisitCompletionDialog
@@ -18,8 +18,8 @@ from ollama_chat_app.ui.operator_workspace import (
     MembershipDialog,
     VisitTaskDialog,
 )
+from ollama_chat_app.ui.segmented_time import SegmentedDateTimeEdit as BeijingDateTimeEdit
 from ollama_chat_app.ui.time_fields import (
-    BeijingDateTimeEdit,
     beijing_qdatetime,
     set_editor_datetime,
 )
@@ -83,15 +83,15 @@ def test_every_staff_time_field_supports_keyboard_edit_and_beijing_save(
     dialog.show()
     editor.setFocus()
 
-    for section, text in (
-        (QDateTimeEdit.Section.YearSection, "2032"),
-        (QDateTimeEdit.Section.MonthSection, "10"),
-        (QDateTimeEdit.Section.DaySection, "25"),
-        (QDateTimeEdit.Section.HourSection, "16"),
-        (QDateTimeEdit.Section.MinuteSection, "45"),
+    for field, text in (
+        (editor.year, "2032"),
+        (editor.month, "10"),
+        (editor.day, "25"),
+        (editor.hour, "16"),
+        (editor.minute, "45"),
     ):
-        editor.setSelectedSection(section)
-        qtbot.keyClicks(editor, text)
+        field.lineEdit().selectAll()
+        qtbot.keyClicks(field.lineEdit(), text)
 
     # Read values while focus is still in the editor, as when saving with a shortcut.
     assert dialog.values[value_key] == "2032-10-25T16:45:00+08:00"

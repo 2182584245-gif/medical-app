@@ -363,7 +363,7 @@ def sqlite_snapshot(path: Path, *, label: str, asset_root: Path | None = None) -
             connection.execute("PRAGMA query_only=ON")
             connection.execute("PRAGMA trusted_schema=OFF")
             connection.execute("BEGIN")
-            if connection.execute("PRAGMA user_version").fetchone()[0] != 6:
+            if connection.execute("PRAGMA user_version").fetchone()[0] not in {6, 7}:
                 raise TransferError("本地源库必须已是 schema 6；迁移工具不改写原始库。")
             if connection.execute("PRAGMA integrity_check").fetchone()[0] != "ok" or (
                 connection.execute("PRAGMA foreign_key_check").fetchall()
@@ -452,6 +452,10 @@ def catalog_guard(connection) -> str:
     ).fetchone()[0]
     if triggers:
         raise TransferError("平台存在未审核的用户触发器，禁止以管理员身份触发未知操作。")
+    from .platform_medical_schema import CATEGORY_CHECK, OLD_CATEGORY_CHECK, category_check
+
+    if category_check(connection) not in {(CATEGORY_CHECK, True), (OLD_CATEGORY_CHECK, True)}:
+        raise TransferError("记录分类约束不属于已审核的 v2 或 v3；禁止迁移未知结构。")
     references = connection.execute(
         "SELECT c.relname,a.attname,r.relname,b.attname FROM pg_constraint k "
         "JOIN pg_class c ON c.oid=k.conrelid JOIN pg_namespace n ON n.oid=c.relnamespace "
@@ -493,6 +497,8 @@ def _pg_rows(connection):
 
 
 def _pg_identity(connection, label, catalog):
+    from .platform_medical_schema import CATEGORY_CHECK, category_check
+
     marker = connection.execute(
         "SELECT shobj_description(oid,'pg_database') FROM pg_database "
         "WHERE datname=current_database()"
@@ -510,6 +516,7 @@ def _pg_identity(connection, label, catalog):
         "database": connection.info.dbname,
         "catalog": catalog,
         "deployment_marker": marker,
+        "record_schema": 7 if category_check(connection) == (CATEGORY_CHECK, True) else 6,
     }
 
 
@@ -560,6 +567,9 @@ def plan_transfer(
         if item.get("version") != VERSION:
             raise TransferError("快照版本无效。")
         validate_rows(item["rows"])
+    if (any(row["category"] == "medical" for row in source["rows"]["life_records"])
+            and target["identity"].get("record_schema") != 7):
+        raise TransferError("目标尚未确认支持医疗分类，请管理员先完成 v3 升级再重新预检。")
     source_location = {k: v for k, v in source["identity"].items() if k != "label"}
     target_location = {k: v for k, v in target["identity"].items() if k != "label"}
     if source_location == target_location:

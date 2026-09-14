@@ -12,11 +12,11 @@ import tempfile
 from dataclasses import dataclass, replace
 from pathlib import Path
 
-from .config import DEFAULT_ALIYUN_ENDPOINT, DEFAULT_SUPABASE_ENDPOINT
+from .config import DEFAULT_ALIYUN_ENDPOINT
 from .paths import legacy_user_data_dir
 from .services.cloud_client import CloudAPIError, validate_base_url
 
-TARGET_LABELS = {"aliyun": "阿里云", "supabase": "Supabase"}
+TARGET_LABELS = {"aliyun": "阿里云"}
 MAX_SETTINGS_BYTES = 16 * 1024
 
 
@@ -26,11 +26,18 @@ class EndpointSettingsError(ValueError):
 
 def validated_endpoint(value: str) -> str:
     try:
-        return validate_base_url(value)
+        url = validate_base_url(value)
+        from urllib.parse import urlsplit
+
+        parsed = urlsplit(url)
+        if (parsed.path.rstrip("/").endswith("/supabase")
+                or (parsed.hostname or "").endswith((".supabase.co", ".supabase.com"))):
+            raise CloudAPIError("configuration")
+        return url
     except CloudAPIError:
         raise EndpointSettingsError(
-            "服务地址无效：请填写有可信证书的 HTTPS 域名或公网 IP，"
-            "不要包含用户名、密码、查询参数或片段。"
+            "请填写可信的阿里云 HTTPS 服务地址，不要包含密码或查询参数。"
+            "本版本已停用 Supabase 路线。"
         ) from None
 
 
@@ -39,21 +46,19 @@ class EndpointSettings:
     mode: str = "cloud"
     selected_target: str = "aliyun"
     aliyun_url: str = DEFAULT_ALIYUN_ENDPOINT
-    supabase_url: str = DEFAULT_SUPABASE_ENDPOINT
 
     @property
     def base_url(self) -> str:
-        return self.supabase_url if self.selected_target == "supabase" else self.aliyun_url
+        return self.aliyun_url
 
     @property
     def endpoints(self) -> dict[str, str]:
-        return {"aliyun": self.aliyun_url, "supabase": self.supabase_url}
+        return {"aliyun": self.aliyun_url}
 
     def validated(self) -> EndpointSettings:
         if self.mode not in {"local", "cloud"} or self.selected_target not in TARGET_LABELS:
             raise EndpointSettingsError("连接配置的模式或路线无效；原设置已保留。")
-        return replace(self, aliyun_url=validated_endpoint(self.aliyun_url),
-                       supabase_url=validated_endpoint(self.supabase_url))
+        return replace(self, aliyun_url=validated_endpoint(self.aliyun_url))
 
     def with_connection(self, mode: str, base_url: str = "") -> EndpointSettings:
         if mode not in {"local", "cloud"}:
@@ -71,7 +76,7 @@ class EndpointSettings:
 
     def as_dict(self) -> dict:
         checked = self.validated()
-        return {"version": 1, "mode": checked.mode,
+        return {"version": 2, "mode": checked.mode,
                 "selected_target": checked.selected_target, "endpoints": checked.endpoints}
 
 
@@ -109,13 +114,22 @@ class EndpointSettingsStore:
             value = json.loads(raw, object_pairs_hook=_unique_object)
             if (type(value) is not dict or set(value) != {
                 "version", "mode", "selected_target", "endpoints"
-            } or type(value["version"]) is not int or value["version"] != 1):
+            } or type(value["version"]) is not int or value["version"] not in {1, 2}):
                 raise ValueError("invalid settings")
             urls = value["endpoints"]
-            if type(urls) is not dict or set(urls) != set(TARGET_LABELS):
+            expected = {"aliyun", "supabase"} if value["version"] == 1 else {"aliyun"}
+            if type(urls) is not dict or set(urls) != expected:
                 raise ValueError("invalid routes")
-            return EndpointSettings(value["mode"], value["selected_target"],
-                                    urls["aliyun"], urls["supabase"]).validated()
+            if value["version"] == 1:
+                # User-requested retirement: read the legacy public settings but
+                # never reconnect to that route, rewrite a file, or merge caches.
+                if value["selected_target"] not in {"aliyun", "supabase"}:
+                    raise ValueError("invalid legacy target")
+                validate_base_url(urls["supabase"])
+                target = "aliyun"
+            else:
+                target = value["selected_target"]
+            return EndpointSettings(value["mode"], target, urls["aliyun"]).validated()
         except Exception:
             raise EndpointSettingsError(
                 "无法安全读取已保存的连接设置；原文件已保留，请检查设置文件后重试。"

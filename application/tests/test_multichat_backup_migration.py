@@ -142,7 +142,7 @@ def _assert_rows_preserved(database: Database, expected: dict[str, list[tuple]])
     for table, rows in expected.items():
         assert actual[table] == rows, f"migration or import changed rows in {table}"
     with database.connect() as connection:
-        assert connection.execute("PRAGMA user_version").fetchone()[0] == SCHEMA_VERSION == 6
+        assert connection.execute("PRAGMA user_version").fetchone()[0] == SCHEMA_VERSION == 7
         assert connection.execute("PRAGMA foreign_keys").fetchone()[0] == 1
         assert connection.execute("PRAGMA foreign_key_check").fetchall() == []
         assert connection.execute("PRAGMA quick_check").fetchall()[0][0] == "ok"

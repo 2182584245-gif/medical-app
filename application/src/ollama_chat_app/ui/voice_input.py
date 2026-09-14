@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from PySide6.QtCore import QEvent, QIODevice, QObject, QThreadPool, QTimer, Signal
+from PySide6.QtCore import QEvent, QIODevice, QObject, QSize, QThreadPool, QTimer, Signal
 from PySide6.QtMultimedia import QAudioFormat, QAudioSource, QMediaDevices
 from PySide6.QtWidgets import (
     QApplication,
@@ -17,6 +17,7 @@ from PySide6.QtWidgets import (
 )
 
 from ..services.voice import VOICE_MAX_SECONDS, VOICE_SAMPLE_RATE
+from .art_icons import rounded_icon
 
 
 class VoiceInputController(QObject):
@@ -238,7 +239,8 @@ class VoiceInputInstaller(QObject):
         widget.setProperty("voice_input_attached", True)
         button = QToolButton(widget)
         button.setObjectName("InlineVoiceInput")
-        button.setText("🎙")
+        button.setIcon(rounded_icon("mic", size=28))
+        button.setIconSize(QSize(26, 26))
         button.setToolTip("语音输入（本机识别，确认后填写）")
         button.setAccessibleName("语音输入")
         button.setFixedSize(42, 38)

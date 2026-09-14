@@ -783,6 +783,13 @@ def _expected_schema_signature(
 
             Database._create_schema_v5(connection)
             migrate_experience(connection)
+        elif schema_version == 7:
+            from ..data.experience_schema import migrate_experience
+            from ..data.medical_schema import migrate_medical
+
+            Database._create_schema_v5(connection)
+            migrate_experience(connection)
+            migrate_medical(connection)
         else:  # pragma: no cover - all callers validate the supported range
             raise BackupValidationError("数据库版本不受支持")
         return _schema_signature(connection)

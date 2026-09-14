@@ -9,6 +9,7 @@ from typing import Any
 
 from PySide6.QtCore import QStandardPaths, Qt, QThreadPool, Signal
 from PySide6.QtWidgets import (
+    QAbstractItemView,
     QCheckBox,
     QComboBox,
     QDialog,
@@ -37,10 +38,10 @@ from ..config import (
     MAX_CONTEXT_MESSAGES,
     MAX_MESSAGE_LENGTH,
 )
-from ..providers.deepseek_cloud import DeepSeekCloudProvider
 from ..providers.local_ollama import LocalOllamaProvider
 from ..providers.ollama_cloud import OllamaCloudProvider
 from ..security.secret_store import SecretStore
+from ..services.ai_provider_resolver import resolve_deepseek
 from ..services.backup import PortableBackupService
 from ..services.chat import ChatService, ChatTurn
 from ..services.chat_attachments import (
@@ -75,6 +76,7 @@ class ChatPage(QWidget):
         ai_assistant_service: object | None = None,
         file_management_service: object | None = None,
         preferences_service: object | None = None,
+        cloud_client: object | None = None,
     ) -> None:
         super().__init__()
         self.chat_service = chat_service
@@ -83,6 +85,7 @@ class ChatPage(QWidget):
         self.ai_assistant_service = ai_assistant_service
         self.file_management_service = file_management_service
         self.preferences_service = preferences_service
+        self.cloud_client = cloud_client
         self._preferences: dict[str, object] = {}
         self._cancel_event = threading.Event()
         self.stream_progress.connect(self._stream_update)
@@ -219,11 +222,24 @@ class ChatPage(QWidget):
         self.new_conversation_button.clicked.connect(self._create_conversation)
         sidebar_layout.addWidget(self.new_conversation_button)
         self.conversation_list = QListWidget()
+        self.conversation_list.setObjectName("ConversationList")
+        self.conversation_list.setSelectionMode(QAbstractItemView.SelectionMode.ExtendedSelection)
+        self.conversation_list.setStyleSheet(
+            "QListWidget#ConversationList { background: #fffdf7; color: #294538;"
+            " border: 2px solid #a9bfa8; border-radius: 14px; padding: 7px; }"
+            "QListWidget#ConversationList::item { border: 1px solid #d3dfcf;"
+            " border-radius: 10px; padding: 9px 6px; margin: 3px 0; }"
+            "QListWidget#ConversationList::item:selected { background: #dcebd8; color: #213c2c; }"
+        )
+        self.conversation_list.setToolTip("勾选对话左侧方框后，可批量删除；点击名称可切换对话。")
         self.conversation_list.currentItemChanged.connect(self._conversation_changed)
         sidebar_layout.addWidget(self.conversation_list, 1)
         self.rename_conversation_button = QPushButton("重命名对话")
         self.rename_conversation_button.clicked.connect(self._rename_conversation)
         sidebar_layout.addWidget(self.rename_conversation_button)
+        self.delete_conversations_button = QPushButton("删除勾选对话")
+        self.delete_conversations_button.clicked.connect(self._delete_conversations)
+        sidebar_layout.addWidget(self.delete_conversations_button)
         body.addWidget(sidebar)
         self.message_list = MessageList()
         self.message_list.suggestion_selected.connect(self._send_suggestion)
@@ -427,9 +443,11 @@ class ChatPage(QWidget):
             return
         patch = dialog.values()
         try:
-            result = (self.preferences_service.update(self.current_user.id, patch)
-                      if self.preferences_service is not None
-                      else {**self._preferences, **patch})
+            result = (
+                self.preferences_service.update(self.current_user.id, patch)
+                if self.preferences_service is not None
+                else {**self._preferences, **patch}
+            )
             if isinstance(result, QueuedOperation):
                 self._set_status("AI 设置已加密保存在本机待提交，联网确认后生效。", "info")
                 return
@@ -458,9 +476,11 @@ class ChatPage(QWidget):
             return
         patch = {"ai_context_consent": enabled, "ai_context_consent_decided": True}
         try:
-            result = (self.preferences_service.update(self.current_user.id, patch)
-                      if self.preferences_service is not None
-                      else {**self._preferences, **patch})
+            result = (
+                self.preferences_service.update(self.current_user.id, patch)
+                if self.preferences_service is not None
+                else {**self._preferences, **patch}
+            )
             if isinstance(result, QueuedOperation):
                 # A queued opt-out is an immediate local veto, never permission
                 # to share. Other clients learn it only after server confirmation.
@@ -506,6 +526,10 @@ class ChatPage(QWidget):
         )
         return hashlib.sha256(identity.encode("utf-8")).hexdigest()
 
+    def set_cloud_client(self, client) -> None:
+        """Set the already configured cloud client; never copy or export its token."""
+        self.cloud_client = client
+
     def _load_conversation_messages(self) -> None:
         if not self.current_user:
             return
@@ -545,6 +569,8 @@ class ChatPage(QWidget):
         for conversation in conversations:
             item = QListWidgetItem(conversation.title)
             item.setData(Qt.ItemDataRole.UserRole, conversation.id)
+            item.setFlags(item.flags() | Qt.ItemFlag.ItemIsUserCheckable)
+            item.setCheckState(Qt.CheckState.Unchecked)
             item.setToolTip(conversation.title)
             self.conversation_list.addItem(item)
             if conversation.id == self.current_conversation_id:
@@ -604,6 +630,59 @@ class ChatPage(QWidget):
             except Exception as exc:
                 self._set_status(str(exc), "error")
 
+    def _delete_conversations(self) -> None:
+        if self.current_user is None or self._request_running:
+            return
+        identifiers = [
+            self.conversation_list.item(index).data(Qt.ItemDataRole.UserRole)
+            for index in range(self.conversation_list.count())
+            if self.conversation_list.item(index).checkState() == Qt.CheckState.Checked
+        ]
+        if not identifiers:
+            self._set_status("请先勾选左侧需要删除的对话。", "hint")
+            return
+        if (
+            QMessageBox.question(
+                self,
+                "确认删除对话",
+                f"删除勾选的 {len(identifiers)} 个对话及其中的消息、附件？\n"
+                "删除后不能恢复。正在回答的对话不能删除。",
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                QMessageBox.StandardButton.No,
+            )
+            != QMessageBox.StandardButton.Yes
+        ):
+            return
+        user, generation = self.current_user, self._session_generation
+        self._set_request_running(True)
+
+        def success(_result):
+            if generation != self._session_generation or self.current_user is not user:
+                return
+            for identifier in identifiers:
+                self._conversation_drafts.pop(identifier, None)
+            if self.current_conversation_id in identifiers:
+                self.current_conversation_id = None
+                self.message_input.clear()
+                self._clear_pending_images()
+            self._refresh_conversations()
+            self._load_conversation_messages()
+            self._set_status(f"已删除 {len(identifiers)} 个对话。", "ok")
+            self.data_changed.emit()
+
+        def failure(error):
+            if generation == self._session_generation:
+                self._show_warning("未确认删除", str(error))
+
+        self._start_task(
+            FunctionTask(lambda: self.chat_service.delete_conversations(user.id, identifiers)),
+            success,
+            failure,
+            lambda: (
+                self._set_request_running(False) if generation == self._session_generation else None
+            ),
+        )
+
     def end_session(self) -> None:
         self._session_generation += 1
         self.voice_controller.cancel()
@@ -648,7 +727,7 @@ class ChatPage(QWidget):
             self._load_cloud_models()
         else:
             self._set_status(
-                f"DeepSeek API Key 已就绪，将使用 {DEEPSEEK_DEFAULT_MODEL}。",
+                f"DeepSeek 已选中，将使用 {DEEPSEEK_DEFAULT_MODEL}；语音智能填写使用相同设置。",
                 "ok",
             )
 
@@ -679,6 +758,8 @@ class ChatPage(QWidget):
         return self._session_keys.get(provider) or self._safe_get_session_key(provider)
 
     def _ensure_cloud_key(self, provider: str) -> bool:
+        if provider == "deepseek_cloud" and self.cloud_client is not None:
+            return True
         if self._cloud_key(provider):
             return True
         return self._open_key_dialog(provider)
@@ -829,7 +910,15 @@ class ChatPage(QWidget):
     def _open_key_dialog(self, provider: str = "ollama_cloud") -> bool:
         if not self.current_user:
             return False
-        current_key = self._cloud_key(provider)
+        current_key = self._session_keys.get(provider) or self.secret_store.get_api_key(
+            self.current_user.id, provider
+        )
+        if provider == "deepseek_cloud" and hasattr(self.secret_store, "get_persistent_api_key"):
+            current_key = current_key or self.secret_store.get_persistent_api_key(
+                self._credential_identity(), provider
+            )
+        elif provider != "deepseek_cloud":
+            current_key = current_key or self._cloud_key(provider)
         dialog = (
             DeepSeekKeyDialog(current_key, self)
             if provider == "deepseek_cloud"
@@ -856,7 +945,7 @@ class ChatPage(QWidget):
                 self.cloud_model_combo.clear()
                 self.cloud_model_combo.addItem(CLOUD_MODEL_PLACEHOLDER, None)
             self._set_status(
-                "已移除本账号的个人 API Key；若已配置本机默认 Key，将恢复使用默认 Key。", "ok"
+                "已移除个人 API Key；AI 助手和语音智能填写均恢复使用默认 AI 通道。", "ok"
             )
             return False
 
@@ -1432,19 +1521,30 @@ class ChatPage(QWidget):
                 self._set_status("请先验证 API Key 并选择可用的云端模型。", "error")
                 return None
             return OllamaCloudProvider(key), "ollama_cloud", str(model)
-        key = self._cloud_key("deepseek_cloud")
-        if not key and not self._open_key_dialog("deepseek_cloud"):
-            self._set_status("使用 DeepSeek 前需要提供自己的 API Key。", "error")
+        try:
+            personal = self._session_keys.get("deepseek_cloud") or self.secret_store.get_api_key(
+                self.current_user.id, "deepseek_cloud"
+            )
+            provider = resolve_deepseek(
+                self.secret_store,
+                self._credential_identity(),
+                session_key=personal,
+                cloud_client=self.cloud_client,
+            )
+            if provider is None and self._open_key_dialog("deepseek_cloud"):
+                provider = resolve_deepseek(
+                    self.secret_store,
+                    self._credential_identity(),
+                    session_key=self._session_keys.get("deepseek_cloud"),
+                    cloud_client=self.cloud_client,
+                )
+            if provider is None:
+                self._set_status("本机尚未配置默认 AI，请登录云端或设置个人 APIKEY。", "error")
+                return None
+            return provider, "deepseek_cloud", str(self.deepseek_model_combo.currentData())
+        except Exception:
+            self._set_status("无法安全读取 AI 设置；请重新设置个人 APIKEY 后再试。", "error")
             return None
-        key = self._cloud_key("deepseek_cloud")
-        if not key:
-            self._set_status("请先验证 DeepSeek API Key。", "error")
-            return None
-        return (
-            DeepSeekCloudProvider(key),
-            "deepseek_cloud",
-            str(self.deepseek_model_combo.currentData()),
-        )
 
     def _structured_answer_succeeded(self, assistant_id: int, result: object) -> None:
         if not isinstance(result, Mapping):
@@ -1639,6 +1739,7 @@ class ChatPage(QWidget):
         self.conversation_list.setDisabled(busy)
         self.new_conversation_button.setDisabled(busy)
         self.rename_conversation_button.setDisabled(busy)
+        self.delete_conversations_button.setDisabled(busy)
         self.send_button.setDisabled(busy)
         self.structured_button.setDisabled(busy or self.ai_assistant_service is None)
         self.message_input.setDisabled(busy)

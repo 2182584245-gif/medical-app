@@ -23,6 +23,8 @@ class SyntheticDatabase:
         Database._create_schema_v5(self.connection)
         from ollama_chat_app.data.experience_schema import migrate_experience
         migrate_experience(self.connection)
+        from ollama_chat_app.data.medical_schema import migrate_medical
+        migrate_medical(self.connection)
         self.connection.execute(
             "CREATE TABLE platform_sessions (token_digest TEXT PRIMARY KEY, "
             "user_id INTEGER REFERENCES users(id), created_at TEXT, "

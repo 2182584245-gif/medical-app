@@ -2,11 +2,12 @@ from __future__ import annotations
 
 from datetime import timedelta
 
-from PySide6.QtCore import Qt, QThreadPool, QTimer, Signal
+from PySide6.QtCore import QSize, Qt, QThreadPool, QTimer, Signal
 from PySide6.QtWidgets import (
     QDialog,
     QDialogButtonBox,
     QFrame,
+    QGridLayout,
     QHBoxLayout,
     QHeaderView,
     QLabel,
@@ -24,8 +25,16 @@ from PySide6.QtWidgets import (
 from ..services.member_weather import MemberWeatherService
 from ..time_utils import as_beijing, beijing_today, display_timezone, format_beijing
 from ..workers.task import FunctionTask
-from .health_records_panel import CATEGORY_LABELS, LifeRecordDialog, ReminderEditorDialog
+from .art_icons import rounded_icon
+from .health_records_panel import (
+    CATEGORIES,
+    CATEGORY_LABELS,
+    LifeRecordDialog,
+    ReminderEditorDialog,
+)
 from .offline_feedback import show_queued_result
+from .selection_actions import deletion_prompt, selected_rows
+from .theme import RECORD_TONES
 
 
 def _timeline():
@@ -35,6 +44,7 @@ def _timeline():
     table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
     table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
     table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
+    table.setSelectionMode(QTableWidget.SelectionMode.ExtendedSelection)
     table.setWordWrap(True)
     table.verticalHeader().hide()
     table.setMinimumHeight(180)
@@ -48,8 +58,8 @@ class SmartRecordDialog(QDialog):
         self.resize(670, 430)
         root = QVBoxLayout(self)
         guide = QLabel(
-            "说清楚吃了什么、吃多少，喝了多少水，运动或睡眠持续多久、在哪里。\n"
-            "例如：今天中午在家吃了一碗米饭，喝水 300 毫升，下午在公园散步 30 分钟。"
+            "说清楚时间、事项、数量与地点；饮食、饮水、运动、睡眠、环境和医疗都可记录。\n"
+            "例如：中午喝水 300 毫升；室温 24 度；上午到社区门诊复查。医疗只记录已发生事实。"
         )
         guide.setWordWrap(True)
         root.addWidget(guide)
@@ -75,7 +85,8 @@ class SmartRecordDialog(QDialog):
         from .voice_input import VoiceTextDialog
 
         dialog = VoiceTextDialog(
-            self, prompt="请说出饮食、饮水、运动或睡眠事实，包括数量、时长和地点。"
+            self,
+            prompt="请说出生活、环境或既有医疗事实，包括时间、名称、数量和地点；不生成用药决策。",
         )
         if dialog.exec() == QDialog.DialogCode.Accepted:
             existing = self.text_input.toPlainText().strip()
@@ -143,23 +154,25 @@ class TodayPage(QWidget):
         self.smart_button = QPushButton("语音智能输入")
         self.smart_button.setMinimumHeight(54)
         self.smart_button.setObjectName("PrimaryButton")
+        self.smart_button.setIcon(rounded_icon("mic"))
+        self.smart_button.setIconSize(QSize(32, 32))
         self.smart_button.clicked.connect(self.smart_input)
         smart_row.addWidget(self.smart_button)
-        guide = QLabel("说一说吃多少、喝多少、运动多久、在哪里，确认后记入今日。")
+        guide = QLabel("六类事实均可填写；说出时间、事项、数量和地点，逐项确认后保存。")
         guide.setWordWrap(True)
         smart_row.addWidget(guide, 1)
         quick_layout.addLayout(smart_row)
-        quick_buttons = QHBoxLayout()
-        for code, label in [
-            ("diet", "饮食记录"),
-            ("water", "饮水记录"),
-            ("activity", "运动记录"),
-            ("sleep", "睡眠记录"),
-        ]:
-            button = QPushButton(label)
+        quick_buttons = QGridLayout()
+        for index, (code, label) in enumerate(CATEGORIES):
+            button = QPushButton(label + "记录")
+            button.setObjectName("RecordCategory_" + code)
+            button.setProperty("recordTone", code)
+            surface, ink, _edge, _active = RECORD_TONES[code]
+            button.setIcon(rounded_icon(code, size=36, color=ink, background=surface))
+            button.setIconSize(QSize(36, 36))
             button.setMinimumHeight(52)
             button.clicked.connect(lambda _checked=False, category=code: self._add_record(category))
-            quick_buttons.addWidget(button)
+            quick_buttons.addWidget(button, index // 3, index % 3)
         quick_layout.addLayout(quick_buttons)
         root.addWidget(quick)
         self.status_label = QLabel()
@@ -188,15 +201,13 @@ class TodayPage(QWidget):
         records_title.setObjectName("SectionTitle")
         records_row.addWidget(records_title)
         records_row.addStretch()
-        environment = QPushButton("记录环境")
-        environment.clicked.connect(lambda: self._add_record("environment"))
-        records_row.addWidget(environment)
         delete_record = QPushButton("删除所选记录")
         delete_record.clicked.connect(self.delete_record)
         records_row.addWidget(delete_record)
         root.addLayout(records_row)
         self.records_table = _timeline()
         root.addWidget(self.records_table, 2)
+        root.addWidget(QLabel("记录和提醒可按 Ctrl 多选、Shift 连选；删除前会显示已选条数。"))
         self.timer = QTimer(self)
         self.timer.setInterval(60_000)
         self.timer.timeout.connect(self._clock_tick)
@@ -281,6 +292,10 @@ class TodayPage(QWidget):
                 suffix = " · ".join(
                     f"{detail[key]} {unit}" for key, unit in labels.items() if key in detail
                 )
+                if item.get("category") == "medical":
+                    suffix = " · ".join(
+                        str(detail[key]) for key in ("name", "description") if detail.get(key)
+                    )
                 category = CATEGORY_LABELS.get(item.get("category"), "生活")
                 text = f"{category}  {item.get('content', '')}"
                 if suffix:
@@ -370,7 +385,7 @@ class TodayPage(QWidget):
             return
         if self.ai_service is None or self.provider_selector is None:
             QMessageBox.information(
-                self, "智能填写尚未连接", "请先在 AI 助手选择可用服务；也可使用下方四个记录按钮。"
+                self, "智能填写尚未连接", "请先在 AI 助手选择可用服务；也可使用下方六类记录按钮。"
             )
             return
         dialog = SmartRecordDialog(self)
@@ -477,23 +492,30 @@ class TodayPage(QWidget):
             )
 
     def delete_reminder(self):
-        selected = self._selected(self.reminders_table)
+        selected = selected_rows(self.reminders_table)
         if (
             selected
-            and QMessageBox.question(self, "删除提醒", "确认删除选中的提醒吗？")
-            == QMessageBox.StandardButton.Yes
-        ):
-            self._mutate(lambda: self.health_service.delete_reminder(self.user_id, selected["id"]))
-
-    def delete_record(self):
-        selected = self._selected(self.records_table)
-        if (
-            selected
-            and QMessageBox.question(self, "删除记录", "确认删除选中的记录吗？")
+            and QMessageBox.question(self, "删除提醒", deletion_prompt(selected, "提醒"))
             == QMessageBox.StandardButton.Yes
         ):
             self._mutate(
-                lambda: self.health_service.delete_life_record(self.user_id, selected["id"]), True
+                lambda: self.health_service.delete_reminders(
+                    self.user_id, [item["id"] for item in selected]
+                )
+            )
+
+    def delete_record(self):
+        selected = selected_rows(self.records_table)
+        if (
+            selected
+            and QMessageBox.question(self, "删除记录", deletion_prompt(selected, "记录"))
+            == QMessageBox.StandardButton.Yes
+        ):
+            self._mutate(
+                lambda: self.health_service.delete_life_records(
+                    self.user_id, [item["id"] for item in selected]
+                ),
+                True,
             )
 
     def _error(self, text):

@@ -40,11 +40,16 @@ from .platform_experience_schema import (
     NEW_COLUMNS,
     PLATFORM_COLUMNS,
     PLATFORM_MARKER,
-    PLATFORM_REVISION,
     PLATFORM_RUNTIME_ROLE,
     PLATFORM_SCHEMA,
     policy_rules,
     runtime_grant_ddl,
+)
+from .platform_medical_schema import (
+    CATEGORY_CHECK,
+    OLD_CATEGORY_CHECK,
+    PLATFORM_REVISION,
+    category_check,
 )
 from .schema import PRIVATE_SCHEMA
 
@@ -305,10 +310,14 @@ def _inspect(connection) -> dict:
     result["data_api_roles_no_access"] = len(public_access) == 3 * len(expected_columns) and all(
         not row[2] and not row[3] for row in public_access
     )
+    result["expected_record_categories"] = category_check(connection) == (
+        CATEGORY_CHECK if revision == [PLATFORM_REVISION] else OLD_CATEGORY_CHECK,
+        True,
+    )
     return result
 
 
-def _verified(report: dict) -> bool:
+def _verified(report: dict, *, revision: str = PLATFORM_REVISION) -> bool:
     return all(
         report.get(key)
         for key in (
@@ -319,8 +328,9 @@ def _verified(report: dict) -> bool:
             "all_rls_forced",
             "expected_policy_set",
             "data_api_roles_no_access",
+            "expected_record_categories",
         )
-    ) and report.get("revisions") == [PLATFORM_REVISION]
+    ) and report.get("revisions") == [revision]
 
 
 @_safe
@@ -360,10 +370,9 @@ def migrate(*, confirm: str, pilot_confirm: str, profile: Path = DEFAULT_PROFILE
         and before["pilot_owned"]
         and before["revisions"] == ["pilot_0001"]
     )
-    existing_v1 = before.get("revisions") == [schema_v1.PLATFORM_REVISION] and _verified(
-        {**before, "revisions": [PLATFORM_REVISION]}
-    )
-    if not initial and not existing_v1:
+    existing_v1 = _verified(before, revision=schema_v1.PLATFORM_REVISION)
+    existing_v2 = _verified(before, revision="platform_0002")
+    if not initial and not existing_v1 and not existing_v2:
         raise PlatformAdminError("迁移前状态不符合预期；未接管、覆盖或修改已有对象。")
     try:
         with migration_environment(management_url(profile)):
@@ -379,7 +388,11 @@ def migrate(*, confirm: str, pilot_confirm: str, profile: Path = DEFAULT_PROFILE
         **after,
         "status": "platform_migration_verified",
         "tables_changed": True,
-        "created_tables": len(NEW_COLUMNS) if existing_v1 else len(PLATFORM_COLUMNS),
+        "created_tables": 0
+        if existing_v2
+        else len(NEW_COLUMNS)
+        if existing_v1
+        else len(PLATFORM_COLUMNS),
     }
 
 

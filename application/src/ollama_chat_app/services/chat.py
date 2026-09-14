@@ -147,6 +147,32 @@ class ChatService:
             row = self._resolve_conversation(connection, user_id, conversation_id)
         return conversation_from_row(row)
 
+    def delete_conversations(self, user_id: int, conversation_ids: list[int]) -> int:
+        """Atomically remove only owned conversations; attachments cascade in DB."""
+        if (
+            type(conversation_ids) is not list
+            or not 1 <= len(conversation_ids) <= 100
+            or any(type(value) is not int or value <= 0 for value in conversation_ids)
+            or len(set(conversation_ids)) != len(conversation_ids)
+        ):
+            raise MessageValidationError("请选择 1 到 100 个不同的有效对话。")
+        with self.database.transaction() as connection:
+            for identifier in conversation_ids:
+                self._resolve_conversation(connection, user_id, identifier)
+                pending = connection.execute(
+                    "SELECT 1 FROM messages WHERE conversation_id = ? "
+                    "AND status = 'pending' LIMIT 1",
+                    (identifier,),
+                ).fetchone()
+                if pending is not None:
+                    raise MessageStateError("对话正在生成回答，请停止或等待完成后删除。")
+            for identifier in conversation_ids:
+                connection.execute(
+                    "DELETE FROM conversations WHERE id = ? AND user_id = ?", (identifier, user_id)
+                )
+            self._get_or_create_default_conversation(connection, user_id)
+        return len(conversation_ids)
+
     def list_messages(
         self, user_id: int, *, limit: int | None = None, conversation_id: int | None = None
     ) -> list[Message]:

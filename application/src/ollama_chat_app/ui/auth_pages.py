@@ -145,7 +145,7 @@ class LoginPage(QWidget):
 
         self.connection_mode = QComboBox()
         self.connection_mode.addItem("本地模式：数据保存在此设备", "local")
-        self.connection_mode.addItem("云端模式：使用云端账户及数据", "cloud")
+        self.connection_mode.addItem("阿里云模式：账户与资料跨设备同步", "cloud")
         self.connection_mode.setAccessibleName("数据模式")
         self.connection_mode.setCurrentIndex(1 if self._endpoint_settings.mode == "cloud" else 0)
         layout.addWidget(self.connection_mode)

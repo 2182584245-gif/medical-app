@@ -73,7 +73,10 @@ class ChatSettingsDialog(QDialog):
             lambda _index: self._populate_models()
         )
         hint = QLabel(
-            "含图片的 DeepSeek 对话将使用图片实验版；发送前会明确提示。其他服务请填写可用模型名称。"
+            "这里的模型与更换的 APIKEY 同时用于 AI 助手和今日语音智能填写。"
+            "云端登录未设置个人 Key 时，由本平台转发至 DeepSeek，不会向设备分发共享 Key；"
+            "个人 Key 优先在本机直连。默认通道有分钟与每日额度，超额不会自动重试。"
+            "含图片的 DeepSeek 对话使用图片实验版；发送前会明确提示。"
         )
         hint.setWordWrap(True)
         hint.setObjectName("Hint")

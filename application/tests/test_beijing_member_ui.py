@@ -25,6 +25,19 @@ def health_services(tmp_path):
     return database, user, HealthService(database)
 
 
+def _type_segmented(qtbot, editor, value):
+    parsed = datetime.strptime(value, "%Y-%m-%d %H:%M")
+    for field, number in (
+        (editor.year, parsed.year),
+        (editor.month, parsed.month),
+        (editor.day, parsed.day),
+        (editor.hour, parsed.hour),
+        (editor.minute, parsed.minute),
+    ):
+        field.lineEdit().selectAll()
+        qtbot.keyClicks(field.lineEdit(), str(number))
+
+
 @pytest.mark.parametrize("dialog_type", [RecordDialog, LifeRecordDialog])
 def test_both_record_entries_save_selected_beijing_time(qtbot, health_services, dialog_type):
     database, user, health = health_services
@@ -35,8 +48,7 @@ def test_both_record_entries_save_selected_beijing_time(qtbot, health_services, 
     chosen = f"{yesterday.isoformat()} 15:45"
     dialog.show()
     dialog.time_input.setFocus()
-    dialog.time_input.selectAll()
-    qtbot.keyClicks(dialog.time_input, chosen)
+    _type_segmented(qtbot, dialog.time_input, chosen)
     values = dialog.values
     assert values["occurred_at"][:16] == chosen.replace(" ", "T")
     assert values["occurred_at"].endswith("+08:00")
@@ -53,7 +65,9 @@ def test_both_record_entries_save_selected_beijing_time(qtbot, health_services, 
 
 @pytest.mark.parametrize("dialog_type", [ReminderDialog, ReminderEditorDialog])
 def test_both_reminder_entries_save_and_reload_without_timezone_prompt(
-    qtbot, health_services, dialog_type,
+    qtbot,
+    health_services,
+    dialog_type,
 ):
     _database, user, health = health_services
     dialog = dialog_type()
@@ -63,8 +77,7 @@ def test_both_reminder_entries_save_and_reload_without_timezone_prompt(
     chosen = f"{tomorrow.isoformat()} 21:30"
     dialog.show()
     dialog.time_input.setFocus()
-    dialog.time_input.selectAll()
-    qtbot.keyClicks(dialog.time_input, chosen)
+    _type_segmented(qtbot, dialog.time_input, chosen)
     values = dialog.values
     assert values["scheduled_at"][:16] == chosen.replace(" ", "T")
     assert values["scheduled_at"].endswith("+08:00")

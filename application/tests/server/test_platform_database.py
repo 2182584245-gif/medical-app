@@ -95,6 +95,10 @@ class FakeConnection:
 
     def exec_driver_sql(self, sql, parameters=()):
         self.log.append((sql, parameters))
+        if "pg_catalog.pg_constraint" in sql:
+            from server.platform_medical_schema import CATEGORY_CHECK
+
+            return FakeResult(((CATEGORY_CHECK, True),), ("definition", "convalidated"))
         if self.engine.error and sql.startswith("INSERT"):
             raise self.engine.error
         return FakeResult()
@@ -394,6 +398,7 @@ def test_constraint_errors_keep_compatibility_but_not_raw_secrets(database):
 
 def test_initialize_only_reads_shape_and_forced_probe_rechecks(database):
     from server.platform_experience_schema import PLATFORM_COLUMNS as current_columns
+
     database.initialize()
 
     def count():

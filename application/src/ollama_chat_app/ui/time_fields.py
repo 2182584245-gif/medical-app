@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from PySide6.QtCore import QDate, QDateTime, QEvent, QLocale, QObject, Qt, QTimeZone
+from PySide6.QtCore import QDate, QDateTime, QEvent, QLocale, QObject, Qt, QTimeZone, Signal
 from PySide6.QtGui import QKeyEvent, QKeySequence
 from PySide6.QtWidgets import QDateEdit, QDateTimeEdit, QWidget
 
@@ -24,6 +24,11 @@ EMPTY_DATE = QDate(1899, 12, 31)
 
 def current_qtimezone() -> QTimeZone:
     return QTimeZone(display_timezone_name().encode("utf-8"))
+
+
+def editor_timezone_label(zone: QTimeZone) -> str:
+    name = bytes(zone.id()).decode("utf-8")
+    return display_timezone_label() if name == display_timezone_name() else name
 
 
 def beijing_qdatetime(value: datetime | str | QDateTime | None = None) -> QDateTime:
@@ -74,6 +79,21 @@ class _DateEntryMixin:
 
 
 class BeijingDateTimeEdit(_DateEntryMixin, QDateTimeEdit):
+    display_timezone_changed = Signal()
+
+    def setDateTime(self, value: QDateTime) -> None:
+        # Qt reparses ambiguous local DST hours with its default offset. Keep
+        # the explicitly supplied instant while the visible fields are unchanged.
+        self._explicit_instant = QDateTime(value)
+        super().setDateTime(value)
+
+    def setTimeZone(self, zone: QTimeZone) -> None:
+        super().setTimeZone(zone)
+        self.setAccessibleName(f"日期和时间（{editor_timezone_label(zone)}）")
+        # Qt dateTimeChanged represents an instant change, not necessarily a
+        # wall-clock display change. Segmented controls also need this signal.
+        self.display_timezone_changed.emit()
+
     def __init__(
         self,
         value: datetime | str | QDateTime | None = None,
@@ -96,6 +116,11 @@ class BeijingDateTimeEdit(_DateEntryMixin, QDateTimeEdit):
     def dateTime(self) -> QDateTime:
         # Save actions also work when the user has not tabbed out of the last field.
         self.interpretText()
+        explicit = getattr(self, "_explicit_instant", None)
+        if explicit is not None:
+            displayed = explicit.toTimeZone(self.timeZone())
+            if self.text() == displayed.toString(self.displayFormat()):
+                return displayed
         return super().dateTime()
 
 

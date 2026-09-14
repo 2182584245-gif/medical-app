@@ -9,7 +9,6 @@ from PySide6.QtWidgets import (
     QAbstractItemView,
     QCheckBox,
     QComboBox,
-    QDateEdit,
     QGridLayout,
     QHeaderView,
     QLabel,
@@ -22,6 +21,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from .segmented_time import SegmentedDateEdit
 from .staff_work_chart import WorkChart
 
 
@@ -48,11 +48,10 @@ class OperatorPerformancePanel(QWidget):
         self.advisor_filter = QComboBox()
         self.member_filter = QComboBox()
         self.date_filter = QCheckBox("限定日期")
-        self.start_date = QDateEdit(QDate.currentDate().addMonths(-1))
-        self.end_date = QDateEdit(QDate.currentDate())
-        for editor in (self.start_date, self.end_date):
-            editor.setCalendarPopup(True)
-            editor.setDisplayFormat("yyyy-MM-dd")
+        self.start_date = SegmentedDateEdit(optional=False)
+        self.end_date = SegmentedDateEdit(optional=False)
+        self.start_date.setDate(QDate.currentDate().addMonths(-1))
+        self.end_date.setDate(QDate.currentDate())
         self.view_filter = QComboBox()
         for label, mode in (
             ("表格", "table"),
@@ -71,12 +70,12 @@ class OperatorPerformancePanel(QWidget):
             filters.addWidget(QLabel(label), 0, column * 2)
             filters.addWidget(widget, 0, column * 2 + 1)
         filters.addWidget(self.date_filter, 1, 0)
-        filters.addWidget(self.start_date, 1, 1)
-        filters.addWidget(QLabel("至（包含当天）"), 1, 2)
-        filters.addWidget(self.end_date, 1, 3)
+        filters.addWidget(self.start_date, 1, 1, 1, 5)
+        filters.addWidget(QLabel("至（包含当天）"), 2, 0)
+        filters.addWidget(self.end_date, 2, 1, 1, 5)
         refresh_button = QPushButton("应用筛选 / 刷新")
         refresh_button.clicked.connect(self.refresh)
-        filters.addWidget(refresh_button, 1, 4, 1, 2)
+        filters.addWidget(refresh_button, 3, 0, 1, 6)
         layout.addLayout(filters)
 
         self.table = QTableWidget(0, 8)

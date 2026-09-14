@@ -1,4 +1,4 @@
-"""Install reviewed v2 DDL only into the new dedicated, independently marked database."""
+"""Install reviewed v3 DDL only into the new dedicated, independently marked database."""
 
 from __future__ import annotations
 
@@ -11,6 +11,12 @@ from psycopg import sql
 
 from server import platform_experience_schema as v2
 from server import platform_schema as v1
+from server.platform_medical_schema import (
+    ALTER_CATEGORY_SQL,
+    CATEGORY_CHECK,
+    PLATFORM_REVISION,
+    category_check,
+)
 
 from .guard import ADMIN, DATABASE, MARKER, RUNTIME, DeploymentError, container_gate, secret
 
@@ -52,8 +58,8 @@ def check_target(connection, user: str, deployment: dict) -> None:
         raise DeploymentError("TLS, database ownership, or deployment identity differs.")
 
 
-def ddl() -> tuple[str, ...]:
-    return (
+def ddl(*, revision=PLATFORM_REVISION) -> tuple[str, ...]:
+    statements = (
         *v1.TABLE_DDL,
         *v1.INDEX_DDL,
         *v1.compatibility_constraints(),
@@ -65,13 +71,18 @@ def ddl() -> tuple[str, ...]:
         v1.revoke_ddl(),
         *v2.runtime_grant_ddl(),
     )
+    if revision == "platform_0002":
+        return statements
+    if revision != PLATFORM_REVISION:
+        raise DeploymentError("Unsupported reviewed installation revision.")
+    return (*statements, ALTER_CATEGORY_SQL)
 
 
-def ddl_digest() -> str:
-    return hashlib.sha256("\n".join(ddl()).encode()).hexdigest()
+def ddl_digest(*, revision=PLATFORM_REVISION) -> str:
+    return hashlib.sha256("\n".join(ddl(revision=revision)).encode()).hexdigest()
 
 
-def catalog_digest(connection) -> str:
+def catalog_digest(connection, *, exclude_medical_category=False) -> str:
     # Data values and sequence counters deliberately excluded. Include effective
     # policy expressions, owners, ACLs, types, defaults, indexes and constraints.
     queries = (
@@ -93,10 +104,16 @@ def catalog_digest(connection) -> str:
         "WHERE n.nspname=%s ORDER BY 1,2",
     )
     rows = [connection.execute(query, (v2.PLATFORM_SCHEMA,)).fetchall() for query in queries]
+    if exclude_medical_category:
+        rows[4] = [
+            row
+            for row in rows[4]
+            if tuple(row[:2]) != ("life_records", "life_records_category_check")
+        ]
     return hashlib.sha256(json.dumps(rows, separators=(",", ":")).encode()).hexdigest()
 
 
-def verify_installation(connection, deployment: dict) -> None:
+def verify_installation(connection, deployment: dict, *, revision=PLATFORM_REVISION) -> None:
     role = connection.execute(
         "SELECT shobj_description(oid,'pg_authid'),rolcanlogin,rolsuper,rolcreatedb,"
         "rolcreaterole,rolreplication,rolbypassrls,rolinherit,rolconnlimit,"
@@ -104,7 +121,9 @@ def verify_installation(connection, deployment: dict) -> None:
         "FROM pg_roles r WHERE rolname=%s",
         (RUNTIME,),
     ).fetchone()
-    expected = f"{MARKER}:{deployment['id']}:{ddl_digest()}:{catalog_digest(connection)}"
+    expected = (
+        f"{MARKER}:{deployment['id']}:{ddl_digest(revision=revision)}:{catalog_digest(connection)}"
+    )
     if role != (expected, True, False, False, False, False, False, False, 5, False):
         raise DeploymentError("Runtime privileges, membership or schema fingerprint differs.")
     tables = connection.execute(
@@ -127,6 +146,8 @@ def verify_installation(connection, deployment: dict) -> None:
     ).fetchone()
     if scope != (True, False, False, False, False):
         raise DeploymentError("Runtime database scope is broader than allowed.")
+    if revision == PLATFORM_REVISION and category_check(connection) != (CATEGORY_CHECK, True):
+        raise DeploymentError("Medical category constraint is not the verified v3 constraint.")
 
 
 def install_empty(connection, deployment: dict, password: str) -> None:
@@ -219,7 +240,7 @@ def bootstrap() -> dict:
     return dict(
         status="owned_database_ready",
         created=exists is None,
-        revision=v2.PLATFORM_REVISION,
+        revision=PLATFORM_REVISION,
         tables=len(v2.PLATFORM_TABLES),
         historical_data_imported=False,
     )

@@ -1,6 +1,6 @@
 name: medical-app-aliyun
 x-api: &api
-  image: medical-app-aliyun-api:v2
+  image: medical-app-aliyun-api:v3
   build:
     context: ${SOURCE_ROOT:-/opt/medical-app/source}
     dockerfile: tools/aliyun_platform/Dockerfile
@@ -64,22 +64,20 @@ services:
     environment:
       ALIYUN_DEPLOYMENT: 'medical-app:aliyun:v1'
       API_TARGET: aliyun
+      HEALTHLIFE_AI_SECRET_ENVELOPE: /run/ai-secrets/deepseek-key.aesgcm
+      HEALTHLIFE_AI_SECRET_KEY_FILE: /run/ai-key/default-ai-kek.bin
+      HEALTHLIFE_AI_USER_MINUTE_LIMIT: '2'
+      HEALTHLIFE_AI_USER_DAY_LIMIT: '20'
+      HEALTHLIFE_AI_GLOBAL_MINUTE_LIMIT: '6'
+      HEALTHLIFE_AI_GLOBAL_DAY_LIMIT: '100'
     volumes:
       - ./deployment.json:/run/deployment.json:ro
       - ./secrets/api-aliyun:/run/api-secrets:ro
+      - ./secrets/ai-envelope:/run/ai-secrets:ro
+      - ./secrets/ai-key:/run/ai-key:ro
     networks: [database, edge, outbound]
     depends_on:
       postgres: {condition: service_healthy}
-  api-supabase:
-    <<: *api
-    profiles: [supabase]
-    environment:
-      ALIYUN_DEPLOYMENT: 'medical-app:aliyun:v1'
-      API_TARGET: supabase
-    volumes:
-      - ./deployment.json:/run/deployment.json:ro
-      - ./secrets/api-supabase:/run/api-secrets:ro
-    networks: [edge, outbound]
   caddy:
     image: public.ecr.aws/docker/library/caddy:2-alpine@sha256:5f5c8640aae01df9654968d946d8f1a56c497f1dd5c5cda4cf95ab7c14d58648
     restart: unless-stopped

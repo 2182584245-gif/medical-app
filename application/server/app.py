@@ -86,7 +86,12 @@ class RequestBoundary:
         iterator = iter(chunks)
 
         async def bounded_receive():
-            return next(iterator, {"type": "http.request", "body": b"", "more_body": False})
+            cached = next(iterator, None)
+            if cached is not None:
+                return cached
+            # Streaming responses must await the actual disconnect after the
+            # buffered body is consumed; synthetic empty requests spin forever.
+            return await receive()
 
         async def private_send(message):
             if message["type"] == "http.response.start":

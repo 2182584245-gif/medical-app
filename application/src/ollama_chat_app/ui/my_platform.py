@@ -3,12 +3,15 @@
 from __future__ import annotations
 
 import base64
+from contextlib import suppress
 
 from PySide6.QtCore import QBuffer, QIODevice, Qt, Signal
 from PySide6.QtGui import QImageReader, QPixmap
 from PySide6.QtWidgets import (
     QCheckBox,
     QComboBox,
+    QDialog,
+    QDialogButtonBox,
     QFileDialog,
     QFormLayout,
     QFrame,
@@ -25,6 +28,8 @@ from PySide6.QtWidgets import (
 )
 
 from ..services.preferences import DEFAULT_PREFERENCES
+from .art_icons import GardenMark, rounded_icon
+from .dialog_layout import fit_dialog
 from .offline_feedback import show_queued_result
 
 TIMEZONES = (
@@ -48,14 +53,26 @@ class MyPlatformPanel(QWidget):
         self.preferences_service = preferences_service
         self.user_id = None
         self._avatar_data = ""
+        self.profile_editor = None
+        self._profile_dialog = None
         outer = QVBoxLayout(self)
+        heading = QHBoxLayout()
         title = QLabel("我的平台")
         title.setObjectName("Title")
-        outer.addWidget(title)
+        heading.addWidget(title)
+        heading.addWidget(GardenMark())
+        heading.addStretch()
+        self.profile_button = QPushButton("个人档案")
+        self.profile_button.setIcon(rounded_icon("profile"))
+        self.profile_button.setEnabled(False)
+        self.profile_button.clicked.connect(self.open_profile)
+        heading.addWidget(self.profile_button)
+        outer.addLayout(heading)
         subtitle = QLabel("按您的习惯来，让每一天更从容。")
         subtitle.setObjectName("Subtitle")
         outer.addWidget(subtitle)
         scroll = QScrollArea()
+        self.scroll_area = scroll
         scroll.setWidgetResizable(True)
         outer.addWidget(scroll)
         body = QWidget()
@@ -66,7 +83,10 @@ class MyPlatformPanel(QWidget):
         form = QFormLayout(card)
         form.setContentsMargins(28, 24, 28, 24)
         form.setSpacing(16)
-        self.avatar = QLabel("☺")
+        form.setRowWrapPolicy(QFormLayout.RowWrapPolicy.WrapLongRows)
+        form.setFieldGrowthPolicy(QFormLayout.FieldGrowthPolicy.AllNonFixedFieldsGrow)
+        self.avatar = QLabel()
+        self.avatar.setPixmap(rounded_icon("profile", size=80).pixmap(80, 80))
         self.avatar.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.avatar.setFixedSize(100, 100)
         avatar_line = QHBoxLayout()
@@ -133,6 +153,38 @@ class MyPlatformPanel(QWidget):
             )
             layout.addWidget(button)
         layout.addStretch()
+
+    def set_profile_editor(self, editor):
+        self.profile_editor = editor
+        self.profile_button.setEnabled(editor is not None)
+
+    def open_profile(self):
+        """Explicit entry only; periodic snapshots never overwrite an open draft."""
+        if self.user_id is None or self.profile_editor is None:
+            return
+        if self._profile_dialog is not None:
+            self._profile_dialog.raise_()
+            return
+        editor = self.profile_editor
+        original_parent = editor.parentWidget()
+        dialog = QDialog(self)
+        dialog.setWindowTitle("个人档案 · 可按需填写，也可稍后再填")
+        self._profile_dialog = dialog
+        layout = QVBoxLayout(dialog)
+        layout.addWidget(editor, 1)
+        editor.refresh()
+        editor.show()
+        close = QDialogButtonBox(QDialogButtonBox.StandardButton.Close)
+        close.button(QDialogButtonBox.StandardButton.Close).setText("关闭 / 稍后填写")
+        close.rejected.connect(dialog.reject)
+        layout.addWidget(close)
+        fit_dialog(dialog, width=800, height=720)
+        try:
+            dialog.exec()
+        finally:
+            editor.setParent(original_parent)
+            editor.hide()
+            self._profile_dialog = None
 
     def set_user(self, user_id):
         self.user_id = int(getattr(user_id, "id", user_id)) if user_id is not None else None
@@ -215,14 +267,12 @@ class MyPlatformPanel(QWidget):
     def _show_avatar(self):
         pixmap = QPixmap()
         if self._avatar_data:
-            try:
+            with suppress(ValueError, IndexError):
                 pixmap.loadFromData(
                     base64.b64decode(self._avatar_data.split(",", 1)[1], validate=True)
                 )
-            except (ValueError, IndexError):
-                pass
         if pixmap.isNull():
-            self.avatar.setText("☺")
+            self.avatar.setPixmap(rounded_icon("profile", size=80).pixmap(80, 80))
         else:
             self.avatar.setPixmap(
                 pixmap.scaled(

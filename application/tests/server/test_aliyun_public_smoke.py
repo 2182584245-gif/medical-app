@@ -75,7 +75,7 @@ def _assert_no_secrets(report, context, directory):
     assert all(not client.is_authenticated for client in context.clients)
 
 
-@pytest.mark.parametrize("route", ["aliyun", "supabase"])
+@pytest.mark.parametrize("route", ["aliyun"])
 def test_complete_synthetic_http_and_dpapi_receipt(context, tmp_path, route):
     directory = tmp_path / "new-run"
     report = smoke.run(route=route, confirm=True, report_directory=directory,
@@ -139,7 +139,7 @@ def test_lost_registration_response_keeps_exact_intent_without_retry(context, tm
 
 @pytest.mark.parametrize(("route", "confirm"), [
     ("aliyun", False), ("aliyun", 1), ("http://39.106.166.15/aliyun", True),
-    ("https://39.106.166.15/supabase", True), ("elsewhere", True),
+    ("https://39.106.166.15/supabase", True), ("elsewhere", True), ("supabase", True),
 ])
 def test_gate_prevents_network_and_directory_creation(tmp_path, route, confirm):
     directory = tmp_path / "not-created"

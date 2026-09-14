@@ -43,7 +43,8 @@ _REQUEST_MEDICAL_PATTERNS = tuple(
     for pattern in (
         r"(?:帮我|给我|请|如何|怎么).{0,8}(?:诊断|确诊)",
         r"(?:治疗方案|怎么治疗|如何治疗)",
-        r"(?:吃|服用|用|换|停).{0,8}(?:什么药|哪种药|药物|处方药)",
+        r"(?:吃|服用|用|换|停).{0,8}(?:什么药|哪种药)",
+        r"(?:应该|可以|推荐|建议|请).{0,8}(?:服用|使用|更换|停用).{0,8}(?:药物|处方药)",
         r"(?:调整|增加|减少).{0,6}(?:剂量|药量)",
         r"(?:能不能|可以不可以).{0,8}(?:不去医院|不看医生|停药)",
     )
@@ -226,7 +227,7 @@ class AiAssistantService:
             profile = connection.execute(
                 """
                 SELECT display_name, ai_preferred_name, reminder_frequency,
-                       health_goals, dietary_preferences, living_situation
+                       health_goals, dietary_preferences, living_situation, medical_notes
                 FROM member_profiles WHERE user_id = ?
                 """,
                 (member_id,),
@@ -309,7 +310,8 @@ class AiAssistantService:
                         "\n本次只提取用户这段描述中的生活记录，proposals 只允许 life_record。"
                         "不要把历史资料重新生成记录，不推测未提及的食物、数量、时间或身体事实。"
                         "缺少时刻时可使用上下文 generated_at 并在 content 注明时间待用户确认。"
-                        "不确定的内容明确标注供用户编辑，不能生成用药记录。"
+                        "不确定的内容明确标注供用户编辑。医疗仅整理已发生的就医/服药事实；"
+                        "不得生成治疗、服药计划或推测药名、用量和诊断。"
                     ),
                 },
                 {"role": "user", "content": question},
@@ -794,8 +796,11 @@ class AiAssistantService:
             "用户明确指定其他时区时保留其正确时刻。\n"
             "只输出一个 JSON 对象，禁止 Markdown 和额外文字。顶层必须且只能有 answer、proposals。"
             "answer 是中文字符串；proposals 是数组，最多 8 项。允许格式：\n"
-            '{"type":"life_record","category":"diet|water|activity|sleep|environment",'
+            '{"type":"life_record","category":"diet|water|activity|sleep|environment|medical",'
             '"occurred_at":"带时区ISO时间","content":"内容","details":{}}\n'
+            "medical 只表示用户明确讲述的就医/服药事实，details 可有 event_type"
+            "（consultation/medication/other）、name、description、location；不要补全未提及的信息。"
+            "environment 是用户记录的环境事实，不代表实时天气监测。\n"
             '{"type":"profile_fact","fact_key":"安全档案字段","value":"值"}\n'
             '{"type":"reminder","title":"标题","reminder_type":"water|diet|sleep|activity|'
             'environment|visit|membership|custom","scheduled_at":"带时区ISO时间"}\n'
@@ -875,7 +880,14 @@ class AiAssistantService:
             raise AiValidationError("AI 待确认项字段不完整或包含未知字段")
         item = dict(value)
         if proposal_type == "life_record":
-            if item["category"] not in {"diet", "water", "activity", "sleep", "environment"}:
+            if item["category"] not in {
+                "diet",
+                "water",
+                "activity",
+                "sleep",
+                "environment",
+                "medical",
+            }:
                 raise AiValidationError("AI 生活记录分类无效")
             cls._require_aware_iso(item["occurred_at"], "生活记录时间")
             item["content"] = cls._required_text(
@@ -885,6 +897,13 @@ class AiAssistantService:
             if details is not None and not isinstance(details, dict):
                 raise AiValidationError("AI 生活记录详情必须是对象")
             item["details"] = {} if details is None else details
+            if item["category"] == "medical":
+                try:
+                    item["details"] = HealthService._validate_record_details(
+                        "medical", item["details"]
+                    )
+                except ValueError:
+                    raise AiValidationError("医疗记录详情无效，未保存事实") from None
         elif proposal_type == "profile_fact":
             if item["fact_key"] not in SAFE_PROFILE_FIELDS:
                 raise AiValidationError("AI 尝试写入不允许自动建议的档案字段")

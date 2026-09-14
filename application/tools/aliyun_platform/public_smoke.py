@@ -42,7 +42,6 @@ from ollama_chat_app.services.sync_protocol import fetch_paged_snapshot
 
 ENDPOINTS = {
     "aliyun": "https://39.106.166.15/aliyun",
-    "supabase": "https://39.106.166.15/supabase",
 }
 SOURCE = Path(__file__).resolve().parents[2]
 _PURPOSE = "aliyun-public-smoke/v1/"

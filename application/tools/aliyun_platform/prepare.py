@@ -104,7 +104,8 @@ https://{host} {{
         }}
     }}
     redir /aliyun /aliyun/ 308
-    redir /supabase /supabase/ 308
+    @retired_supabase path /supabase /supabase/*
+    respond @retired_supabase "This runtime route has been retired." 410
     handle_path /aliyun/* {{
         reverse_proxy https://api-aliyun:8443 {{
             header_up Host {{hostport}}
@@ -112,17 +113,6 @@ https://{host} {{
             transport http {{
                 tls_trust_pool file /run/ca.crt
                 tls_server_name api-aliyun
-                response_header_timeout 180s
-            }}
-        }}
-    }}
-    handle_path /supabase/* {{
-        reverse_proxy https://api-supabase:8443 {{
-            header_up Host {{hostport}}
-            header_up -Forwarded
-            transport http {{
-                tls_trust_pool file /run/ca.crt
-                tls_server_name api-supabase
                 response_header_timeout 180s
             }}
         }}
@@ -165,7 +155,8 @@ def prepare(root: Path, host: str, *, confirm_new: bool = False) -> dict:
         "secrets/ca",
         "secrets/postgres",
         "secrets/api-aliyun",
-        "secrets/api-supabase",
+        "secrets/ai-envelope",
+        "secrets/ai-key",
         "config",
         "backups",
         "state",
@@ -202,7 +193,7 @@ def prepare(root: Path, host: str, *, confirm_new: bool = False) -> dict:
     _new(root / "secrets/postgres/bootstrap-password", admin_password, 0o400, 999)
     _new(root / "secrets/postgres/pgpass", f"postgres:5432:*:{ADMIN}:{admin_password}\n", 0o400)
     _new(root / "secrets/api-aliyun/database-password", runtime_password, 0o400, 10001)
-    for target in ("postgres", "api-aliyun", "api-supabase"):
+    for target in ("postgres", "api-aliyun"):
         folder = root / "secrets" / target
         uid = 999 if target == "postgres" else 10001
         _certificate(root, folder, target, uid)
@@ -211,6 +202,13 @@ def prepare(root: Path, host: str, *, confirm_new: bool = False) -> dict:
             os.chown(folder, 0, uid)
         if target != "postgres":
             _new(folder / "token-pepper", secrets.token_hex(32), 0o400, uid)
+    # Create separate EMPTY private mounts; operators supply the reviewed AES
+    # envelope and independent key later. Never generate or distribute an AI Key.
+    for name in ("ai-envelope", "ai-key"):
+        folder = root / "secrets" / name
+        folder.chmod(0o750)
+        if os.name == "posix":
+            os.chown(folder, 0, 10001)
     _new(root / "config/ca.crt", (ca / "ca.crt").read_bytes(), 0o444)
     _new(root / "config/Caddyfile", caddyfile(host), 0o644)
     # Generated SQL only interpolates a generated hex id and fixed identifiers.

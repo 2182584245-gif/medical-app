@@ -35,11 +35,14 @@ clean_verify = script("verify_release")
 @pytest.fixture(scope="module")
 def master_demo(tmp_path_factory):
     from tools.generate_synthetic_demo import build_demo
+    from tools.upgrade_synthetic_demo_v7 import upgrade_copy
 
     target = tmp_path_factory.mktemp("synthetic-release-seed") / "demo"
     with patch.dict(os.environ, {}):
         build_demo(target, screenshots=False)
-    return target
+    upgraded = target.with_name("demo-v7")
+    upgrade_copy(target, upgraded)
+    return upgraded
 
 
 @pytest.fixture
@@ -78,11 +81,14 @@ def mutate_db(demo, command, values=()):
         connection.execute(command, values)
 
 
-def test_only_fixed_fictional_schema6_payload_is_accepted(demo):
+def test_only_fixed_fictional_schema7_payload_is_accepted(demo):
     result = common.verify_payload(demo)
-    assert result["schema_version"] == 6
+    assert result["schema_version"] == 7
     assert result["counts"] == common.COUNTS
     assert result["credentials_verified_without_display"] is True
+    assert result["counts"]["life_records"] == 156
+    assert result["counts"]["audit_logs"] == 209
+    assert (demo / "DEMO_ACCOUNTS.txt").is_file()
 
 
 def test_same_archive_build_produces_distinct_clean_and_demo_packages(built_source, demo, tmp_path):
@@ -138,6 +144,7 @@ def test_non_synthetic_manifest_is_refused_before_output(built_source, demo, tmp
         ("PRAGMA user_version=5", ()),
         ("DELETE FROM member_cart WHERE rowid=(SELECT min(rowid) FROM member_cart)", ()),
         ("UPDATE member_profiles SET phone=?", ("13800000000",)),
+        ("UPDATE reminders SET title='示例被悄悄改写的原提醒' WHERE id=1", ()),
         (
             "UPDATE life_records SET content=? WHERE id=(SELECT min(id) FROM life_records)",
             ("sk-" + "x" * 40,),
@@ -157,6 +164,13 @@ def test_rejects_account_schema_count_personal_contact_and_key_mutations(demo, c
 def test_no_dpapi_or_extra_database_can_enter_payload(demo):
     (demo / "data/private.dpapi").write_bytes(b"SYNTHETIC NOT DPAPI")
     with pytest.raises(RuntimeError, match="凭据"):
+        common.verify_payload(demo)
+
+
+def test_demo_txt_cannot_add_another_credential(demo):
+    with (demo / "DEMO_ACCOUNTS.txt").open("a", encoding="utf-8") as stream:
+        stream.write("demo-unapproved\tSYNTHETIC_NOT_ACCEPTED\n")
+    with pytest.raises(RuntimeError, match="TXT"):
         common.verify_payload(demo)
 
 

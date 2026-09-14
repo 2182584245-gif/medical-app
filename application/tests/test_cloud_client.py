@@ -191,7 +191,7 @@ def test_timeout_tls_and_redirect_settings(make_client):
     assert client._http.timeout.connect == 10
     assert client._http.timeout.read == 90
     assert client._http.follow_redirects is False
-    assert client._http.trust_env is True
+    assert client._http.trust_env is False
 
 
 def test_gui_bridge_keeps_timer_alive_and_moves_transport_off_gui(qapp, qtbot):
@@ -260,7 +260,7 @@ def test_tls_verification_and_environment_proxy_options_are_explicit(monkeypatch
     with CloudAPIClient("https://health.example.com", transport=transport):
         pass
     assert captured["verify"] is True
-    assert captured["trust_env"] is True
+    assert captured["trust_env"] is False
     assert captured["follow_redirects"] is False
 
 

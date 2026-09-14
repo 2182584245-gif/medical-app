@@ -222,17 +222,28 @@ class SyncedRemoteService:
                     if item["service"] == "preferences":
                         patch = item["args"][1] if len(item["args"]) > 1 else item["kwargs"].get(
                             "patch", {})
-                        for key in ("ai_context_consent", "weather_consent"):
-                            if patch.get(key) is False:
-                                preferences[key] = False
+                        for key, value in patch.items():
+                            if key.endswith("_consent"):
+                                if value is False:
+                                    preferences[key] = False
+                            elif item["status"] in {"queued", "uncertain"}:
+                                preferences[key] = value
             return preferences
         if self.service_name == "health":
             if method != "list_life_records" and set(values) != {"user_id"}:
                 return _MISS
             if method == "get_profile":
-                profile = resources["profile"]
+                profile = dict(resources["profile"])
                 if profile.get("user_id") != actor:
                     raise CloudAPIError("permission")
+                if getattr(self._sync, "offline_enabled", False):
+                    for item in self._sync.outbox.list(self._sync.identity, include_payload=True):
+                        if (item["service"] == "health" and item["method"] == "save_profile"
+                                and item["status"] in {"queued", "uncertain"}):
+                            patch = item["kwargs"].get("values", {})
+                            # Scope remains the authenticated mirror actor.
+                            profile.update({key: value for key, value in patch.items()
+                                            if key not in {"user_id", "id"}})
                 return profile
             if method == "get_service_summary":
                 return resources["service_summary"]

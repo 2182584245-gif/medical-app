@@ -67,6 +67,7 @@ def test_all_five_record_categories_validate_persist_and_aggregate(
         "activity": 1,
         "diet": 1,
         "environment": 1,
+        "medical": 0,
         "sleep": 1,
         "water": 1,
     }
@@ -79,6 +80,8 @@ def test_all_five_record_categories_validate_persist_and_aggregate(
         "diet_calories_kcal": 520,
         "environment_average_temperature_c": 24.5,
         "environment_average_humidity_percent": 51.0,
+        "medical_consultation_count": 0,
+        "medical_medication_count": 0,
     }
     assert "不构成" in statistics["notice"]
 

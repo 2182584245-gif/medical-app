@@ -283,7 +283,7 @@ def test_member_statistics_snapshot_preserves_selected_parameters_and_unsaved_pr
             ]
         },
     )
-    assert publish(window, data) == ("档案摘要", "记录统计")
+    assert publish(window, data) == ("记录统计",)
     assert panel.category_combo.currentData() == "water"
     assert panel.parameter_combo.currentData() == "amount_ml"
     assert "650" in panel.table.item(panel.table.rowCount() - 1, 1).text()

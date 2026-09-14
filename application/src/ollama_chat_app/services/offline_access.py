@@ -16,6 +16,7 @@ from ..security.passwords import hash_password, normalize_username, verify_passw
 from ..security.private_payload import read_private_json, write_private_json
 
 MAX_OFFLINE_SECONDS = 12 * 3600
+ISSUED_AT_CLOCK_SKEW_SECONDS = 5
 
 
 class OfflineAccessError(RuntimeError):
@@ -52,9 +53,12 @@ def validate_lease(lease, *, actor_id=None, now=None):
         raise OfflineAccessError("离线授权云端标识无效。")
     issued, expiry = utc_timestamp(lease["issued_at"]), utc_timestamp(lease["expires_at"])
     current = now or datetime.now(UTC)
-    if not issued <= current < expiry or not timedelta(0) < expiry-issued <= timedelta(
-        seconds=MAX_OFFLINE_SECONDS
-    ):
+    # HTTPS peers can differ by a few milliseconds. Tolerate only the issued-at
+    # lower boundary; never move expiry, lengthen the signed interval, or relax
+    # the independently persisted last_clock rollback checks below.
+    if (issued - current > timedelta(seconds=ISSUED_AT_CLOCK_SKEW_SECONDS)
+            or not current < expiry
+            or not timedelta(0) < expiry-issued <= timedelta(seconds=MAX_OFFLINE_SECONDS)):
         raise OfflineAccessError("离线授权已到期或系统时间异常，请在线登录。")
     return dict(lease)
 

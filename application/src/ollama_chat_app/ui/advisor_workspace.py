@@ -28,8 +28,10 @@ from PySide6.QtWidgets import (
 
 from ..time_utils import display_timezone_label, format_beijing
 from .advisor_ai_panel import AdvisorAiPanel
+from .dialog_layout import fit_dialog, scroll_page
+from .segmented_time import SegmentedDateTimeEdit as BeijingDateTimeEdit
 from .staff_style import build_staff_style
-from .time_fields import BeijingDateTimeEdit, beijing_qdatetime, datetime_iso
+from .time_fields import beijing_qdatetime, datetime_iso
 
 TASK_LABELS = {
     "pending": "待上门",
@@ -105,6 +107,7 @@ class AdvisorVisitCompletionDialog(QDialog):
         scroll.setWidgetResizable(True)
         body = QWidget()
         form = QFormLayout(body)
+        form.setRowWrapPolicy(QFormLayout.RowWrapPolicy.WrapAllRows)
         form.setContentsMargins(14, 12, 22, 12)
         form.setVerticalSpacing(12)
 
@@ -161,6 +164,8 @@ class AdvisorVisitCompletionDialog(QDialog):
         buttons.accepted.connect(self._validate)
         buttons.rejected.connect(self.reject)
         root.addWidget(buttons)
+        self.form_scroll = scroll
+        fit_dialog(self, width=760, height=720)
 
     @staticmethod
     def _text_input(placeholder: str, height: int) -> QTextEdit:
@@ -182,10 +187,15 @@ class AdvisorVisitCompletionDialog(QDialog):
             QMessageBox.warning(self, "上门总结未填写", "请先填写上门总结，再完成任务。")
             self.summary_input.setFocus()
             return
-        if (
-            self.create_next_visit_input.isChecked()
-            and self.next_visit_input.dateTime() <= beijing_qdatetime()
-        ):
+        try:
+            invalid = (
+                self.create_next_visit_input.isChecked()
+                and self.next_visit_input.dateTime() <= beijing_qdatetime()
+            )
+        except ValueError as error:
+            QMessageBox.warning(self, "请核对下次时间", str(error))
+            return
+        if invalid:
             QMessageBox.warning(self, "下次时间无效", "下次上门时间必须晚于当前时间，请重新选择。")
             self.next_visit_input.setFocus()
             return
@@ -280,11 +290,11 @@ class AdvisorWorkspace(QWidget):
 
         self.tabs = QTabWidget()
         self.tabs.setDocumentMode(True)
-        self.tabs.addTab(self._build_overview_tab(), "概览")
-        self.tabs.addTab(self._build_members_tab(), "我的会员")
-        self.tabs.addTab(self._build_tasks_tab(), "上门任务")
-        self.tabs.addTab(self._build_history_tab(), "历史上门")
-        self.tabs.addTab(self._build_products_tab(), "商品推荐")
+        self.tabs.addTab(scroll_page(self._build_overview_tab(), minimum_height=280), "概览")
+        self.tabs.addTab(scroll_page(self._build_members_tab(), minimum_height=400), "我的会员")
+        self.tabs.addTab(scroll_page(self._build_tasks_tab(), minimum_height=330), "上门任务")
+        self.tabs.addTab(scroll_page(self._build_history_tab(), minimum_height=280), "历史上门")
+        self.tabs.addTab(scroll_page(self._build_products_tab(), minimum_height=620), "商品推荐")
         self.tabs.addTab(self.ai_panel, "AI 工作摘要")
         root.addWidget(self.tabs, 1)
         self.apply_preferences({})
@@ -307,6 +317,14 @@ class AdvisorWorkspace(QWidget):
         ):
             frame = QFrame()
             frame.setObjectName("AdvisorCard")
+            frame.setProperty(
+                "tone",
+                {
+                    "active_member_count": "sun",
+                    "pending_visit_count": "sky",
+                    "completed_visit_count": "flower",
+                }.get(code, ""),
+            )
             card = QVBoxLayout(frame)
             value = QLabel("0")
             value.setObjectName("AdvisorMetricValue")

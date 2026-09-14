@@ -15,7 +15,7 @@ def build_staff_style(preferences: dict) -> str:
         + f"""
     QWidget#OperatorWorkspace, QWidget#AdvisorWorkspace {{ background: {background}; }}
     QFrame#StaffHeader, QFrame#StaffCard, QFrame#AdvisorHeader, QFrame#AdvisorCard {{
-        background: {card}; border: 1px solid {border}; border-radius: 14px;
+        background: {card}; border: 1px solid {border}; border-radius: 18px;
     }}
     QLabel#StaffTitle, QLabel#AdvisorTitle {{
         font-size: {size + 7}px; font-weight: 700; color: {accent};

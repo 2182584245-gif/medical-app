@@ -147,16 +147,12 @@ class ProfileStatisticsPage(QWidget):
         self.user_id = None
         root = QVBoxLayout(self)
         heading = QHBoxLayout()
-        title = QLabel("档案与统计")
+        title = QLabel("记录统计")
         title.setObjectName("PageTitle")
         heading.addWidget(title)
         heading.addStretch()
-        profile_button = QPushButton("个人档案")
-        profile_button.setObjectName("PrimaryButton")
-        profile_button.clicked.connect(self.edit_profile)
-        heading.addWidget(profile_button)
         root.addLayout(heading)
-        self.profile_summary = QLabel("点击个人档案查看或编辑资料")
+        self.profile_summary = QLabel("六类记录平级统计；个人资料请在“我的平台”查看。")
         root.addWidget(self.profile_summary)
         filters = QHBoxLayout()
         self.category_combo = QComboBox()
@@ -229,10 +225,6 @@ class ProfileStatisticsPage(QWidget):
         if self.user_id is None:
             return
         try:
-            profile = self.health_service.get_profile(self.user_id)
-            self.profile_summary.setText(
-                f"{profile.get('display_name') or '我的个人档案'} · 点击右上方查看完整资料"
-            )
             days = self.period_combo.currentData()
             start = beijing_today() - timedelta(days=days - 1)
             category, parameter = (
@@ -284,7 +276,6 @@ class ProfileStatisticsPage(QWidget):
             return ()
         from .snapshot_refresh import preserve_views
 
-        profile = resources["profile"]
         category, parameter = self.category_combo.currentData(), self.parameter_combo.currentData()
         days = self.period_combo.currentData()
         series = daily_series(
@@ -296,9 +287,6 @@ class ProfileStatisticsPage(QWidget):
         )
         definition = next(item for item in PARAMETERS[category] if item[0] == parameter)
         unit, kind = definition[2], self.view_combo.currentData()
-        self.profile_summary.setText(
-            f"{profile.get('display_name') or '我的个人档案'} · 点击右上方查看完整资料"
-        )
         with preserve_views(self.table):
             self.table.setRowCount(len(series))
             for row, point in enumerate(series):
@@ -308,7 +296,7 @@ class ProfileStatisticsPage(QWidget):
         self.views.setCurrentIndex(0 if kind == "table" else 1)
         self.chart.set_data(series, kind, unit)
         self.status_label.setText("已从云端完整镜像更新；仅汇总已确认记录，不据此判断健康状况。")
-        return ("档案摘要", "记录统计")
+        return ("记录统计",)
 
     def add_record(self):
         if self.user_id is None:

@@ -61,7 +61,7 @@ def test_empty_database_is_created_at_current_schema_with_health_and_commerce_ta
         "visit_task_details",
     }
     with database.connect() as connection:
-        assert int(connection.execute("PRAGMA user_version").fetchone()[0]) == SCHEMA_VERSION == 6
+        assert int(connection.execute("PRAGMA user_version").fetchone()[0]) == SCHEMA_VERSION == 7
         table_names = {
             str(row[0])
             for row in connection.execute(

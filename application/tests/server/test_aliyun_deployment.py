@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import json
-import secrets
 import shutil
 import subprocess
 from pathlib import Path
@@ -49,11 +48,12 @@ def test_prepare_new_has_separate_secrets_no_data_and_staging(isolated_root):
             "secrets/postgres/bootstrap-password",
             "secrets/api-aliyun/database-password",
             "secrets/api-aliyun/token-pepper",
-            "secrets/api-supabase/token-pepper",
         )
     ]
-    assert len(set(values)) == 4
-    assert not (root / "secrets/api-supabase/database-url").exists()
+    assert len(set(values)) == 3
+    assert not (root / "secrets/api-supabase").exists()
+    assert list((root / "secrets/ai-envelope").iterdir()) == []
+    assert list((root / "secrets/ai-key").iterdir()) == []
     assert not list(root.rglob("*.db"))
     assert prepare.STAGING in (root / "config/Caddyfile").read_text()
     before = {path: path.read_bytes() for path in root.rglob("*") if path.is_file()}
@@ -94,12 +94,14 @@ def test_caddy_public_ip_profile_and_verified_upstream():
     assert "profile shortlived" in value
     assert "default_sni 39.106.166.15" in value
     assert prepare.STAGING in value and prepare.PRODUCTION not in value
-    for target in ("aliyun", "supabase"):
-        assert f"handle_path /{target}/*" in value
-        assert f"reverse_proxy https://api-{target}:8443" in value
-        assert f"tls_server_name api-{target}" in value
-    assert value.count("header_up Host {hostport}") == 2
-    assert value.count("tls_trust_pool file /run/ca.crt") == 2
+    assert "handle_path /aliyun/*" in value
+    assert "reverse_proxy https://api-aliyun:8443" in value
+    assert "tls_server_name api-aliyun" in value
+    assert "@retired_supabase path /supabase /supabase/*" in value
+    assert 'respond @retired_supabase "This runtime route has been retired." 410' in value
+    assert "api-supabase" not in value and "redir /supabase" not in value
+    assert value.count("header_up Host {hostport}") == 1
+    assert value.count("tls_trust_pool file /run/ca.crt") == 1
     assert "tls_insecure_skip_verify" not in value
     assert prepare.PRODUCTION in prepare.caddyfile("39.106.166.15", production=True)
 
@@ -132,36 +134,27 @@ def test_repair_only_recognized_missing_ip_sni_config(isolated_root):
     assert path.read_text() == "different-config"
 
 
-@pytest.mark.parametrize(
-    "username,host,query",
-    [
-        ("postgres", "db.abcdefghijklmnopqrst.supabase.co", "sslmode=verify-full"),
-        ("medical_app_platform_runtime", "attacker.example", "sslmode=verify-full"),
-        ("medical_app_platform_runtime", "db.abcdefghijklmnopqrst.supabase.co", "sslmode=require"),
-        (
-            "medical_app_platform_runtime",
-            "db.abcdefghijklmnopqrst.supabase.co",
-            "sslmode=verify-full&options=-c%20role%3Dpostgres",
-        ),
-    ],
-)
-def test_supabase_runtime_rejects_admin_unknown_host_and_extra_routing(username, host, query):
-    value = f"postgresql+psycopg://{username}:{secrets.token_hex(32)}@{host}:5432/postgres?{query}"
-    with pytest.raises(guard.DeploymentError):
-        api_entrypoint.validate_supabase_url(value)
+@pytest.mark.parametrize("target", ["supabase", "", "unknown", "Aliyun"])
+def test_retired_or_unknown_runtime_never_reads_secret(target, monkeypatch):
+    monkeypatch.setattr(api_entrypoint, "secret", lambda _path: pytest.fail("No secret read"))
+    with pytest.raises(guard.DeploymentError, match="Only the explicit Aliyun"):
+        api_entrypoint.runtime_url(target)
 
 
-def test_supabase_runtime_uses_explicit_ca_and_no_admin():
-    value = (
-        "postgresql+psycopg://medical_app_platform_runtime:"
-        + secrets.token_hex(32)
-        + "@db.abcdefghijklmnopqrst.supabase.co:5432/postgres?sslmode=verify-full"
-    )
-    url = api_entrypoint.validate_supabase_url(value)
-    assert url.query["sslrootcert"] == "/run/api-secrets/database-ca.crt"
+def test_only_aliyun_runtime_uses_fixed_target_verify_full_and_restricted_identity(monkeypatch):
+    calls = []
+
+    def read(path):
+        calls.append(path.name)
+        return "synthetic-runtime-password-only"
+
+    monkeypatch.setattr(api_entrypoint, "secret", read)
+    url = api_entrypoint.runtime_url("aliyun")
+    assert url.query["sslmode"] == "verify-full"
+    assert url.query["sslrootcert"].replace("\\", "/") == "/run/api-secrets/ca.crt"
     assert url.username == guard.RUNTIME
-    with pytest.raises(guard.DeploymentError):
-        api_entrypoint.validate_supabase_url(value.replace(":5432/", ":6543/"))
+    assert (url.host, url.port, url.database) == ("postgres", 5432, guard.DATABASE)
+    assert calls == ["database-password"]
 
 
 def test_schema_full_v2_and_strong_bootstrap_source():
@@ -203,8 +196,6 @@ def test_compose_config_and_network_contract():
             "-f",
             str(TOOLS / "compose.yaml"),
             "--profile",
-            "supabase",
-            "--profile",
             "maintenance",
             "config",
             "--format",
@@ -221,13 +212,27 @@ def test_compose_config_and_network_contract():
     assert {port["published"] for port in services["caddy"]["ports"]} == {"80", "443"}
     assert config["networks"]["database"]["internal"] is True
     assert set(services["postgres"]["networks"]) == {"database"}
-    assert "database" not in services["api-supabase"]["networks"]
-    for name in ("api-aliyun", "api-supabase"):
+    assert set(services) == {"postgres", "bootstrap", "api-aliyun", "caddy"}
+    for name in ("api-aliyun",):
         assert services[name]["read_only"] is True
         assert services[name]["user"] == "10001:10001"
         sources = [mount["source"] for mount in services[name]["volumes"]]
         assert any(name in source for source in sources)
         assert not any("postgres" in source for source in sources)
+    api = services["api-aliyun"]
+    assert api["environment"]["API_TARGET"] == "aliyun"
+    assert (
+        api["environment"]["HEALTHLIFE_AI_SECRET_ENVELOPE"] == "/run/ai-secrets/deepseek-key.aesgcm"
+    )
+    assert api["environment"]["HEALTHLIFE_AI_SECRET_KEY_FILE"] == "/run/ai-key/default-ai-kek.bin"
+    assert api["environment"]["HEALTHLIFE_AI_GLOBAL_DAY_LIMIT"] == "100"
+    mounts = {item["target"]: item for item in api["volumes"]}
+    assert mounts["/run/ai-secrets"]["read_only"] and mounts["/run/ai-key"]["read_only"]
+    assert mounts["/run/ai-secrets"]["source"] != mounts["/run/ai-key"]["source"]
+    for name in ("postgres", "bootstrap", "caddy"):
+        assert not {"/run/ai-key", "/run/ai-secrets"} & {
+            item["target"] for item in services[name]["volumes"]
+        }
 
 
 def test_api_direct_tls_and_source_allowlist():

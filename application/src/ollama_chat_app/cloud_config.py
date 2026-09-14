@@ -4,10 +4,10 @@ from __future__ import annotations
 
 import os
 
-from .services.cloud_client import CloudAPIError, validate_base_url
 from .config import DEFAULT_ALIYUN_ENDPOINT
+from .services.cloud_client import CloudAPIError, validate_base_url
 
-# Public release gate: both routes must pass real HTTPS verification before packaging.
+# Public release gate: the Aliyun route must pass real HTTPS verification before packaging.
 # Constructing a window still makes no network request.
 DEFAULT_CLOUD_BASE_URL = DEFAULT_ALIYUN_ENDPOINT
 ENVIRONMENT_VARIABLE = "HEALTHLIFE_CLOUD_BASE_URL"

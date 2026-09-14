@@ -37,10 +37,12 @@ from PySide6.QtWidgets import (
 )
 
 from ..time_utils import display_timezone_label, format_beijing
+from .address_fields import AddressFields, ServiceTypeCombo
+from .dialog_layout import scroll_form_dialog, scroll_page
 from .operator_performance_panel import OperatorPerformancePanel
+from .segmented_time import SegmentedDateTimeEdit as BeijingDateTimeEdit
 from .staff_style import build_staff_style
 from .time_fields import (
-    BeijingDateTimeEdit,
     beijing_qdatetime,
     datetime_iso,
     set_editor_datetime,
@@ -105,7 +107,17 @@ def _dialog_buttons(dialog: QDialog, validate: Any) -> QDialogButtonBox:
     )
     buttons.button(QDialogButtonBox.StandardButton.Save).setText("保存")
     buttons.button(QDialogButtonBox.StandardButton.Cancel).setText("取消")
-    buttons.accepted.connect(validate)
+
+    def checked_accept():
+        try:
+            for editor in dialog.findChildren(BeijingDateTimeEdit):
+                if editor.isEnabled():
+                    editor.dateTime()
+            validate()
+        except ValueError as error:
+            QMessageBox.information(dialog, "请核对日期时间", str(error))
+
+    buttons.accepted.connect(checked_accept)
     buttons.rejected.connect(dialog.reject)
     return buttons
 
@@ -129,6 +141,7 @@ class CreateAdvisorDialog(QDialog):
         self.valid_until_input = BeijingDateTimeEdit(beijing_qdatetime().addYears(1))
         form.addRow(f"有效期限（{display_timezone_label()}）", self.valid_until_input)
         form.addRow(_dialog_buttons(self, self._validate))
+        scroll_form_dialog(self, form)
 
     def _validate(self) -> None:
         if not self.username_input.text().strip() or not self.name_input.text().strip():
@@ -190,6 +203,7 @@ class MembershipDialog(QDialog):
         self.gift_input.setPlaceholderText("例如：米面油礼品（未领取）")
         form.addRow("会员礼品", self.gift_input)
         form.addRow(_dialog_buttons(self, self._validate))
+        scroll_form_dialog(self, form)
         if membership and self.membership_id is not None:
             self._load_membership(membership)
 
@@ -279,6 +293,7 @@ class AdvisorProfileDialog(QDialog):
             set_editor_datetime(self.valid_until_input, advisor["valid_until"])
         form.addRow("账号有效期限", self.valid_until_input)
         form.addRow(_dialog_buttons(self, self._validate))
+        scroll_form_dialog(self, form)
 
     def _validate(self) -> None:
         if not self.name_input.text().strip():
@@ -316,6 +331,7 @@ class BindAdvisorDialog(QDialog):
         note.setWordWrap(True)
         form.addRow(note)
         form.addRow(_dialog_buttons(self, self._validate))
+        scroll_form_dialog(self, form)
 
     def _validate(self) -> None:
         if self.advisor_combo.currentData() is None:
@@ -337,7 +353,8 @@ class VisitTaskDialog(QDialog):
         self.setWindowTitle(f"创建上门任务｜{member_name}")
         self.setMinimumWidth(540)
         form = QFormLayout(self)
-        self.title_input = QLineEdit("首次上门建档")
+        self.title_input = ServiceTypeCombo()
+        self.title_input.setText("首次上门建档")
         form.addRow("任务名称", self.title_input)
         self.time_input = BeijingDateTimeEdit(beijing_qdatetime().addDays(1))
         form.addRow(f"计划上门时间（{display_timezone_label()}）", self.time_input)
@@ -346,6 +363,7 @@ class VisitTaskDialog(QDialog):
         self.notes_input.setPlaceholderText("填写需要顾问提前了解的事项")
         form.addRow("任务备注", self.notes_input)
         form.addRow(_dialog_buttons(self, self._validate))
+        scroll_form_dialog(self, form)
 
     def _validate(self) -> None:
         if not self.title_input.text().strip():
@@ -429,10 +447,11 @@ class ProductDialog(QDialog):
         self.active_input = QCheckBox("保存后立即上架，顾问和会员可见")
         self.active_input.setChecked(bool(product.get("is_active", True)) if product else True)
         form.addRow("商品状态", self.active_input)
-        warning = QLabel("商品仅用于生活服务展示；本版本订单为本地模拟，不接入付款与物流。")
+        warning = QLabel("商品用于生活服务展示；订单为虚拟模拟，按当前模式存储，不收款、不发货。")
         warning.setWordWrap(True)
         form.addRow(warning)
         form.addRow(_dialog_buttons(self, self._validate))
+        scroll_form_dialog(self, form)
 
     def _validate(self) -> None:
         if not self.sku_input.text().strip():
@@ -529,10 +548,12 @@ class OperatorWorkspace(QWidget):
 
         self.tabs = QTabWidget()
         self.tabs.setDocumentMode(True)
-        self.tabs.addTab(self._build_members_tab(), "会员服务")
-        self.tabs.addTab(self._build_advisors_tab(), "顾问管理与上门服务")
-        self.tabs.addTab(self._build_products_tab(), "商品管理")
-        self.tabs.addTab(self._build_orders_tab(), "模拟订单")
+        self.tabs.addTab(scroll_page(self._build_members_tab(), minimum_height=540), "会员服务")
+        self.tabs.addTab(
+            scroll_page(self._build_advisors_tab(), minimum_height=640), "顾问管理与上门服务"
+        )
+        self.tabs.addTab(scroll_page(self._build_products_tab(), minimum_height=460), "商品管理")
+        self.tabs.addTab(scroll_page(self._build_orders_tab(), minimum_height=400), "模拟订单")
         self.performance_panel = OperatorPerformancePanel(self.service)
         self.tabs.addTab(self.performance_panel, "工作统计")
         self.ai_config_panel = None
@@ -565,6 +586,14 @@ class OperatorWorkspace(QWidget):
         ):
             frame = QFrame()
             frame.setObjectName("StaffCard")
+            frame.setProperty(
+                "tone",
+                {
+                    "member_count": "sun",
+                    "advisor_count": "flower",
+                    "pending_visit_count": "sky",
+                }.get(code, ""),
+            )
             card = QVBoxLayout(frame)
             value_label = QLabel("0")
             value_label.setObjectName("MetricValue")
@@ -592,6 +621,7 @@ class OperatorWorkspace(QWidget):
         for code, title in entries:
             frame = QFrame()
             frame.setObjectName("StaffCard")
+            frame.setProperty("tone", "sun" if "member" in code else "sky")
             card = QHBoxLayout(frame)
             card.addWidget(QLabel(title))
             label = QLabel("0")
@@ -1386,7 +1416,8 @@ class OperatorWorkspace(QWidget):
         dialog.setMinimumWidth(580)
         form = QFormLayout(dialog)
         form.addRow("会员", QLabel(str(task.get("member_name") or "")))
-        kind = QLineEdit(str(task.get("service_type") or task.get("title") or ""))
+        kind = ServiceTypeCombo()
+        kind.setText(str(task.get("service_type") or task.get("title") or ""))
         form.addRow("服务类型", kind)
         scheduled = BeijingDateTimeEdit()
         if task.get("scheduled_at"):
@@ -1405,13 +1436,27 @@ class OperatorWorkspace(QWidget):
         current = "disabled" if task.get("status") == "cancelled" else task.get("status")
         state.setCurrentIndex(max(0, state.findData(current)))
         form.addRow("服务状态", state)
-        address = QLineEdit(str(task.get("address") or ""))
+        address = AddressFields()
+        address.setText(str(task.get("address") or ""))
         form.addRow("上门地址", address)
         notes = QTextEdit(str(task.get("notes") or ""))
         notes.setMaximumHeight(130)
         form.addRow("预约备注", notes)
         form.addRow(QLabel("已完成状态由顾问提交工作记录后产生，保留完整服务审计。"))
-        form.addRow(_dialog_buttons(dialog, dialog.accept))
+
+        def validate():
+            try:
+                address.validate(allow_unchanged_legacy=True)
+                scheduled.dateTime()
+                if not kind.text():
+                    raise ValueError("请选择或填写服务类型。")
+            except ValueError as error:
+                QMessageBox.information(dialog, "请核对预约", str(error))
+                return
+            dialog.accept()
+
+        form.addRow(_dialog_buttons(dialog, validate))
+        scroll_form_dialog(dialog, form)
         if dialog.exec() != QDialog.DialogCode.Accepted:
             return
         try:

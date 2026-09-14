@@ -194,11 +194,11 @@ def verify_directory(root: Path) -> dict[str, object]:
         "本地和云端不会自动合并",
         "两种模式的账号相互独立",
         "云端登录令牌只存在内存",
-        "未开启离线功能时",
-        "加密待提交队列",
+        "当前会话默认支持断网保存资料",
+        "本机镜像SQLite内加密待提交表",
         "最长12小时",
-        "后端不保存AI Key",
-        "两条云数据库彼此独立",
+        "默认AI由服务器解密专用文件中的Key",
+        "Supabase运行路线已停用",
     ):
         if required_text not in instructions:
             raise RuntimeError(f"使用说明缺少必要提示：{required_text}")

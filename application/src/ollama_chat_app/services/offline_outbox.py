@@ -118,17 +118,40 @@ class OfflineOutbox:
                            {"identity": [identity.endpoint.rstrip("/"), identity.server_instance_id,
                                          identity.actor_id], "operations": operations})
 
-    def enqueue(self, identity, service, method, args, kwargs, *, base_version):
+    def enqueue(self, identity, service, method, args, kwargs, *, base_version, coalesce=False):
         method = canonical_method(service, method)
         validate_intent(service, method, args, kwargs, identity.actor_id, base_version)
         with self._lock:
             rows = self._load(identity)
+            # Only a never-attempted offline form may be updated in place. An
+            # uncertain write must retain its original UUID AND exact payload.
+            field = ("values" if service == "health" and method == "save_profile" else
+                     "patch" if service == "preferences" else None)
+            if coalesce and field and len(args) == 1 and set(kwargs) == {field}:
+                for row in reversed(rows):
+                    if (row["service"] != service or row["method"] != method
+                            or row["args"] != encode_rpc(list(args))):
+                        continue
+                    if (row["status"] == "queued" and row.get("error_code") is None
+                            and row.get("attempted") is False
+                            and row["base_version"] == base_version):
+                        previous = decode_rpc(row["kwargs"])
+                        if set(previous) == {field} and type(previous[field]) is dict:
+                            merged = {field: {**previous[field], **kwargs[field]}}
+                            validate_intent(service, method, args, merged, identity.actor_id,
+                                            base_version)
+                            row["kwargs"] = encode_rpc(merged)
+                            self._save(identity, rows)
+                            return QueuedOperation(row["operation_id"], service, method,
+                                                   row["created_at"])
+                    break
             if len(rows) >= MAX_QUEUED_OPERATIONS:
                 raise CloudAPIError("limit")
             now = datetime.now(UTC).isoformat()
             identifier = str(uuid4())
             rows.append({"operation_id": identifier, "service": service, "method": method,
                          "created_at": now, "status": "queued", "error_code": None,
+                         "attempted": False,
                          "args": encode_rpc(list(args)), "kwargs": encode_rpc(kwargs),
                          "base_version": base_version})
             self._save(identity, rows)
@@ -160,13 +183,28 @@ class OfflineOutbox:
                 target["status"], target["error_code"] = status, error_code
             self._save(identity, rows)
 
+    def mark_attempted(self, identity, identifier):
+        """Atomically claim the latest payload and freeze it before network I/O."""
+        with self._lock:
+            rows = self._load(identity)
+            target = next((row for row in rows if row["operation_id"] == identifier), None)
+            if target is None:
+                return None
+            previously_attempted = target.get("attempted") is not False
+            target["attempted"] = True
+            self._save(identity, rows)
+            return dict(target, args=decode_rpc(target["args"]),
+                        kwargs=decode_rpc(target["kwargs"]),
+                        previously_attempted=previously_attempted)
+
     def discard(self, identity, identifier):
         with self._lock:
             rows = self._load(identity)
             target = next((row for row in rows if row["operation_id"] == identifier), None)
             if target is None:
                 raise CloudAPIError("not_found")
-            if target["status"] == "uncertain":
+            if (target["status"] == "uncertain" or (
+                    target["status"] == "queued" and target.get("attempted") is not False)):
                 raise CloudAPIError("conflict")
             rows.remove(target)
             self._save(identity, rows)

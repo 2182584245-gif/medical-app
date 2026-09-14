@@ -12,7 +12,12 @@ from PySide6.QtWidgets import QApplication, QMessageBox, QWidget
 from .cloud_config import ENVIRONMENT_VARIABLE, configured_cloud_base_url
 from .config import APP_NAME, APP_VERSION
 from .data.database import Database
-from .endpoint_settings import EndpointSettings, EndpointSettingsError, EndpointSettingsStore
+from .endpoint_settings import (
+    EndpointSettings,
+    EndpointSettingsError,
+    EndpointSettingsStore,
+    validated_endpoint,
+)
 from .paths import (
     database_path,
     is_frozen_app,
@@ -27,7 +32,7 @@ from .services.appointment_service import AppointmentService
 from .services.auth import AuthService
 from .services.backup import PortableBackupService, migrate_legacy_database
 from .services.chat import ChatService
-from .services.cloud_client import CloudAPIClient, CloudAPIError, validate_base_url
+from .services.cloud_client import CloudAPIClient, CloudAPIError
 from .services.commerce import CommerceService
 from .services.file_management import FileManagementService
 from .services.health import HealthService
@@ -37,6 +42,7 @@ from .services.remote_services import (
     RemoteAppointmentService,
     RemoteAuthService,
     RemoteChatService,
+    RemoteCommerceService,
     RemoteFileManagementService,
     RemoteHealthService,
     RemotePreferencesService,
@@ -114,7 +120,7 @@ def build_desktop_window(
         raise CloudAPIError("configuration")
     try:
         if mode == "cloud":
-            cloud_base_url = validate_base_url(cloud_base_url)
+            cloud_base_url = validated_endpoint(cloud_base_url)
             if client_factory is not None:
                 client = client_factory(cloud_base_url)
             else:
@@ -128,9 +134,8 @@ def build_desktop_window(
             chat = RemoteChatService(client)
             health = RemoteHealthService(client)
             management = RemoteServiceManagementService(client)
-            # The virtual shop is deliberately local-only in this release.
-            # Never reuse local integer IDs for a cloud account or upload orders.
-            commerce = None
+            # Still virtual: no payment or fulfilment; IDs belong to this cloud.
+            commerce = RemoteCommerceService(client)
             files = RemoteFileManagementService(client)
             ai = RemoteAiAssistantService(client)
             preferences = RemotePreferencesService(client)
@@ -239,6 +244,13 @@ class DesktopWindowController(QObject):
             else:
                 self._start_mode = "local"
                 self._endpoint_error = "环境中的云端地址无效，未连接云端；已保存的地址未修改。"
+        if self._start_mode == "cloud":
+            try:
+                self.cloud_base_url = validated_endpoint(self.cloud_base_url)
+            except EndpointSettingsError:
+                self._start_mode = "local"
+                self._endpoint_error = ("原云端地址已停用或无效。未连接该地址；"
+                                        "请用更换地址选择阿里云。")
         self.client_factory = client_factory
         self.window: MainWindow | None = None
         self._switching = False
@@ -250,6 +262,7 @@ class DesktopWindowController(QObject):
         if self._endpoint_error:
             self.window.login_page.show_error(self._endpoint_error)
         self.window.show()
+        self.window.network_monitor.start()
         return self.window
 
     def _build(self, mode: str, url: str) -> MainWindow:
@@ -278,7 +291,7 @@ class DesktopWindowController(QObject):
         self._switching = True
         replacement = None
         try:
-            requested_url = validate_base_url(url) if mode == "cloud" else self.cloud_base_url
+            requested_url = validated_endpoint(url) if mode == "cloud" else self.cloud_base_url
             replacement = self._build(mode, requested_url)
             # Only explicit successful switches persist. Startup/env overrides do not.
             self.endpoint_store.save_connection(mode, requested_url)
@@ -288,6 +301,7 @@ class DesktopWindowController(QObject):
             # Show the new window before closing the old one so Qt never sees
             # zero top-level windows and never exits during a mode switch.
             replacement.show()
+            replacement.network_monitor.start()
             self.window = replacement
             self._release(previous)
             previous.removeEventFilter(self)
@@ -316,6 +330,10 @@ class DesktopWindowController(QObject):
         sync = getattr(window, "cloud_sync_service", None)
         if sync is not None:
             sync.stop()
+        monitor = getattr(window, "network_monitor", None)
+        if monitor is not None:
+            monitor.stop()
+        window._stop_reminders()
         window.login_page.clear_password()
         window.register_page.reset()
         window.secret_store.clear_api_keys()

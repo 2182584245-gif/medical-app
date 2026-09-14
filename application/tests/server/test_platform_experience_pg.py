@@ -64,6 +64,9 @@ def pg_runtime():
             )
         with patch.object(v2, "op", operations):
             v2.upgrade()
+        v3 = importlib.import_module("server.migrations.versions.platform_0003_medical_records")
+        with patch.object(v3, "op", operations):
+            v3.upgrade()
         assert (
             connection.exec_driver_sql("SELECT COUNT(*) FROM medical_app_platform.users").scalar()
             == 4

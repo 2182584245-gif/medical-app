@@ -20,12 +20,12 @@ from .cloud_client import CloudAPIError, validate_base_url
 from .cloud_rpc_codec import decode_rpc, encode_rpc
 from .offline_access import OfflineAccessError, utc_timestamp, validate_lease
 from .offline_outbox import (
-    OfflineOutbox,
     QueuedOperation,
     canonical_method,
     content_version,
     version_resource,
 )
+from .sqlite_outbox import SqliteOfflineOutbox
 from .sync_files import SyncFileCache
 from .sync_protocol import (
     RESOURCE_KINDS,
@@ -323,7 +323,7 @@ class CloudSyncService(QObject):
     def __init__(self, client, mirror: CloudMirrorStore, parent=None, *, interval_ms=10_000):
         super().__init__(parent)
         self.client, self.mirror = client, mirror
-        self.outbox = OfflineOutbox(mirror.cache_root / "outbox")
+        self.outbox = SqliteOfflineOutbox(mirror.cache_root)
         self.files = SyncFileCache(mirror.cache_root / "attachments")
         self.actor_id = None
         self.actor_role = None
@@ -389,8 +389,11 @@ class CloudSyncService(QObject):
 
     @property
     def offline_enabled(self):
-        return (getattr(self.client, "offline_store", None) is not None
-                and getattr(self.client, "offline_opt_in", False))
+        # Current-session edits are automatic once the server issues a valid
+        # bounded lease. Remembering an offline sign-in remains a separate opt-in.
+        return bool(getattr(self.client, "offline_lease", None)) or (
+            getattr(self.client, "offline_store", None) is not None
+            and getattr(self.client, "offline_opt_in", False))
 
     @property
     def is_syncing(self):
@@ -540,12 +543,17 @@ class CloudSyncService(QObject):
         return queued
 
     def submit_intent(self, service, method, args, kwargs):
+        with self._intent_lock:
+            return self._submit_intent_locked(service, method, args, kwargs)
+
+    def _submit_intent_locked(self, service, method, args, kwargs):
         identity = self._outbox_identity()
         method = canonical_method(service, method)
         if service != "preferences" and self.actor_role != "member":
             raise CloudAPIError("permission")
         queued = self.outbox.enqueue(identity, service, method, args, kwargs,
-                                     base_version=self._base_version(service, method))
+                                     base_version=self._base_version(service, method),
+                                     coalesce=self._state == "offline")
         self._notify_outbox()
         if self._state == "offline" or not self.client.is_online_authenticated:
             return queued
@@ -567,6 +575,11 @@ class CloudSyncService(QObject):
     def _send_intent_locked(self, identity, item):
         if identity != self.identity or identity.actor_id != self.actor_id:
             raise CloudAPIError("permission")
+        # Another replay may have acknowledged this item, or an offline form
+        # may have been coalesced since the loop's snapshot of the queue.
+        item = self.outbox.mark_attempted(identity, item["operation_id"])
+        if item is None:
+            return None
         try:
             user = self.client.me()
             if user["id"] != identity.actor_id or user["role_code"] != self.actor_role:
@@ -578,7 +591,8 @@ class CloudSyncService(QObject):
                 request_id=item["operation_id"],
             ))
         except CloudAPIError as error:
-            if (item["status"] == "uncertain" or error.outcome_uncertain
+            if (item["status"] == "uncertain" or item.get("previously_attempted", False)
+                    or error.outcome_uncertain
                     or (error.code == "conflict" and error.conflict_kind != "base_version")):
                 # Scope/journal conflicts do NOT prove that the original write
                 # failed. Neither do later 422/404 responses after a lost ACK.

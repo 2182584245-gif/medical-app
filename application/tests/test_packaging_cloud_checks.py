@@ -158,10 +158,10 @@ def test_release_instructions_and_verifier_agree_about_local_cloud_boundaries(tm
     assert result["database"]["users"] == result["database"]["life_records"] == 0
     instructions = (destination / "使用说明.txt").read_text(encoding="utf-8-sig")
     assert "没有开启 Supabase/Render 云端同步" not in instructions
-    assert "两条云数据库彼此独立" in instructions
+    assert "Supabase运行路线已停用" in instructions
     assert "首次启动默认阿里云公网模式" in instructions
     assert "更换地址" in instructions
-    assert "加密待提交队列" in instructions and "最长12小时" in instructions
+    assert "本机镜像SQLite内加密待提交表" in instructions and "最长12小时" in instructions
     assert "本地和云端不会自动合并" in instructions
     assert "两种模式的账号相互独立" in instructions
     assert "云端登录令牌只存在内存" in instructions

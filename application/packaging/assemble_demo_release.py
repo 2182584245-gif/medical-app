@@ -23,6 +23,7 @@ def _common():
 common = _common()
 clean = common.sibling("assemble_release")
 verify = common.sibling("verify_demo_release")
+cloud_assets = common.sibling("_demo_cloud_assets")
 
 
 def _hash_manifest(destination: Path) -> None:
@@ -56,6 +57,7 @@ def assemble(
     clean_destination: Path | None = None,
     demo_zip: Path | None = None,
     clean_zip: Path | None = None,
+    cloud_assets_plan: Path | None = None,
 ) -> dict:
     supplied = [
         path for path in (source, demo, destination, clean_destination, demo_zip, clean_zip) if path
@@ -65,6 +67,17 @@ def assemble(
         for path in supplied
     ):
         raise RuntimeError("输入与输出不允许符号链接。")
+    alias_plan = None
+    if cloud_assets_plan is not None:
+        for path in (source, demo, destination):
+            cloud_assets.ordinary_path(path, exists=path != destination)
+        alias_plan = cloud_assets.load_external(
+            cloud_assets_plan,
+            source,
+            demo,
+            destination,
+            *(path for path in (clean_destination, demo_zip, clean_zip) if path),
+        )
     source, demo, destination = source.resolve(), demo.resolve(), destination.resolve()
     targets = [
         destination,
@@ -83,6 +96,8 @@ def assemble(
     common.verify_fresh_build(source)
     source_hashes = {name: clean._sha256(source / name) for name in common.ordinary_tree(source)}
     payload = common.verify_payload(demo)
+    if alias_plan is not None:
+        cloud_assets.validate_originals(demo, alias_plan)
     before = {name: clean._sha256(demo / name) for name in common.PAYLOAD_FILES}
     executable_hash = clean._sha256(source / clean.EXECUTABLE_NAME)
     report = {"version": common.APP_VERSION, "same_executable_sha256": executable_hash}
@@ -105,7 +120,7 @@ def assemble(
         build_kind="windows-x64-portable-onedir",
         database_included=True,
         database_state="synthetic_demo",
-        database_schema_version=6,
+        database_schema_version=7,
         synthetic=True,
         api_key_persisted=False,
         dpapi_included=False,
@@ -114,6 +129,8 @@ def assemble(
         assembled_at_utc=datetime.now(UTC).isoformat(),
         synthetic_counts=payload["counts"],
     )
+    if alias_plan is not None:
+        metadata["cloud_assets"] = cloud_assets.stage(destination, alias_plan)
     (destination / "portable.json").write_text(
         json.dumps(metadata, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
     )
@@ -126,15 +143,26 @@ def assemble(
 所有账号、地址、健康记录、预约和商品均为虚构预设示例，不是实测值或 AI 医疗结论。
 请先完整解压到新的独立目录，不覆盖纯净版或原有 data 目录。
 程序首次启动默认云端模式；使用演示账号前，请主动选择“本地模式”并应用，再登录。
-初始账号和独立随机密码见 DEMO_ACCOUNTS.md。它们只适用于本示例库，不是云端账号。
+初始账号和独立随机密码见 DEMO_ACCOUNTS.md 或 DEMO_ACCOUNTS.txt。
+物料生成时这些示例账号尚未云导入；云端是否开通须以管理员实际授权与验收通知为准。
 示例库不会自动上传到云端；不要把示例数据作为个人历史进行首次导入。
 本包不包含 API Key、DPAPI 私有文件、数据库连接密码或云端登录令牌。
-商品和订单只是虚拟流程，无支付、发货或真实医疗服务。若希望录入真实资料，请改用同轮纯净包。
+商品和订单只是虚拟流程，无支付、发货或真实医疗服务。不要把示例记录混入真实个人档案。
+医疗只演示已经发生的看病/用药事实记录，不提供剂量、处方或用药决定。
+"""
+    if alias_plan is not None:
+        instructions += """
+
+云端示例图片别名：
+本包只为已审阅迁移计划中的六张内置示例图片附带相同内容的路径别名。
+六项来源映射去重后为五个 PNG；包内 cloud-assets-plan.json 和 SHA256SUMS.txt 记录完整清单。
+这不是动态云商品图片下载功能；运营后续新增或更换商品图片不会自动随本包出现。
+没有修改 EXE、示例数据库或原图片；别名不证明云端数据已导入或公网图片服务已上线。
 """
     (destination / "使用说明.txt").write_text(instructions, encoding="utf-8-sig")
     _hash_manifest(destination)
     report["demo"] = verify.verify_directory(
-        destination, expected_executable_sha256=executable_hash
+        destination, expected_executable_sha256=executable_hash, cloud_assets_plan=cloud_assets_plan
     )
     if clean._sha256(source / clean.EXECUTABLE_NAME) != executable_hash:
         raise RuntimeError("构建源 EXE 在组装期间发生变化。")
@@ -151,7 +179,9 @@ def assemble(
     if demo_zip:
         _zip(destination, demo_zip)
         report["demo_zip"] = verify.verify_archive(
-            demo_zip, expected_executable_sha256=executable_hash
+            demo_zip,
+            expected_executable_sha256=executable_hash,
+            cloud_assets_plan=cloud_assets_plan,
         )
     if clean_zip:
         _zip(clean_destination, clean_zip)
@@ -167,6 +197,7 @@ def main() -> int:
     parser.add_argument("--clean-destination", type=Path)
     parser.add_argument("--zip", type=Path, dest="demo_zip")
     parser.add_argument("--clean-zip", type=Path)
+    parser.add_argument("--cloud-assets-plan", type=Path)
     args = parser.parse_args()
     result = assemble(
         args.source,
@@ -175,6 +206,7 @@ def main() -> int:
         clean_destination=args.clean_destination,
         demo_zip=args.demo_zip,
         clean_zip=args.clean_zip,
+        cloud_assets_plan=args.cloud_assets_plan,
     )
     print(json.dumps(result, ensure_ascii=False, indent=2))
     return 0

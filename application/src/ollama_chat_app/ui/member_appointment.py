@@ -6,19 +6,22 @@ from PySide6.QtCore import QUrl
 from PySide6.QtGui import QDesktopServices
 from PySide6.QtWidgets import (
     QCheckBox,
-    QComboBox,
     QDialog,
     QDialogButtonBox,
     QFormLayout,
     QLabel,
-    QLineEdit,
     QMessageBox,
     QPushButton,
+    QScrollArea,
     QTextEdit,
     QVBoxLayout,
+    QWidget,
 )
 
-from .time_fields import BeijingDateTimeEdit, beijing_qdatetime, datetime_iso
+from .address_fields import AddressFields, ServiceTypeCombo
+from .dialog_layout import fit_dialog
+from .segmented_time import SegmentedDateTimeEdit as BeijingDateTimeEdit
+from .time_fields import beijing_qdatetime, datetime_iso
 
 
 class AppointmentDialog(QDialog):
@@ -29,33 +32,40 @@ class AppointmentDialog(QDialog):
         self.setWindowTitle("预约上门服务")
         self.resize(720, 660)
         root = QVBoxLayout(self)
+        self.form_scroll = QScrollArea(self)
+        self.form_scroll.setWidgetResizable(True)
+        body = QWidget()
+        self.form_scroll.setWidget(body)
+        content = QVBoxLayout(body)
+        root.addWidget(self.form_scroll, 1)
         form = QFormLayout()
-        self.service_type = QComboBox()
-        for label in ("首次建档", "居家环境查看", "生活记录回访", "综合上门服务"):
-            self.service_type.addItem(label)
+        form.setRowWrapPolicy(QFormLayout.RowWrapPolicy.WrapAllRows)
+        self.service_type = ServiceTypeCombo()
         form.addRow("服务内容", self.service_type)
         self.scheduled_at = BeijingDateTimeEdit(beijing_qdatetime().addDays(1))
         form.addRow("期望上门时间", self.scheduled_at)
-        self.address = QLineEdit()
+        self.address = AddressFields()
         self.address.setPlaceholderText("请填写城市、街道、小区及门牌号")
         self.address.setText(str((preferences or {}).get("city") or ""))
         form.addRow("上门地址", self.address)
-        root.addLayout(form)
-        self.map_status = QLabel("可浏览地图核对位置，最终以上方经您确认的完整地址为准。")
+        content.addLayout(form)
+        self.map_status = QLabel(
+            "点击浏览地图才会把上述地址发送至 OpenStreetMap；最终以您确认的地址为准。"
+        )
         self.map_status.setWordWrap(True)
-        root.addWidget(self.map_status)
+        content.addWidget(self.map_status)
         browse = QPushButton("浏览地图核对地址")
         browse.clicked.connect(self.browse_map)
-        root.addWidget(browse)
+        content.addWidget(browse)
         self.map_container = QVBoxLayout()
-        root.addLayout(self.map_container)
+        content.addLayout(self.map_container)
         self.address_confirmed = QCheckBox("我已核对并确认上述完整上门地址")
-        root.addWidget(self.address_confirmed)
+        content.addWidget(self.address_confirmed)
         self.address.textChanged.connect(lambda: self.address_confirmed.setChecked(False))
         self.notes = QTextEdit()
         self.notes.setPlaceholderText("可补充门禁、联系方法、上门需求等；可不填")
         self.notes.setMaximumHeight(100)
-        root.addWidget(self.notes)
+        content.addWidget(self.notes)
         buttons = QDialogButtonBox(
             QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel
         )
@@ -65,6 +75,7 @@ class AppointmentDialog(QDialog):
         buttons.rejected.connect(self.reject)
         root.addWidget(buttons)
         self.map_view = None
+        fit_dialog(self, width=760, height=700)
 
     def browse_map(self):
         address = self.address.text().strip()
@@ -100,13 +111,18 @@ class AppointmentDialog(QDialog):
         )
 
     def validate(self):
-        if len(self.address.text().strip()) < 6:
-            QMessageBox.information(self, "地址未完整", "请填写包含城市、街道和门牌号的完整地址。")
+        try:
+            self.address.validate()
+            scheduled = self.scheduled_at.dateTime()
+            if not self.service_type.text():
+                raise ValueError("请选择或填写服务内容。")
+        except ValueError as error:
+            QMessageBox.information(self, "请补充预约信息", str(error))
             return
         if not self.address_confirmed.isChecked():
             QMessageBox.information(self, "请确认地址", "请核对地址后勾选确认。")
             return
-        if self.scheduled_at.dateTime() <= beijing_qdatetime():
+        if scheduled <= beijing_qdatetime():
             QMessageBox.information(self, "时间已过去", "请选择将来的期望上门时间。")
             return
         self.accept()

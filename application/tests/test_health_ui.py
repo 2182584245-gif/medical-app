@@ -356,7 +356,8 @@ def test_member_commerce_ui_cart_favorites_and_confirmed_virtual_order(qtbot, mo
     )
 
     def interact(dialog):
-        assert "本地虚拟购买" in dialog.windowTitle()
+        assert "虚拟购买" in dialog.windowTitle()
+        assert any("不会扣款或发货" in label.text() for label in dialog.findChildren(QLabel))
         quantity = dialog.findChild(QSpinBox)
         quantity.setValue(2)
         quantity.editingFinished.emit()

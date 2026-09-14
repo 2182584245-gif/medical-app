@@ -9,7 +9,9 @@ from typing import Any
 from ..data.database import Database, timestamp_from_db, timestamp_to_db, utc_now
 from ..time_utils import BEIJING_TIMEZONE, as_beijing, beijing_today
 
-LIFE_RECORD_CATEGORIES = frozenset({"diet", "water", "activity", "sleep", "environment"})
+LIFE_RECORD_CATEGORIES = frozenset({"diet", "water", "activity", "sleep", "environment", "medical"})
+REMINDER_REPEAT_RULES = frozenset({"none", "daily", "weekly", "monthly"})
+_UNCHANGED = object()
 LIFE_RECORD_SOURCES = frozenset({"manual", "import", "device", "ai_confirmed"})
 REMINDER_TYPES = frozenset(
     {"water", "diet", "sleep", "activity", "environment", "visit", "membership", "custom"}
@@ -89,7 +91,7 @@ class HealthService:
             reminder_rows = connection.execute(
                 """
                 SELECT id, user_id, title, reminder_type, scheduled_at, status,
-                       created_at, updated_at
+                       created_at, updated_at, repeat_rule, paused_until
                 FROM reminders
                 WHERE user_id = ? AND status = 'active' AND scheduled_at >= ?
                 ORDER BY scheduled_at, id
@@ -279,6 +281,8 @@ class HealthService:
             "diet_calories_kcal": 0,
             "environment_average_temperature_c": None,
             "environment_average_humidity_percent": None,
+            "medical_consultation_count": 0,
+            "medical_medication_count": 0,
         }
         sleep_hours: list[float] = []
         sleep_quality: list[float] = []
@@ -315,6 +319,13 @@ class HealthService:
                     temperatures.append(float(details["temperature_c"]))
                 if "humidity_percent" in details:
                     humidities.append(float(details["humidity_percent"]))
+            elif category == "medical":
+                field = {
+                    "consultation": "medical_consultation_count",
+                    "medication": "medical_medication_count",
+                }.get(details.get("event_type"))
+                if field:
+                    metrics[field] = int(metrics[field] or 0) + 1
         metrics["sleep_average_hours"] = self._average(sleep_hours)
         metrics["sleep_average_quality"] = self._average(sleep_quality)
         metrics["environment_average_temperature_c"] = self._average(temperatures)
@@ -332,18 +343,34 @@ class HealthService:
         }
 
     def delete_life_record(self, user_id: int, record_id: int) -> None:
+        self.delete_life_records(user_id, [record_id])
+
+    def delete_life_records(self, user_id: int, record_ids: list[int]) -> dict[str, Any]:
+        """Delete at most 100 individually authorized facts, or roll everything back."""
         user_id = self._require_user(user_id)
-        record_id = self._positive_integer(record_id, "记录编号")
+        identifiers = self._batch_ids(record_ids)
         with self.database.transaction() as connection:
-            cursor = connection.execute(
-                "DELETE FROM life_records WHERE id = ? AND user_id = ?",
-                (record_id, user_id),
-            )
-            if cursor.rowcount != 1:
-                raise HealthRecordNotFoundError("记录不存在或无权访问")
-            self._add_audit_log(
-                connection, user_id, "life_record.deleted", "life_record", record_id
-            )
+            for record_id in identifiers:
+                cursor = connection.execute(
+                    "DELETE FROM life_records WHERE id = ? AND user_id = ?", (record_id, user_id)
+                )
+                if cursor.rowcount != 1:
+                    raise HealthRecordNotFoundError("部分记录不存在或无权访问；本次删除全部取消")
+                self._add_audit_log(
+                    connection, user_id, "life_record.deleted", "life_record", record_id
+                )
+        return {"deleted_ids": identifiers, "count": len(identifiers)}
+
+    @classmethod
+    def _batch_ids(cls, values: Any) -> list[int]:
+        if type(values) is not list or not 1 <= len(values) <= 100:
+            raise HealthValidationError("请一次选择 1 至 100 条，未执行任何删除")
+        identifiers = [cls._positive_integer(value, "编号") for value in values]
+        if any(value >= 2**63 for value in identifiers):
+            raise HealthValidationError("选择的编号超出范围，未执行任何删除")
+        if len(set(identifiers)) != len(identifiers):
+            raise HealthValidationError("选择的编号重复，未执行任何删除")
+        return sorted(identifiers)  # Consistent lock ordering on PostgreSQL.
 
     def get_profile(self, user_id: int) -> dict[str, Any]:
         user_id = self._require_user(user_id)
@@ -455,7 +482,7 @@ class HealthService:
             rows = connection.execute(
                 """
                 SELECT id, user_id, title, reminder_type, scheduled_at, status,
-                       created_at, updated_at
+                       created_at, updated_at, repeat_rule, paused_until
                 FROM reminders
                 WHERE user_id = ?
                 ORDER BY CASE status WHEN 'active' THEN 0 ELSE 1 END,
@@ -471,21 +498,32 @@ class HealthService:
         title: str,
         scheduled_at: datetime | str,
         reminder_type: str = "custom",
+        *,
+        repeat_rule: str | None = None,
     ) -> int:
         user_id = self._require_user(user_id)
         title_value = self._clean_required_text(title, "提醒标题", maximum=MAX_TITLE_LENGTH)
         reminder_type_value = self._validate_reminder(title_value, reminder_type)
         scheduled_value = timestamp_to_db(self._reminder_datetime(scheduled_at))
+        repeat_value = self._validate_repeat_rule(repeat_rule)
         now = timestamp_to_db(utc_now())
         with self.database.transaction() as connection:
             cursor = connection.execute(
                 """
                 INSERT INTO reminders (
                     user_id, title, reminder_type, scheduled_at,
-                    status, created_at, updated_at
-                ) VALUES (?, ?, ?, ?, 'active', ?, ?)
+                    status, created_at, updated_at, repeat_rule
+                ) VALUES (?, ?, ?, ?, 'active', ?, ?, ?)
                 """,
-                (user_id, title_value, reminder_type_value, scheduled_value, now, now),
+                (
+                    user_id,
+                    title_value,
+                    reminder_type_value,
+                    scheduled_value,
+                    now,
+                    now,
+                    repeat_value,
+                ),
             )
             reminder_id = int(cursor.lastrowid)
             self._add_audit_log(connection, user_id, "reminder.created", "reminder", reminder_id)
@@ -499,6 +537,7 @@ class HealthService:
         title: str | None = None,
         scheduled_at: datetime | str | None = None,
         reminder_type: str | None = None,
+        repeat_rule: Any = _UNCHANGED,
     ) -> dict[str, Any]:
         """Edit a reminder while retaining its enabled/paused state."""
         user_id = self._require_user(user_id)
@@ -506,7 +545,7 @@ class HealthService:
         with self.database.transaction() as connection:
             row = connection.execute(
                 """
-                SELECT id, title, reminder_type, scheduled_at
+                SELECT id, title, reminder_type, scheduled_at, repeat_rule
                 FROM reminders WHERE id = ? AND user_id = ?
                 """,
                 (reminder_id, user_id),
@@ -526,18 +565,23 @@ class HealthService:
                 else timestamp_to_db(self._reminder_datetime(scheduled_at))
             )
             now = timestamp_to_db(utc_now())
+            repeat_value = (
+                row["repeat_rule"]
+                if repeat_rule is _UNCHANGED
+                else self._validate_repeat_rule(repeat_rule)
+            )
             connection.execute(
                 """
                 UPDATE reminders
-                SET title = ?, reminder_type = ?, scheduled_at = ?, updated_at = ?
+                SET title = ?, reminder_type = ?, scheduled_at = ?, updated_at = ?, repeat_rule = ?
                 WHERE id = ? AND user_id = ?
                 """,
-                (title_value, type_value, scheduled_value, now, reminder_id, user_id),
+                (title_value, type_value, scheduled_value, now, repeat_value, reminder_id, user_id),
             )
             updated = connection.execute(
                 """
                 SELECT id, user_id, title, reminder_type, scheduled_at, status,
-                       created_at, updated_at
+                       created_at, updated_at, repeat_rule, paused_until
                 FROM reminders WHERE id = ? AND user_id = ?
                 """,
                 (reminder_id, user_id),
@@ -586,7 +630,7 @@ class HealthService:
             updated = connection.execute(
                 """
                 SELECT id, user_id, title, reminder_type, scheduled_at, status,
-                       created_at, updated_at
+                       created_at, updated_at, repeat_rule, paused_until
                 FROM reminders WHERE id = ? AND user_id = ?
                 """,
                 (reminder_id, user_id),
@@ -597,16 +641,30 @@ class HealthService:
         return self._reminder_from_row(updated)
 
     def delete_reminder(self, user_id: int, reminder_id: int) -> None:
+        self.delete_reminders(user_id, [reminder_id])
+
+    def delete_reminders(self, user_id: int, reminder_ids: list[int]) -> dict[str, Any]:
         user_id = self._require_user(user_id)
-        reminder_id = self._positive_integer(reminder_id, "提醒编号")
+        identifiers = self._batch_ids(reminder_ids)
         with self.database.transaction() as connection:
-            cursor = connection.execute(
-                "DELETE FROM reminders WHERE id = ? AND user_id = ?",
-                (reminder_id, user_id),
-            )
-            if cursor.rowcount != 1:
-                raise ReminderNotFoundError("提醒不存在或无权访问")
-            self._add_audit_log(connection, user_id, "reminder.deleted", "reminder", reminder_id)
+            for reminder_id in identifiers:
+                cursor = connection.execute(
+                    "DELETE FROM reminders WHERE id = ? AND user_id = ?", (reminder_id, user_id)
+                )
+                if cursor.rowcount != 1:
+                    raise ReminderNotFoundError("部分提醒不存在或无权访问；本次删除全部取消")
+                self._add_audit_log(
+                    connection, user_id, "reminder.deleted", "reminder", reminder_id
+                )
+        return {"deleted_ids": identifiers, "count": len(identifiers)}
+
+    @staticmethod
+    def _validate_repeat_rule(value):
+        if value is None:
+            return "none"
+        if value is not None and (type(value) is not str or value not in REMINDER_REPEAT_RULES):
+            raise HealthValidationError("重复规则只支持一次、每天、每周或每月")
+        return value
 
     def get_service_summary(self, user_id: int) -> dict[str, Any]:
         user_id = self._require_user(user_id)
@@ -776,7 +834,28 @@ class HealthService:
                 "humidity_percent": (0, 100, "环境湿度"),
                 "ventilation_minutes": (0, 1_440, "通风时长"),
             },
+            "medical": {},
         }
+        if category == "medical":
+            if set(normalized) - {"event_type", "name", "description", "location"}:
+                raise HealthValidationError(
+                    "医疗记录只填写看病/用药事项、名称、说明与地点，不生成用药决策"
+                )
+            kind = normalized.get("event_type", "other")
+            if type(kind) is not str or kind not in {"consultation", "medication", "other"}:
+                raise HealthValidationError("医疗事项请选择看病、已发生的用药或其他医疗事实")
+            normalized["event_type"] = kind
+            for field, maximum, label in (
+                ("name", 200, "名称"),
+                ("description", 2000, "说明"),
+                ("location", 500, "地点"),
+            ):
+                if normalized.get(field) in (None, ""):
+                    normalized.pop(field, None)
+                else:
+                    normalized[field] = cls._clean_required_text(
+                        normalized[field], label, maximum=maximum
+                    )
         for field, (minimum, maximum, label) in numeric_rules[category].items():
             if field not in normalized or normalized[field] in (None, ""):
                 normalized.pop(field, None)
@@ -942,6 +1021,7 @@ class HealthService:
 
     @staticmethod
     def _reminder_from_row(row: sqlite3.Row) -> dict[str, Any]:
+        keys = set(row.keys())
         return {
             "id": int(row["id"]),
             "user_id": int(row["user_id"]),
@@ -950,6 +1030,12 @@ class HealthService:
             "scheduled_at": timestamp_from_db(row["scheduled_at"]),
             "status": str(row["status"]),
             "enabled": str(row["status"]) == "active",
+            "repeat_rule": row["repeat_rule"] if "repeat_rule" in keys else None,
+            "paused_until": (
+                timestamp_from_db(row["paused_until"])
+                if "paused_until" in keys and row["paused_until"]
+                else None
+            ),
             "created_at": timestamp_from_db(row["created_at"]),
             "updated_at": timestamp_from_db(row["updated_at"]),
         }

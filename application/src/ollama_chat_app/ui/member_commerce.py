@@ -121,7 +121,7 @@ class CommercePanel(QWidget):
         self.favorites = set()
         self.cart = []
         root = QVBoxLayout(self)
-        notice = QLabel("本地虚拟购买 · 不收取费用，不付款、不发货。")
+        notice = QLabel("演示虚拟购买 · 不收取费用，不付款、不发货。")
         notice.setObjectName("CommerceNotice")
         root.addWidget(notice)
         self.search_input = QLineEdit()
@@ -347,7 +347,7 @@ class CommercePanel(QWidget):
         if self.user_id is None or self.commerce_service is None:
             return
         dialog = QDialog(self)
-        dialog.setWindowTitle("购物车明细 · 本地虚拟购买")
+        dialog.setWindowTitle("购物车明细 · 演示虚拟购买")
         dialog.resize(820, 550)
         root = QVBoxLayout(dialog)
         table = QTableWidget(0, 4)
@@ -358,7 +358,8 @@ class CommercePanel(QWidget):
         total = QLabel()
         total.setObjectName("SectionTitle")
         root.addWidget(total)
-        notice = QLabel("确认后仅创建本地虚拟订单，不会扣款或发货。订单历史保留在本机。")
+        notice = QLabel("确认后仅创建演示虚拟订单，不会扣款或发货。"
+                        "阿里云模式保存到云端，本地模式保存在本机。")
         notice.setWordWrap(True)
         root.addWidget(notice)
 
@@ -408,7 +409,7 @@ class CommercePanel(QWidget):
                 self.refresh()
                 self.data_changed.emit()
                 QMessageBox.information(
-                    dialog, "虚拟购买完成", f"已创建 {len(orders)} 笔本地虚拟订单，没有实际扣款。"
+                    dialog, "虚拟购买完成", f"已创建 {len(orders)} 笔演示虚拟订单，没有实际扣款。"
                 )
                 dialog.accept()
             except Exception as error:

@@ -7,7 +7,7 @@ import pytest
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QDialog
 
-from ollama_chat_app.config import DEFAULT_ALIYUN_ENDPOINT, DEFAULT_SUPABASE_ENDPOINT
+from ollama_chat_app.config import DEFAULT_ALIYUN_ENDPOINT
 from ollama_chat_app.endpoint_settings import (
     EndpointSettings,
     EndpointSettingsError,
@@ -28,18 +28,27 @@ def test_defaults_are_public_https_routes_without_creating_files(store):
     settings = store.load()
     assert settings.mode == "cloud" and settings.selected_target == "aliyun"
     assert settings.base_url == DEFAULT_ALIYUN_ENDPOINT == "https://39.106.166.15/aliyun"
-    assert settings.supabase_url == DEFAULT_SUPABASE_ENDPOINT == "https://39.106.166.15/supabase"
+    assert settings.endpoints == {"aliyun": DEFAULT_ALIYUN_ENDPOINT}
     assert settings.validated() == settings
     assert not store.path.parent.exists()
 
 
-@pytest.mark.parametrize("url", [
-    "http://39.106.166.15/aliyun", "https://name:private-password@example.com",
-    "https://example.com/?token=private", "https://example.com/#private",
-    "https://127.0.0.1", "https://192.168.1.1", "file:///private",
-    "https://example.com/../admin", "https://example.com/%2e%2e/admin",
-    "https://example.com\\evil", "https://example.com/\nprivate",
-])
+@pytest.mark.parametrize(
+    "url",
+    [
+        "http://39.106.166.15/aliyun",
+        "https://name:private-password@example.com",
+        "https://example.com/?token=private",
+        "https://example.com/#private",
+        "https://127.0.0.1",
+        "https://192.168.1.1",
+        "file:///private",
+        "https://example.com/../admin",
+        "https://example.com/%2e%2e/admin",
+        "https://example.com\\evil",
+        "https://example.com/\nprivate",
+    ],
+)
 def test_unsafe_endpoints_never_echo_secrets(url):
     with pytest.raises(EndpointSettingsError) as error:
         validated_endpoint(url)
@@ -47,29 +56,35 @@ def test_unsafe_endpoints_never_echo_secrets(url):
     assert url not in str(error.value)
 
 
-def test_two_custom_routes_and_local_selection_survive_reload(store):
-    settings = EndpointSettings("local", "supabase", "https://one.example.com/api",
-                                "https://two.example.com/health")
+def test_custom_aliyun_and_local_selection_survive_reload(store):
+    settings = EndpointSettings("local", "aliyun", "https://one.example.com/api")
     store.save(settings)
     assert EndpointSettingsStore(store.path).load() == settings
-    store.save_connection("cloud", settings.supabase_url)
+    store.save_connection("cloud", settings.aliyun_url)
     assert store.load() == replace(settings, mode="cloud")
     store.save_connection("local", "")
     assert store.load() == settings
-    assert set(json.loads(store.path.read_text())["endpoints"]) == {"aliyun", "supabase"}
+    assert set(json.loads(store.path.read_text())["endpoints"]) == {"aliyun"}
+    assert json.loads(store.path.read_text())["version"] == 2
 
 
-def test_both_routes_validate_before_any_existing_file_changes(store):
+def test_endpoint_validates_before_any_existing_file_changes(store):
     store.save(EndpointSettings())
     original = store.path.read_bytes()
     with pytest.raises(EndpointSettingsError):
-        store.save(EndpointSettings(supabase_url="https://password:private@example.com"))
+        store.save(EndpointSettings(aliyun_url="https://password:private@example.com"))
     assert store.path.read_bytes() == original
 
 
-@pytest.mark.parametrize("raw", [
-    b'{"private": "secret"}', b'{"version":1,"version":1}', b'not json', b'x' * 17000,
-])
+@pytest.mark.parametrize(
+    "raw",
+    [
+        b'{"private": "secret"}',
+        b'{"version":1,"version":1}',
+        b"not json",
+        b"x" * 17000,
+    ],
+)
 def test_malformed_existing_settings_are_not_silently_overwritten(store, raw):
     store.path.parent.mkdir()
     store.path.write_bytes(raw)
@@ -85,19 +100,18 @@ def test_stale_dialog_cannot_replace_newer_saved_custom_settings(store):
     updated = replace(initial, aliyun_url="https://new.example.com")
     store.save(updated)
     with pytest.raises(EndpointSettingsError, match="别处更新"):
-        store.save(replace(initial, selected_target="supabase"), expected=initial)
+        store.save(replace(initial, mode="local"), expected=initial)
     assert store.load() == updated
 
 
 def test_dialog_cancel_and_restore_defaults_are_nonmutating(qtbot, store):
-    custom = EndpointSettings("local", "supabase", "https://custom.example.com/aliyun",
-                              "https://custom.example.com/supabase")
+    custom = EndpointSettings("local", "aliyun", "https://custom.example.com/aliyun")
     store.save(custom)
     dialog = EndpointSettingsDialog(custom, store=store)
     qtbot.addWidget(dialog)
     dialog.restore_button.click()
     assert dialog.aliyun_url_input.text() == DEFAULT_ALIYUN_ENDPOINT
-    assert dialog.supabase_url_input.text() == DEFAULT_SUPABASE_ENDPOINT
+    assert not hasattr(dialog, "supabase_url_input")
     assert "尚未保存" in dialog.change_notice.text()
     assert store.load() == custom
     dialog.cancel_button.click()
@@ -105,25 +119,22 @@ def test_dialog_cancel_and_restore_defaults_are_nonmutating(qtbot, store):
     assert store.load() == custom
 
 
-def test_dialog_saves_both_urls_and_selected_route_only_after_confirmation(qtbot, store):
+def test_dialog_saves_aliyun_address_only_after_confirmation(qtbot, store):
     dialog = EndpointSettingsDialog(store.load(), store=store)
     qtbot.addWidget(dialog)
     dialog.aliyun_url_input.setText("https://custom.example.com/a/")
-    dialog.supabase_url_input.setText("https://custom.example.com/s/")
-    dialog.supabase_button.click()
-    assert not dialog.aliyun_button.isChecked()
+    assert dialog.aliyun_button.isChecked()
+    assert len(dialog.target_group.buttons()) == 1
     assert not store.path.exists()
     dialog.save_button.click()
     assert dialog.result() == QDialog.DialogCode.Accepted
-    assert store.load() == EndpointSettings("cloud", "supabase",
-                                           "https://custom.example.com/a",
-                                           "https://custom.example.com/s")
+    assert store.load() == EndpointSettings("cloud", "aliyun", "https://custom.example.com/a")
 
 
-def test_invalid_inactive_route_blocks_save_without_disclosing_its_value(qtbot, store):
+def test_invalid_address_blocks_save_without_disclosing_its_value(qtbot, store):
     dialog = EndpointSettingsDialog(store.load(), store=store)
     qtbot.addWidget(dialog)
-    dialog.supabase_url_input.setText("https://user:private-secret@example.com")
+    dialog.aliyun_url_input.setText("https://user:private-secret@example.com")
     dialog.save_button.click()
     assert dialog.result() != QDialog.DialogCode.Accepted
     assert not store.path.exists()
@@ -163,16 +174,16 @@ def test_login_dialog_only_changes_connection_after_save(qtbot, store, monkeypat
     page.password_input.setText("synthetic-password")
 
     def save_dialog(dialog):
-        dialog.supabase_button.click()
+        dialog.aliyun_url_input.setText("https://new.example.com/aliyun")
         dialog.save_button.click()
         return dialog.result()
 
     monkeypatch.setattr(EndpointSettingsDialog, "exec", save_dialog)
     page.change_address_button.click()
-    assert store.load().selected_target == "supabase"
-    assert page.cloud_url_input.text() == DEFAULT_SUPABASE_ENDPOINT
+    assert store.load().selected_target == "aliyun"
+    assert page.cloud_url_input.text() == "https://new.example.com/aliyun"
     assert page.password_input.text() == ""
-    assert events == ([("cloud", DEFAULT_SUPABASE_ENDPOINT)] if mode == "cloud" else [])
+    assert events == ([("cloud", "https://new.example.com/aliyun")] if mode == "cloud" else [])
 
 
 def test_login_cancel_does_not_clear_password_or_emit_connection_change(qtbot, store, monkeypatch):
@@ -216,7 +227,9 @@ def test_login_cannot_submit_to_old_mode_when_change_is_not_applied(qtbot, store
 
 
 def test_failed_endpoint_replacement_cannot_login_or_register_on_previous_service(
-    qtbot, store, monkeypatch,
+    qtbot,
+    store,
+    monkeypatch,
 ):
     page = LoginPage(endpoint_store=store)
     qtbot.addWidget(page)
@@ -224,7 +237,7 @@ def test_failed_endpoint_replacement_cannot_login_or_register_on_previous_servic
     page.login_requested.connect(lambda *args: events.append(args))
 
     def save_dialog(dialog):
-        dialog.supabase_button.click()
+        dialog.aliyun_url_input.setText("https://new.example.com/aliyun")
         dialog.save_button.click()
         return dialog.result()
 
@@ -234,7 +247,7 @@ def test_failed_endpoint_replacement_cannot_login_or_register_on_previous_servic
     assert not events
     assert not page.login_button.isEnabled() and not page.register_button.isEnabled()
     assert not page.connection_apply_button.isHidden()
-    page.set_connection_context("cloud", DEFAULT_SUPABASE_ENDPOINT)
+    page.set_connection_context("cloud", "https://new.example.com/aliyun")
     assert page.login_button.isEnabled() and page.register_button.isEnabled()
 
 
@@ -274,13 +287,15 @@ def test_extended_login_options_are_opt_in_explicit_and_never_double_emit(qtbot,
     assert not page.remember_offline_checkbox.isChecked()
     page._submit()
     assert len(legacy) == 1 and extended[-1][2] == {
-        "allow_offline": False, "remember_offline": False,
+        "allow_offline": False,
+        "remember_offline": False,
     }
     page.allow_offline_checkbox.setChecked(True)
     page.remember_offline_checkbox.setChecked(True)
     page._submit()
     assert len(legacy) == 1 and extended[-1][2] == {
-        "allow_offline": True, "remember_offline": True,
+        "allow_offline": True,
+        "remember_offline": True,
     }
     page.clear_password()
     assert not page.allow_offline_checkbox.isChecked()
@@ -303,3 +318,77 @@ def test_offline_options_cannot_apply_to_local_mode_or_busy_login(qtbot, store):
     page.login_options_requested.connect(lambda *args: events.append(args))
     page._submit()
     assert events[-1][2] == {"allow_offline": False, "remember_offline": False}
+
+
+@pytest.mark.parametrize("target", ["aliyun", "supabase"])
+@pytest.mark.parametrize("mode", ["local", "cloud"])
+def test_legacy_supabase_configuration_read_migration_never_connects_or_rewrites(
+    store,
+    monkeypatch,
+    target,
+    mode,
+):
+    def forbidden(*args, **kwargs):
+        raise AssertionError("Loading public settings must never connect")
+
+    monkeypatch.setattr("httpx.Client.send", forbidden)
+    monkeypatch.setattr("socket.socket.connect", forbidden)
+    legacy = {
+        "version": 1,
+        "mode": mode,
+        "selected_target": target,
+        "endpoints": {
+            "aliyun": "https://saved.example.com/aliyun",
+            "supabase": "https://39.106.166.15/supabase",
+        },
+    }
+    store.path.parent.mkdir()
+    original = json.dumps(legacy).encode()
+    store.path.write_bytes(original)
+    migrated = store.load()
+    assert migrated == EndpointSettings(mode, "aliyun", "https://saved.example.com/aliyun")
+    assert store.path.read_bytes() == original
+    # Only an explicit subsequent save upgrades the file format.
+    store.save(migrated, expected=migrated)
+    assert json.loads(store.path.read_text())["version"] == 2
+    assert set(json.loads(store.path.read_text())["endpoints"]) == {"aliyun"}
+
+
+@pytest.mark.parametrize(
+    "url",
+    [
+        "https://39.106.166.15/supabase",
+        "https://custom.example.test/supabase/",
+        "https://synthetic.supabase.co",
+        "https://synthetic.supabase.com/api",
+    ],
+)
+def test_retired_supabase_endpoints_are_explicitly_rejected_and_do_not_replace_file(store, url):
+    store.save(EndpointSettings())
+    original = store.path.read_bytes()
+    with pytest.raises(EndpointSettingsError, match="已停用 Supabase"):
+        validated_endpoint(url)
+    with pytest.raises(EndpointSettingsError):
+        store.save_connection("cloud", url)
+    assert store.path.read_bytes() == original
+
+
+def test_unsafe_legacy_inactive_supabase_value_cannot_be_ignored_or_disclosed(store):
+    value = {
+        "version": 1,
+        "mode": "cloud",
+        "selected_target": "aliyun",
+        "endpoints": {
+            "aliyun": DEFAULT_ALIYUN_ENDPOINT,
+            "supabase": "https://secret:private@example.test",
+        },
+    }
+    store.path.parent.mkdir()
+    original = json.dumps(value).encode()
+    store.path.write_bytes(original)
+    with pytest.raises(EndpointSettingsError) as error:
+        store.load()
+    assert "private" not in str(error.value) and "secret" not in str(error.value)
+    with pytest.raises(EndpointSettingsError):
+        store.save(EndpointSettings())
+    assert store.path.read_bytes() == original

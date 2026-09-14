@@ -3,7 +3,7 @@ from __future__ import annotations
 from importlib import import_module
 from pathlib import Path
 
-from PySide6.QtCore import QStandardPaths, QThreadPool, Signal
+from PySide6.QtCore import QStandardPaths, Qt, QThreadPool, QTimer, Signal
 from PySide6.QtWidgets import (
     QApplication,
     QDateEdit,
@@ -113,15 +113,22 @@ class MainWindow(QMainWindow):
         self.cloud_mode = bool(getattr(auth_service, "uses_network", False))
         self._tasks: list[FunctionTask] = []
         self._active_workspace: QWidget | None = None
+        self._new_profile_user_id = None
+        self._reminder_popups = []
+        self._network_state = {}
 
         self.setWindowTitle(APP_NAME)
         screen = QApplication.primaryScreen()
         available = screen.availableGeometry() if screen else None
+        geometry = screen.geometry() if screen else None
         self.resize(
-            min(1500, available.width() - 40) if available else 1500,
-            min(960, available.height() - 60) if available else 960,
+            min(round(geometry.width() * 5 / 6), available.width()) if geometry else 1280,
+            min(round(geometry.height() * .65), available.height()) if geometry else 700,
         )
-        self.setMinimumSize(980, 680)
+        self.setMinimumSize(640, 360)
+        if available:
+            self.move(available.x() + (available.width() - self.width()) // 2,
+                      available.y() + (available.height() - self.height()) // 2)
 
         self.pages = QStackedWidget()
         self.setCentralWidget(self.pages)
@@ -140,6 +147,7 @@ class MainWindow(QMainWindow):
             ai_assistant_service,
             file_management_service,
             preferences_service=preferences_service,
+            cloud_client=getattr(auth_service, "client", None),
         )
         self.health_workspace = (
             HealthWorkspace(
@@ -218,6 +226,11 @@ class MainWindow(QMainWindow):
         spacer = QWidget()
         spacer.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
         toolbar.addWidget(spacer)
+        self.network_button = QPushButton("网络 · 等待检测")
+        self.network_button.setAccessibleName("网络状态、延迟和连接位置")
+        self.network_button.setMaximumWidth(400)
+        self.network_button.clicked.connect(self._show_network_details)
+        toolbar.addWidget(self.network_button)
         self.sync_button = QPushButton("数据与同步")
         self.sync_button.clicked.connect(self._open_data_sync)
         toolbar.addWidget(self.sync_button)
@@ -226,6 +239,29 @@ class MainWindow(QMainWindow):
         self.timezone_button.clicked.connect(self._choose_timezone)
         toolbar.addWidget(self.timezone_button)
         self.addToolBar(toolbar)
+        from ..services.network_status import NetworkStatusMonitor
+        from ..services.reminder_scheduler import ReminderScheduler
+
+        self.network_monitor = NetworkStatusMonitor(cloud_base_url if self.cloud_mode else "", self)
+        self.network_monitor.changed.connect(self._network_changed)
+        self.reminder_scheduler = None
+        if health_service is not None and preferences_service is not None:
+            self.reminder_scheduler = ReminderScheduler(
+                health_service, preferences_service,
+                namespace=("cloud:" + cloud_base_url if self.cloud_mode else
+                           "local:" + str(getattr(getattr(health_service, "database", None),
+                                                   "path", "local"))), parent=self)
+            self.reminder_scheduler.reminder_due.connect(self._reminder_due)
+            if self.health_workspace is not None:
+                for page, signal_name in (
+                    (self.health_workspace.today_page, "record_changed"),
+                    (self.health_workspace.profile_page, "profile_changed"),
+                    (self.health_workspace.service_page, "reminder_changed"),
+                    (self.health_workspace.my_platform_page, "preferences_changed"),
+                ):
+                    changed = getattr(page, signal_name, None)
+                    if changed is not None:
+                        changed.connect(lambda *_: self.reminder_scheduler.refresh())
         if hasattr(self.chat_page, "preferences_changed"):
             self.chat_page.preferences_changed.connect(self.apply_preferences)
         if self.health_workspace is not None:
@@ -249,6 +285,56 @@ class MainWindow(QMainWindow):
         self.cloud_sync_service.reauthentication_required.connect(self._reauthentication_required)
         self.cloud_sync_service.outbox_changed.connect(self._outbox_changed)
         self.chat_page.data_changed.connect(self.cloud_sync_service.sync_now)
+        self.chat_page.set_cloud_client(client)
+
+    def _network_changed(self, state):
+        previous = self._network_state.get("state")
+        self._network_state = state
+        labels = {"online": "云端可达", "local": "本地模式", "offline": "网络未连通",
+                  "timeout": "连接超时", "tls_error": "证书需检查",
+                  "service_error": "服务暂不可用", "unknown": "状态待检查"}
+        delay = f"{state['latency_ms']} ms" if state.get("latency_ms") is not None else "—"
+        place = "北京" if "北京" in state.get("service_location", "") else state.get("host", "本地")
+        self.network_button.setText(f"● {labels.get(state['state'], '检测中')} · {delay} · {place}")
+        self.network_button.setToolTip(
+            f"本机网络：{state.get('network', '未识别')}\n"
+            f"服务位置：{state.get('service_location', '未验证')}\n"
+            "延迟为 HTTPS 业务服务往返耗时，不是网速；点击查看说明。")
+        if state["state"] == "online" and previous != "online" and self.cloud_sync_service:
+            self.cloud_sync_service.sync_now()
+
+    def _show_network_details(self):
+        state = self._network_state
+        QMessageBox.information(self, "网络与同步说明",
+            f"本机网络：{state.get('network', '正在检测')}\n"
+            f"服务位置：{state.get('service_location', '正在检测')}\n"
+            f"服务地址：{state.get('host', '正在检测')}\n\n"
+            "状态约每 5 秒检查；活动网卡不等于互联网或云数据库可用。\n"
+            "延迟是到服务端的 HTTPS 往返时间，不是带宽。\n"
+            "显示的北京是服务器位置，不代表您的所在城市；不查询或上传您的 IP 属地。\n"
+            "只有“数据与同步”确认成功，才表示资料已上传。")
+
+    def _reminder_due(self, payload):
+        if self._current_user is None or payload.get("user_id") != self._current_user.id:
+            return
+        popup = QMessageBox(self)
+        popup.setWindowTitle("温馨提醒")
+        popup.setTextFormat(Qt.TextFormat.PlainText)
+        popup.setText(str(payload.get("message", "您有一项生活提醒，请从容安排。")))
+        popup.setIcon(QMessageBox.Icon.Information)
+        popup.addButton("知道啦，谢谢提醒", QMessageBox.ButtonRole.AcceptRole)
+        popup.setWindowModality(Qt.WindowModality.NonModal)
+        popup.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose)
+        self._reminder_popups.append(popup)
+        popup.finished.connect(lambda _: self._reminder_popups.remove(popup)
+                               if popup in self._reminder_popups else None)
+        popup.show()
+
+    def _stop_reminders(self):
+        if self.reminder_scheduler is not None:
+            self.reminder_scheduler.stop()
+        for popup in list(self._reminder_popups):
+            popup.close()
 
     def _sync_status_changed(self, state):
         labels = {
@@ -290,6 +376,8 @@ class MainWindow(QMainWindow):
         from .snapshot_refresh import refresh_current_workspace
 
         refresh_current_workspace(self, snapshot)
+        if self.reminder_scheduler is not None:
+            self.reminder_scheduler.refresh()
         if snapshot["revision"] == self._last_snapshot_revision:
             return
         self._last_snapshot_revision = snapshot["revision"]
@@ -306,7 +394,7 @@ class MainWindow(QMainWindow):
                 self,
                 "本地数据",
                 "当前使用本机数据库。\n\n"
-                "要连接云端，请退出登录，在登录页选择阿里云或 Supabase 数据源并登录云端账户。"
+                "要连接云端，请退出登录，在登录页选择阿里云模式并登录云端账户。"
                 "之后可在这里验证本机源账户、预览首次迁移；不会自动上传历史数据。\n\n"
                 "原一键打包功能已移除，数据迁移不会删除本机原件。",
             )
@@ -528,6 +616,13 @@ class MainWindow(QMainWindow):
             self.chat_page.current_user = user
         workspace.start_session(user)
         self.pages.setCurrentWidget(workspace)
+        if self.reminder_scheduler is not None and role_code == "member":
+            self.reminder_scheduler.start(user)
+        if self._new_profile_user_id == user.id and role_code == "member":
+            self._new_profile_user_id = None
+            QTimer.singleShot(0, lambda: workspace.open_profile()
+                              if self._active_workspace is workspace
+                              and getattr(self._current_user, "id", None) == user.id else None)
 
     def _refresh_operator_setup_availability(self) -> None:
         has_operator = getattr(self.auth_service, "has_operator", None)
@@ -595,16 +690,21 @@ class MainWindow(QMainWindow):
         task = FunctionTask(self.auth_service.register, username, password)
         self._start_task(
             task,
-            lambda user: self._registration_succeeded(user),
+            lambda user: self._registration_succeeded(user, password),
             lambda error: self.register_page.show_error(str(error) or "注册失败。"),
             lambda: self.register_page.set_busy(False),
         )
 
-    def _registration_succeeded(self, user: object) -> None:
+    def _registration_succeeded(self, user: object, password: str | None = None) -> None:
         username = getattr(user, "username", "")
-        QMessageBox.information(self, "注册成功", "账户已经创建，请使用新账户登录。")
+        self._new_profile_user_id = getattr(user, "id", None)
         self._show_login()
         self.login_page.username_input.setText(username)
+        if password:
+            self._login(username, password, remember_offline=False)
+            return
+        QMessageBox.information(self, "注册成功", "账户已经创建，请使用新账户登录。\n"
+                                "登录后会引导填写个人档案，可以只填一部分或稍后再填。")
         self.login_page.password_input.setFocus()
 
     def _import_data_from_login(self) -> None:
@@ -669,6 +769,7 @@ class MainWindow(QMainWindow):
         QMessageBox.warning(self, "导入失败", message)
 
     def _logout(self) -> None:
+        self._stop_reminders()
         workspace = self._active_workspace
         if workspace is None:
             return

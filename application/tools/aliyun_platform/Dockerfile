@@ -10,6 +10,6 @@ COPY src/ /app/src/
 COPY tools/aliyun_platform/ /app/tools/aliyun_platform/
 RUN groupadd --gid 10001 app && useradd --uid 10001 --gid 10001 --create-home --shell /usr/sbin/nologin app
 USER 10001:10001
-RUN python -c "import server.platform_app; import tools.aliyun_platform.bootstrap; import tools.aliyun_platform.api_entrypoint"
+RUN python -c "import server.platform_app; import server.platform_ai_proxy; import tools.aliyun_platform.bootstrap; import tools.aliyun_platform.upgrade_medical; import tools.aliyun_platform.api_entrypoint"
 EXPOSE 8443
 CMD ["python", "-m", "tools.aliyun_platform.api_entrypoint"]

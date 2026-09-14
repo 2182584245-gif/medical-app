@@ -22,15 +22,35 @@ def _common():
 
 common = _common()
 base = common.sibling("verify_release")
-ROOT_ENTRIES = base.EXPECTED_ROOT_ENTRIES | {"assets", "demo_manifest.json", "DEMO_ACCOUNTS.md"}
+cloud_assets = common.sibling("_demo_cloud_assets")
+ROOT_ENTRIES = base.EXPECTED_ROOT_ENTRIES | {
+    "assets",
+    "demo_manifest.json",
+    "DEMO_ACCOUNTS.md",
+    "DEMO_ACCOUNTS.txt",
+}
 
 
-def verify_directory(root: Path, *, expected_executable_sha256: str | None = None) -> dict:
+def verify_directory(
+    root: Path,
+    *,
+    expected_executable_sha256: str | None = None,
+    cloud_assets_plan: Path | None = None,
+) -> dict:
     if root.is_symlink():
         raise RuntimeError("不允许链接形式的示例发布目录。")
+    alias_plan = None
+    if cloud_assets_plan is not None:
+        cloud_assets.ordinary_path(root)
+        alias_plan = cloud_assets.load_external(cloud_assets_plan, root)
     root = root.resolve()
     files = common.ordinary_tree(root)
-    if {path.name for path in root.iterdir()} != ROOT_ENTRIES:
+    expected_entries = ROOT_ENTRIES | (
+        {cloud_assets.ROOT_DIRECTORY, cloud_assets.MAPPING_FILE}
+        if alias_plan is not None
+        else set()
+    )
+    if {path.name for path in root.iterdir()} != expected_entries:
         raise RuntimeError("示例版根目录不符合精确白名单。")
     manifest = {}
     for line in (root / "SHA256SUMS.txt").read_text(encoding="utf-8").splitlines():
@@ -54,7 +74,7 @@ def verify_directory(root: Path, *, expected_executable_sha256: str | None = Non
         or metadata.get("version") != common.APP_VERSION
         or metadata.get("synthetic") is not True
         or metadata.get("database_state") != "synthetic_demo"
-        or metadata.get("database_schema_version") != 6
+        or metadata.get("database_schema_version") != 7
         or metadata.get("database_included") is not True
         or metadata.get("api_key_persisted") is not False
         or metadata.get("dpapi_included") is not False
@@ -77,6 +97,15 @@ def verify_directory(root: Path, *, expected_executable_sha256: str | None = Non
     ):
         if text not in instructions:
             raise RuntimeError("示例说明缺少必须的安全提示。")
+    alias_report = None
+    if alias_plan is not None:
+        alias_report = cloud_assets.verify(root, alias_plan)
+        if metadata.get("cloud_assets") != alias_report:
+            raise RuntimeError("示例图片别名元数据与明确审阅的计划不一致。")
+        if "不是动态云商品图片下载功能" not in instructions:
+            raise RuntimeError("示例别名必须明确说明不支持动态云商品图片下载。")
+    elif "cloud_assets" in metadata:
+        raise RuntimeError("示例图片别名必须提供明确审阅的外部计划才能验证。")
     result = common.verify_payload(root)
     return dict(
         kind="synthetic_directory",
@@ -86,12 +115,21 @@ def verify_directory(root: Path, *, expected_executable_sha256: str | None = Non
         executable_sha256=digest,
         database_sha256=base._sha256(root / "data/app.db"),
         database=result,
+        cloud_assets=alias_report,
     )
 
 
-def verify_archive(path: Path, *, expected_executable_sha256: str | None = None) -> dict:
+def verify_archive(
+    path: Path,
+    *,
+    expected_executable_sha256: str | None = None,
+    cloud_assets_plan: Path | None = None,
+) -> dict:
     if path.is_symlink() or not path.is_file():
         raise RuntimeError("示例 ZIP 不是普通文件。")
+    if cloud_assets_plan is not None:
+        cloud_assets.ordinary_path(path)
+        cloud_assets.load_external(cloud_assets_plan, path)
     with zipfile.ZipFile(path) as archive:
         infos = archive.infolist()
         names = [info.filename for info in infos]
@@ -124,6 +162,7 @@ def verify_archive(path: Path, *, expected_executable_sha256: str | None = None)
             contents = verify_directory(
                 temporary_root / common.APP_NAME,
                 expected_executable_sha256=expected_executable_sha256,
+                cloud_assets_plan=cloud_assets_plan,
             )
     return dict(
         kind="synthetic_zip",
@@ -138,11 +177,16 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("target", type=Path)
     parser.add_argument("--expected-exe-sha256")
+    parser.add_argument("--cloud-assets-plan", type=Path)
     args = parser.parse_args()
     verifier = verify_archive if args.target.suffix.casefold() == ".zip" else verify_directory
     print(
         json.dumps(
-            verifier(args.target, expected_executable_sha256=args.expected_exe_sha256),
+            verifier(
+                args.target,
+                expected_executable_sha256=args.expected_exe_sha256,
+                cloud_assets_plan=args.cloud_assets_plan,
+            ),
             ensure_ascii=False,
             indent=2,
         )

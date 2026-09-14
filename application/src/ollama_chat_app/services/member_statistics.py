@@ -32,6 +32,11 @@ PARAMETERS = {
         ("ventilation_minutes", "通风时长", "分钟", "sum"),
         ("count", "记录次数", "次", "sum"),
     ],
+    "medical": [
+        ("count", "医疗记录次数", "次", "sum"),
+        ("consultation_count", "看病记录次数", "次", "sum"),
+        ("medication_count", "已用药记录次数", "次", "sum"),
+    ],
 }
 
 
@@ -46,6 +51,9 @@ def daily_series(records, category, parameter, start_date, days):
         day = as_beijing(record["occurred_at"]).astimezone(display_timezone()).date()
         if parameter == "count":
             samples[day].append(1)
+        elif category == "medical" and parameter in {"consultation_count", "medication_count"}:
+            if (record.get("details") or {}).get("event_type") == parameter.removesuffix("_count"):
+                samples[day].append(1)
         else:
             value = (record.get("details") or {}).get(parameter)
             if isinstance(value, (int, float)) and not isinstance(value, bool):
@@ -59,7 +67,7 @@ def daily_series(records, category, parameter, start_date, days):
             if values
             else None
         )
-        if parameter == "count" and value is None:
+        if parameter in {"count", "consultation_count", "medication_count"} and value is None:
             value = 0
         result.append({"date": day.isoformat(), "value": value, "samples": len(values)})
     return result

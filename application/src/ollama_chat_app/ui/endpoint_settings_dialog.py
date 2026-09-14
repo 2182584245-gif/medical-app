@@ -50,22 +50,17 @@ class EndpointSettingsDialog(QDialog):
         layout.addWidget(notice)
         self.target_group = QButtonGroup(self)
         self.aliyun_button = QRadioButton("使用阿里云")
-        self.supabase_button = QRadioButton("使用 Supabase")
         self.target_group.addButton(self.aliyun_button, 0)
-        self.target_group.addButton(self.supabase_button, 1)
         self.aliyun_url_input = QLineEdit(settings.aliyun_url)
-        self.supabase_url_input = QLineEdit(settings.supabase_url)
         for radio, field, name in (
             (self.aliyun_button, self.aliyun_url_input, "阿里云 HTTPS 服务地址"),
-            (self.supabase_button, self.supabase_url_input, "Supabase HTTPS 服务地址"),
         ):
             layout.addWidget(radio)
             field.setMaxLength(2048)
             field.setAccessibleName(name)
             field.setPlaceholderText("https://可信服务器/服务路线")
             layout.addWidget(field)
-        selected = 1 if settings.selected_target == "supabase" else 0
-        self.target_group.button(selected).setChecked(True)
+        self.aliyun_button.setChecked(True)
         self.change_notice = QLabel()
         self.change_notice.setWordWrap(True)
         self.change_notice.setText(
@@ -101,7 +96,6 @@ class EndpointSettingsDialog(QDialog):
     def _restore_defaults(self) -> None:
         defaults = EndpointSettings()
         self.aliyun_url_input.setText(defaults.aliyun_url)
-        self.supabase_url_input.setText(defaults.supabase_url)
         self.aliyun_button.setChecked(True)
         self.error_label.hide()
         self.change_notice.setText("已填入默认路线和地址，尚未保存；点击取消可保留原来的自定义设置。")
@@ -110,9 +104,8 @@ class EndpointSettingsDialog(QDialog):
         try:
             settings = replace(
                 self._original,
-                selected_target="supabase" if self.supabase_button.isChecked() else "aliyun",
+                selected_target="aliyun",
                 aliyun_url=self.aliyun_url_input.text().strip(),
-                supabase_url=self.supabase_url_input.text().strip(),
             ).validated()
             if self._store is not None:
                 self._store.save(settings, expected=self._saved_settings)

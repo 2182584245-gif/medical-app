@@ -103,7 +103,7 @@ def capacity() -> dict:
         alerts.append("disk_capacity_low")
     if not verified or now - max(verified) > timedelta(hours=36):
         alerts.append("no_recent_verified_backup")
-    for folder in ("postgres", "api-aliyun", "api-supabase"):
+    for folder in ("postgres", "api-aliyun"):
         certificate = ROOT / "secrets" / folder / "server.crt"
         result = subprocess.run(
             ["openssl", "x509", "-checkend", str(30 * 86400), "-noout", "-in", str(certificate)],

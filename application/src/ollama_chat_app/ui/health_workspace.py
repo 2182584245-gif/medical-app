@@ -4,7 +4,7 @@ from collections.abc import Iterable, Mapping
 from datetime import datetime
 from typing import Any
 
-from PySide6.QtCore import Qt, Signal
+from PySide6.QtCore import QSize, Qt, Signal
 from PySide6.QtWidgets import (
     QComboBox,
     QDialog,
@@ -19,6 +19,7 @@ from PySide6.QtWidgets import (
     QMessageBox,
     QPushButton,
     QScrollArea,
+    QSizePolicy,
     QStackedWidget,
     QTabWidget,
     QTextEdit,
@@ -27,12 +28,16 @@ from PySide6.QtWidgets import (
 )
 
 from ..time_utils import as_beijing, beijing_today, display_timezone_label, format_beijing
+from .art_icons import rounded_icon
+from .dialog_layout import fit_dialog, scroll_form_dialog
 from .member_appointment import AppointmentDialog
 from .member_commerce import CommercePanel
 from .member_statistics import ProfileStatisticsPage
 from .member_today import TodayPage
 from .offline_feedback import show_queued_result
-from .time_fields import BeijingDateTimeEdit, OptionalDateEdit, beijing_qdatetime, datetime_iso
+from .segmented_time import SegmentedDateEdit as OptionalDateEdit
+from .segmented_time import SegmentedDateTimeEdit as BeijingDateTimeEdit
+from .time_fields import beijing_qdatetime, datetime_iso
 
 CATEGORIES = (
     ("diet", "饮食"),
@@ -72,13 +77,17 @@ def _service_error(action: str, error: Exception) -> str:
 def _card(title: str, body: QLabel | QWidget) -> QFrame:
     frame = QFrame()
     frame.setObjectName("HealthCard")
+    frame.setProperty(
+        "tone", {"会员": "sun", "会员顾问资料": "flower", "下次上门": "sky"}.get(title, "")
+    )
     layout = QVBoxLayout(frame)
+    layout.setAlignment(Qt.AlignmentFlag.AlignTop)
     layout.setContentsMargins(18, 16, 18, 16)
     layout.setSpacing(10)
     title_label = QLabel(title)
     title_label.setObjectName("SectionTitle")
     layout.addWidget(title_label)
-    layout.addWidget(body)
+    layout.addWidget(body, 0, Qt.AlignmentFlag.AlignTop)
     return frame
 
 
@@ -90,6 +99,7 @@ class RecordDialog(QDialog):
         layout = QVBoxLayout(self)
 
         form = QFormLayout()
+        form.setRowWrapPolicy(QFormLayout.RowWrapPolicy.WrapAllRows)
         self.category_combo = QComboBox()
         for code, label in CATEGORIES:
             self.category_combo.addItem(label, code)
@@ -115,8 +125,14 @@ class RecordDialog(QDialog):
         buttons.accepted.connect(self._validate)
         buttons.rejected.connect(self.reject)
         layout.addWidget(buttons)
+        fit_dialog(self, width=760, height=620)
 
     def _validate(self) -> None:
+        try:
+            self.time_input.dateTime()
+        except ValueError as error:
+            QMessageBox.information(self, "请核对时间", str(error))
+            return
         if not self.content_input.toPlainText().strip():
             QMessageBox.warning(self, "内容未填写", "请先填写记录内容，再点击保存。")
             return
@@ -150,8 +166,14 @@ class ReminderDialog(QDialog):
         buttons.accepted.connect(self._validate)
         buttons.rejected.connect(self.reject)
         layout.addRow(buttons)
+        scroll_form_dialog(self, layout)
 
     def _validate(self) -> None:
+        try:
+            self.time_input.dateTime()
+        except ValueError as error:
+            QMessageBox.information(self, "请核对时间", str(error))
+            return
         if not self.title_input.text().strip():
             QMessageBox.warning(self, "内容未填写", "请先填写提醒内容，再点击保存。")
             return
@@ -178,7 +200,7 @@ class ProfilePage(QWidget):
         title = QLabel("个人档案")
         title.setObjectName("PageTitle")
         root.addWidget(title)
-        hint = QLabel("档案用于在本机保存基本事实；AI 不会直接修改这些内容。")
+        hint = QLabel("档案用于保存您确认的基本事实；AI 不会直接修改这些内容。")
         hint.setObjectName("HealthHint")
         hint.setWordWrap(True)
         root.addWidget(hint)
@@ -187,6 +209,7 @@ class ProfilePage(QWidget):
         scroll.setWidgetResizable(True)
         content = QWidget()
         form = QFormLayout(content)
+        form.setRowWrapPolicy(QFormLayout.RowWrapPolicy.WrapAllRows)
         form.setContentsMargins(20, 18, 28, 18)
         form.setHorizontalSpacing(18)
         form.setVerticalSpacing(14)
@@ -257,14 +280,18 @@ class ProfilePage(QWidget):
                 self.reminder_frequency_combo,
                 _value(profile, "reminder_frequency", "normal"),
             )
-            self._set_status("档案已从本机载入。", False)
+            self._set_status("档案已载入；修改后请点击保存。", False)
         except Exception as exc:
             self._set_status(_service_error("读取个人档案", exc), True)
 
     def save(self) -> None:
         if self.user_id is None:
             return
-        birth_date = self.birth_date_input.iso_value() or ""
+        try:
+            birth_date = self.birth_date_input.iso_value() or ""
+        except ValueError as error:
+            self._set_status(str(error), True)
+            return
         values = {
             "display_name": self.full_name_input.text().strip(),
             "birth_date": birth_date,
@@ -374,7 +401,10 @@ class ServicePage(QWidget):
         care_layout.addWidget(self.status_label)
 
         self.commerce_panel = CommercePanel(commerce_service)
-        self.section_tabs.addTab(care_tab, "会员服务")
+        self.care_scroll = QScrollArea()
+        self.care_scroll.setWidgetResizable(True)
+        self.care_scroll.setWidget(care_tab)
+        self.section_tabs.addTab(self.care_scroll, "会员服务")
         self.section_tabs.addTab(self.commerce_panel, "商品")
         root.addWidget(self.section_tabs, 1)
 
@@ -544,7 +574,7 @@ class ServicePage(QWidget):
         if isinstance(value, str):
             return value
         if not isinstance(value, Mapping):
-            return "暂无会员信息\n可由运营人员在本地管理台设置。"
+            return "暂无会员信息\n可由运营人员在管理台设置；按当前连接模式保存。"
         status_labels = {
             "active": "有效",
             "pending": "待生效",
@@ -699,12 +729,12 @@ class HealthWorkspace(QWidget):
         body.setSpacing(14)
         navigation = QFrame()
         navigation.setObjectName("HealthNavigation")
-        navigation.setFixedWidth(196)
         nav_layout = QVBoxLayout(navigation)
         nav_layout.setContentsMargins(10, 14, 10, 14)
         nav_layout.setSpacing(9)
 
         self.stack = QStackedWidget()
+        self.stack.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Ignored)
         self.today_page = TodayPage(
             health_service,
             preferences_service=preferences_service,
@@ -719,6 +749,7 @@ class HealthWorkspace(QWidget):
         self.my_platform_page = MyPlatformPanel(
             health_service, preferences_service=preferences_service
         )
+        self.my_platform_page.set_profile_editor(self.profile_editor)
         self.service_page = ServicePage(
             health_service,
             commerce_service,
@@ -728,7 +759,7 @@ class HealthWorkspace(QWidget):
         )
         pages = (
             ("今日记录", self.today_page),
-            ("档案与统计", self.profile_page),
+            ("记录统计", self.profile_page),
             ("服务", self.service_page),
             ("AI 助手", chat_page),
             ("我的平台", self.my_platform_page),
@@ -736,14 +767,23 @@ class HealthWorkspace(QWidget):
         self.navigation_buttons: list[QPushButton] = []
         for index, (label, page) in enumerate(pages):
             button = QPushButton(label)
+            button.setIcon(
+                rounded_icon(("today", "statistics", "service", "chat", "profile")[index])
+            )
+            button.setIconSize(QSize(28, 28))
             button.setCheckable(True)
-            button.setMinimumHeight(52)
+            button.setMinimumHeight(44)
             button.clicked.connect(lambda _checked=False, i=index: self.show_page(i))
             nav_layout.addWidget(button)
             self.navigation_buttons.append(button)
             self.stack.addWidget(page)
         nav_layout.addStretch(1)
-        body.addWidget(navigation)
+        self.navigation_scroll = QScrollArea()
+        self.navigation_scroll.setWidgetResizable(True)
+        self.navigation_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self.navigation_scroll.setFixedWidth(210)
+        self.navigation_scroll.setWidget(navigation)
+        body.addWidget(self.navigation_scroll)
         body.addWidget(self.stack, 1)
         root.addLayout(body, 1)
 
@@ -759,7 +799,7 @@ class HealthWorkspace(QWidget):
         self.show_page(0)
         self.setStyleSheet("""
             QFrame#HealthNavigation QPushButton {
-                min-height: 48px; text-align: left; padding-left: 20px;
+                min-height: 38px; text-align: left; padding-left: 10px;
             }
             QLabel#CommerceNotice { padding: 12px; font-weight: 600; }
             QListWidget::item { padding: 10px; }
@@ -771,9 +811,17 @@ class HealthWorkspace(QWidget):
         self.stack.setCurrentIndex(index)
         for button_index, button in enumerate(self.navigation_buttons):
             button.setChecked(button_index == index)
+        self.navigation_scroll.ensureWidgetVisible(self.navigation_buttons[index])
         page = self.stack.currentWidget()
         if hasattr(page, "refresh"):
             page.refresh()
+
+    def open_profile(self) -> None:
+        """Optional registration follow-up; closing it never invents profile data."""
+        if self.current_user is None:
+            return
+        self.show_page(4)
+        self.my_platform_page.open_profile()
 
     def _refresh_member_data(self) -> None:
         self.today_page.refresh()

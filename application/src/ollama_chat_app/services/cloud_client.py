@@ -27,8 +27,8 @@ _MESSAGES = {
     "conflict": "数据发生冲突，请刷新后确认；不要重复提交新的操作。",
     "validation": "提交内容不符合要求，请检查输入及文件大小。",
     "limited": "请求过于频繁，请稍后再试。",
-    "unavailable": "云端服务暂不可用，免费服务可能正在启动，请稍后再试。",
-    "timeout": "等待云端响应超时，免费服务可能正在启动；请先刷新确认结果。",
+    "unavailable": "云端服务暂不可用；支持离线保存的资料会保留在本机待提交。",
+    "timeout": "等待云端响应超时；请查看同步状态，不要重复新增同一条记录。",
     "network": "暂时无法安全连接云端，请检查网络及系统时间，不要关闭证书验证。",
     "redirect": "云端返回了重定向，已停止发送，请核对服务地址。",
     "protocol": "云端响应格式不正确，请稍后重试或更新应用。",
@@ -178,7 +178,7 @@ class CloudAPIClient:
             self._http = httpx.Client(
                 verify=True,
                 follow_redirects=False,
-                trust_env=True,
+                trust_env=False,
                 timeout=httpx.Timeout(connect=10.0, read=90.0, write=30.0, pool=10.0),
                 headers={"Accept": "application/json", "Accept-Encoding": "identity"},
                 transport=transport,
@@ -331,6 +331,66 @@ class CloudAPIClient:
                 raise CloudAPIError("network", outcome_uncertain=write) from None
             except Exception:
                 raise CloudAPIError("protocol", outcome_uncertain=write) from None
+            finally:
+                self._http.cookies.clear()
+
+    def ai_stream(self, payload: dict, *, cancel_event=None):
+        """Bounded fixed-route SSE; no retries, redirects, raw errors or API keys."""
+        if self._on_gui_thread():
+            raise CloudAPIError("worker_required")
+        raw = json_module.dumps(payload, ensure_ascii=False, allow_nan=False).encode()
+        if len(raw) > 4 * 1024 * 1024:
+            raise CloudAPIError("validation")
+        with self._lock:
+            if self._closed:
+                raise CloudAPIError("closed")
+            if self._token is None:
+                raise CloudAPIError("offline" if self._offline_session else "not_authenticated")
+            headers = {"Authorization": "Bearer " + self._token,
+                       "Content-Type": "application/json"}
+            self._http.cookies.clear()
+            try:
+                with self._http.stream("POST", self.base_url + "/v1/ai/chat/stream",
+                                       content=raw, headers=headers,
+                                       timeout=httpx.Timeout(30.0, connect=10.0)) as response:
+                    if not 200 <= response.status_code < 300:
+                        status = response.status_code
+                        if status in {401, 403}:
+                            self.revoke_offline_access()
+                        if status == 401:
+                            self.clear_session()
+                        raise CloudAPIError({401: "authentication", 403: "permission",
+                                             413: "validation", 422: "validation", 429: "limited"}
+                                            .get(status, "redirect" if 300 <= status < 400
+                                                 else "unavailable"), status_code=status)
+                    if not response.headers.get("content-type", "").startswith("text/event-stream"):
+                        raise CloudAPIError("protocol")
+                    total, buffer = 0, bytearray()
+                    for chunk in response.iter_bytes(chunk_size=1024):
+                        if cancel_event is not None and cancel_event.is_set():
+                            return
+                        total += len(chunk)
+                        if total > 512 * 1024:
+                            raise CloudAPIError("limit")
+                        buffer.extend(chunk)
+                        while b"\n" in buffer:
+                            line, _, rest = buffer.partition(b"\n")
+                            buffer = bytearray(rest)
+                            if line.startswith(b"data: "):
+                                event = json_module.loads(line[6:])
+                                if not isinstance(event, dict):
+                                    raise CloudAPIError("protocol")
+                                yield event
+                        if len(buffer) > 65536:
+                            raise CloudAPIError("limit")
+            except CloudAPIError:
+                raise
+            except httpx.TimeoutException:
+                raise CloudAPIError("timeout") from None
+            except httpx.HTTPError:
+                raise CloudAPIError("network") from None
+            except Exception:
+                raise CloudAPIError("protocol") from None
             finally:
                 self._http.cookies.clear()
 
