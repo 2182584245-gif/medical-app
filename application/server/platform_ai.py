@@ -147,7 +147,9 @@ class PlatformAIService(AiAssistantService):
         )
         if context["actor_role"] != "advisor":
             raise AiValidationError("只有当前绑定顾问可以生成顾问摘要")
-        service_context = self._advisor_service_context(advisor_user_id, member_user_id)
+        service_context = self._advisor_service_context(
+            advisor_user_id, member_user_id, context_days=context["context_days"]
+        )
         provider_name = self._required_text(provider_name, "AI 服务", 80)
         model = self._required_text(model, "模型", 160)
         values = {

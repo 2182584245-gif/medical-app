@@ -190,7 +190,9 @@ def refreshed_page(qtbot, tmp_path):
     return page
 
 
-def test_attachment_cards_remove_only_selected_and_unified_controls(refreshed_page, qtbot):
+def test_attachment_cards_remove_only_selected_and_unified_controls(
+    refreshed_page, qtbot, monkeypatch
+):
     page = refreshed_page
     page._pending_attachments = [
         prepare_attachment_bytes("one.txt", b"one"),
@@ -203,8 +205,13 @@ def test_attachment_cards_remove_only_selected_and_unified_controls(refreshed_pa
     assert len(removes) == 2
     qtbot.mouseClick(removes[0], Qt.MouseButton.LeftButton)
     assert [item.original_name for item in page._pending_attachments] == ["two.txt"]
-    assert len(page.life_actions_button.menu().actions()) == 4
-    assert all("敬请期待" in action.text() for action in page.life_actions_button.menu().actions())
+    actions = page.life_actions_button.menu().actions()
+    assert [action.text() for action in actions] == ["看看近期生活", "设置生活提醒"]
+    requests = []
+    monkeypatch.setattr(page, "_send_suggestion", requests.append)
+    for action in actions:
+        action.trigger()
+    assert requests == ["请总结最近的生活记录", "我想设置一个生活提醒"]
 
 
 def test_suggestions_send_once_and_hide_after_first_exchange(refreshed_page, qtbot, monkeypatch):

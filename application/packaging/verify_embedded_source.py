@@ -25,6 +25,9 @@ REQUIRED_CLOUD_MODULES = frozenset({
 REQUIRED_APP_MODULES = REQUIRED_CLOUD_MODULES | {
     "ollama_chat_app", "ollama_chat_app.main", "ollama_chat_app.ui.main_window",
     "ollama_chat_app.ui.auth_pages",
+    "ollama_chat_app.services.life_agent", "ollama_chat_app.services.agent_tools",
+    "ollama_chat_app.services.device_observations", "ollama_chat_app.providers.demo_life",
+    "ollama_chat_app.ui.meal_capture_dialog",
 }
 
 

@@ -465,7 +465,7 @@ class AdvisorWorkspace(QWidget):
         self.actor_user_id = int(user.id)
         self.user_label.setText(f"当前顾问：{getattr(user, 'username', '')}")
         self.refresh()
-        self.ai_panel.start_session(self.actor_user_id, self.members)
+        self.ai_panel.start_session(self.actor_user_id, self.members, account=user)
 
     def end_session(self) -> None:
         self.current_user = None

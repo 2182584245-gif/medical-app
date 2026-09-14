@@ -111,6 +111,90 @@ class DeepSeekCloudProvider(ChatProvider):
             max_tokens=2,
         )
 
+    def chat_tools(
+        self, model: str, messages: Sequence[ChatMessage], tools: Sequence[Mapping]
+    ) -> dict[str, Any]:
+        """One non-thinking tool round; the application owns execution and budgets."""
+        self._last_used_model = None
+        self._last_response_model = None
+        model_name = self.resolve_model(model, messages)
+        ordinary = iter(
+            _normalise_messages(
+                [
+                    message
+                    for message in messages
+                    if message.get("role") != "tool" and not message.get("tool_calls")
+                ]
+            )
+        )
+        normalised = []
+        for message in messages:
+            if message.get("role") == "tool":
+                normalised.append(
+                    {key: message[key] for key in ("role", "tool_call_id", "content")}
+                )
+            elif message.get("tool_calls"):
+                normalised.append(
+                    {
+                        "role": "assistant",
+                        "content": message.get("content") or "",
+                        "tool_calls": message["tool_calls"],
+                    }
+                )
+            else:
+                normalised.append(next(ordinary))
+        body = json.dumps(
+            {
+                "model": model_name,
+                "messages": normalised,
+                "tools": list(tools),
+                "tool_choice": "auto",
+                "stream": False,
+                "thinking": {"type": "disabled"},
+                "max_tokens": 4096,
+            },
+            ensure_ascii=False,
+            allow_nan=False,
+        ).encode("utf-8")
+        if len(body) > config.DEEPSEEK_MAX_REQUEST_BYTES:
+            raise ProviderError(
+                "智能体请求过大，请减少附件或开启新对话。", code="request_too_large"
+            )
+        try:
+            with httpx.Client(
+                base_url=config.DEEPSEEK_API_BASE_URL,
+                headers={
+                    "Authorization": f"Bearer {self._api_key}",
+                    "Content-Type": "application/json",
+                },
+                timeout=config.REQUEST_TIMEOUT_SECONDS,
+                transport=self._transport,
+            ) as client:
+                response = client.post("/chat/completions", content=body)
+        except httpx.TimeoutException as exc:
+            raise ProviderError("等待 DeepSeek 超时，请稍后重试。", code="timeout") from exc
+        except httpx.HTTPError as exc:
+            raise ProviderError("无法连接 DeepSeek，请检查网络。", code="connection_error") from exc
+        if response.status_code >= 400:
+            raise _translate_http_error(
+                response.status_code, vision=model_name == config.DEEPSEEK_VISION_MODEL
+            )
+        try:
+            data = response.json()
+            choice = data["choices"][0]
+            message = choice["message"]
+            if not isinstance(message, dict) or choice.get("finish_reason") == "length":
+                raise ValueError
+            if not message.get("content") and not message.get("tool_calls"):
+                raise ValueError
+        except (ValueError, KeyError, IndexError, TypeError) as exc:
+            raise ProviderError(
+                "DeepSeek 工具响应不完整，未执行操作。", code="invalid_response"
+            ) from exc
+        self._last_used_model = model_name
+        self._last_response_model = data.get("model")
+        return {"content": message.get("content"), "tool_calls": message.get("tool_calls")}
+
     def chat_stream(
         self,
         model: str,

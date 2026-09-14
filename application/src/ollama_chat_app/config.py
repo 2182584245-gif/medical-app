@@ -4,7 +4,7 @@ from __future__ import annotations
 # and migrated instead of appearing to disappear after the product rename.
 APP_NAME = "健康生活服务平台"
 APP_ID = "ollama-dual-chat"
-APP_VERSION = "1.5.0"
+APP_VERSION = "1.6.0"
 
 LOCAL_OLLAMA_HOST = "http://localhost:11434"
 DEFAULT_LOCAL_MODEL = "qwen3:4b"

@@ -8,6 +8,13 @@ from .deepseek_cloud import DeepSeekCloudProvider, _completion_request_body
 
 
 class PlatformDeepSeekProvider(ChatProvider):
+    """Use the existing authenticated chat/stream routes, without native tools.
+
+    ConversationAgentProvider uses its single-response JSON compatibility path
+    with this provider. Adding a chat_tools method would incorrectly opt into
+    multi-round requests unsupported by already-deployed v3 servers.
+    """
+
     def __init__(self, client):
         self.client = client
         self._last_used_model = None

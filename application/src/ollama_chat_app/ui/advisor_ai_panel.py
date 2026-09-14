@@ -1,10 +1,13 @@
 from __future__ import annotations
 
+import hashlib
+import sys
 from collections.abc import Mapping, Sequence
 from typing import Any
 
 from PySide6.QtCore import QThreadPool
 from PySide6.QtWidgets import (
+    QCheckBox,
     QComboBox,
     QDialog,
     QHBoxLayout,
@@ -17,6 +20,7 @@ from PySide6.QtWidgets import (
 
 from ..config import DEEPSEEK_DEFAULT_MODEL, DEFAULT_LOCAL_MODEL
 from ..providers.deepseek_cloud import DeepSeekCloudProvider
+from ..providers.demo_life import DEMO_MODEL, DemoLifeProvider
 from ..providers.local_ollama import LocalOllamaProvider
 from ..providers.ollama_cloud import OllamaCloudProvider
 from ..workers.task import FunctionTask
@@ -40,6 +44,7 @@ class AdvisorAiPanel(QWidget):
         self.advisor_user_id: int | None = None
         self._tasks: list[FunctionTask] = []
         self._session_keys: dict[str, str] = {}
+        self._persistent_identity: str | None = None
 
         root = QVBoxLayout(self)
         hint = QLabel(
@@ -78,6 +83,8 @@ class AdvisorAiPanel(QWidget):
         self.generate_button.clicked.connect(self.generate_summary)
         controls.addWidget(self.generate_button)
         root.addLayout(controls)
+        self.demo_checkbox = QCheckBox("无 Key 演示（本机规则模拟，非 DeepSeek）")
+        root.addWidget(self.demo_checkbox)
 
         self.status_label = QLabel()
         self.status_label.setWordWrap(True)
@@ -90,15 +97,37 @@ class AdvisorAiPanel(QWidget):
         root.addWidget(self.proposals, 1)
         self._refresh_enabled()
 
-    def start_session(self, advisor_user_id: int, members: Sequence[Mapping[str, Any]]) -> None:
+    def start_session(
+        self,
+        advisor_user_id: int,
+        members: Sequence[Mapping[str, Any]],
+        *,
+        account: Any | None = None,
+    ) -> None:
         self.advisor_user_id = int(advisor_user_id)
+        # A bare row number can be reused after an import. Persistent keys must
+        # also bind to the stable account attributes, in the store's namespace.
+        self._persistent_identity = None
+        if (
+            account is not None
+            and getattr(account, "id", None) == self.advisor_user_id
+            and getattr(account, "username", None)
+            and getattr(account, "created_at", None)
+        ):
+            identity = "|".join(
+                str(getattr(account, name)) for name in ("id", "username", "created_at")
+            )
+            self._persistent_identity = hashlib.sha256(identity.encode("utf-8")).hexdigest()
         self._session_keys.clear()
+        self.demo_checkbox.setChecked(False)
         self.set_members(members)
         self.refresh_drafts()
 
     def end_session(self) -> None:
         self.advisor_user_id = None
+        self._persistent_identity = None
         self._session_keys.clear()
+        self.demo_checkbox.setChecked(False)
         self.member_combo.clear()
         self.proposals.set_drafts([])
         self._refresh_enabled()
@@ -140,33 +169,77 @@ class AdvisorAiPanel(QWidget):
         mode = str(self.mode_combo.currentData())
         if mode == "local":
             return True
-        current = self._session_keys.get(mode) or self.secret_store.get_api_key(
-            self.advisor_user_id, mode
-        )
+        try:
+            current = self._read_key(mode)
+        except Exception:
+            self._set_status("无法安全读取当前账号的 Key，请检查本机加密配置。", True)
+            return False
         dialog = (
             DeepSeekKeyDialog(current, self)
             if mode == "deepseek_cloud"
             else CloudKeyDialog(current, self)
         )
+        if mode == "deepseek_cloud" and self._persistent_identity is None:
+            dialog.persist_checkbox.setEnabled(False)
+            dialog.persist_checkbox.setToolTip("当前未取得稳定账号标识，仅在本次运行内使用。")
         if dialog.exec() != QDialog.DialogCode.Accepted:
             return False
         if dialog.remove_requested:
-            self.secret_store.delete_api_key(self.advisor_user_id, mode)
+            try:
+                if mode == "deepseek_cloud" and self._persistent_identity is not None:
+                    self.secret_store.delete_persistent_api_key(self._persistent_identity, mode)
+                self.secret_store.delete_api_key(self.advisor_user_id, mode)
+            except Exception:
+                self._set_status("无法清除加密 Key，请检查本机配置后重试。", True)
+                return False
             self._session_keys.pop(mode, None)
-            self._set_status("已清除当前会话的 API Key。", False)
+            self._set_status("已清除本账号的个人 API Key；不会撤销官网上的 Key。", False)
             return False
         if not dialog.api_key:
             return bool(current)
-        self.secret_store.set_api_key(self.advisor_user_id, dialog.api_key, mode)
+        remember = (
+            mode == "deepseek_cloud"
+            and sys.platform == "win32"
+            and self._persistent_identity is not None
+            and getattr(dialog, "persist_key", False)
+        )
+        try:
+            if remember:
+                self.secret_store.save_persistent_api_key(
+                    self._persistent_identity, dialog.api_key, mode
+                )
+            self.secret_store.set_api_key(self.advisor_user_id, dialog.api_key, mode)
+        except Exception:
+            self._set_status("未能安全保存 Key；不会保存明文，请重试。", True)
+            return False
         self._session_keys[mode] = dialog.api_key
         if mode == "ollama_cloud":
             self.model_combo.clear()
             for model in dialog.models:
                 self.model_combo.addItem(model, model)
-        self._set_status("API Key 已在本次运行内存中就绪。", False)
+        self._set_status(
+            "API Key 已用 Windows 当前账户加密保存。"
+            if remember else "API Key 已在本次运行内存中就绪；未改变原有加密配置。",
+            False,
+        )
         return True
 
+    def _read_key(self, mode: str) -> str | None:
+        key = self._session_keys.get(mode)
+        if self.secret_store is not None and self.advisor_user_id is not None:
+            key = key or self.secret_store.get_api_key(self.advisor_user_id, mode)
+            if (
+                not key
+                and mode == "deepseek_cloud"
+                and sys.platform == "win32"
+                and self._persistent_identity is not None
+            ):
+                key = self.secret_store.get_persistent_api_key(self._persistent_identity, mode)
+        return key
+
     def _provider(self) -> tuple[object, str, str] | None:
+        if self.demo_checkbox.isChecked():
+            return DemoLifeProvider(), "workflow_demo", DEMO_MODEL
         mode = str(self.mode_combo.currentData())
         if mode == "local":
             model = self.model_combo.currentText().strip()
@@ -174,15 +247,15 @@ class AdvisorAiPanel(QWidget):
                 self._set_status("请填写本地 Ollama 模型名称。", True)
                 return None
             return LocalOllamaProvider(), "ollama_local", model
-        key = self._session_keys.get(mode)
-        if not key and self.secret_store is not None and self.advisor_user_id is not None:
-            key = self.secret_store.get_api_key(self.advisor_user_id, mode)
+        try:
+            key = self._read_key(mode)
+        except Exception:
+            self._set_status("无法安全读取当前账号的 Key，请检查本机加密配置。", True)
+            return None
         if not key and not self._manage_key():
             self._set_status("使用云端 AI 前需要输入自己的 API Key。", True)
             return None
-        key = self._session_keys.get(mode)
-        if not key and self.secret_store is not None and self.advisor_user_id is not None:
-            key = self.secret_store.get_api_key(self.advisor_user_id, mode)
+        key = self._read_key(mode)
         if not key:
             return None
         if mode == "ollama_cloud":
@@ -277,6 +350,7 @@ class AdvisorAiPanel(QWidget):
         self.generate_button.setDisabled(busy or self.ai_service is None)
         self.member_combo.setDisabled(busy)
         self.mode_combo.setDisabled(busy)
+        self.demo_checkbox.setDisabled(busy)
         self.model_combo.setDisabled(busy)
         self.key_button.setDisabled(busy)
 
