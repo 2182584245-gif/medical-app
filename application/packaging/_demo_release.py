@@ -187,6 +187,11 @@ def credentials(root: Path) -> dict[str, str]:
 
 def verify_payload(root: Path) -> dict:
     """Release verifier accepts only the current schema7 six-category contract."""
+    manifest_path = root / "demo_manifest.json"
+    if manifest_path.is_file() and manifest_path.stat().st_size <= 65536:
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        if isinstance(manifest, dict) and manifest.get("profile") == "expanded-v170":
+            return sibling("_demo_v170").verify_payload(root)
     return _verify_payload(root, legacy=False)
 
 

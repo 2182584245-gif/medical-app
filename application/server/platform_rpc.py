@@ -128,8 +128,14 @@ METHODS = {
         "finish_advisor_summary",
     },
     "preferences": {"get_preferences", "update_preferences"},
-    "sync": {"get_snapshot", "import_member", "apply_queued", "get_sync_manifest",
-             "get_sync_page", "get_file_chunk"},
+    "sync": {
+        "get_snapshot",
+        "import_member",
+        "apply_queued",
+        "get_sync_manifest",
+        "get_sync_page",
+        "get_file_chunk",
+    },
 }
 ACTOR_ARGUMENTS = {"user_id", "actor_user_id", "advisor_user_id", "operator_user_id"}
 MAX_CACHED_RESPONSE_BYTES = 128 * 1024  # matches rpc_requests database CHECK
@@ -160,7 +166,9 @@ class RpcDispatcher:
                         raise RuntimeError("RPC operation has no explicit acting user")
                     self.operations[(service_name, method_name)] = (function, signature, first)
 
-    def invoke(self, actor_id: int, service: str, method: str, payload: dict):
+    def invoke(
+        self, actor_id: int, service: str, method: str, payload: dict, *, operation_guard=None
+    ):
         operation = self.operations.get((service, method))
         if operation is None:
             raise RpcError(404, "operation_not_found")
@@ -187,6 +195,8 @@ class RpcDispatcher:
         except (TypeError, ValueError, KeyError):
             raise RpcError(422, "invalid_request") from None
 
+        if operation_guard is not None:
+            operation_guard(service, method, bound.arguments)
         mutation = is_mutation(method)
         # A single operation is one database transaction, including legacy service substeps.
         # PlatformDatabase serializes its write transactions for this small test deployment.

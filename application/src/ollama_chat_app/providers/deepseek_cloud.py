@@ -112,7 +112,8 @@ class DeepSeekCloudProvider(ChatProvider):
         )
 
     def chat_tools(
-        self, model: str, messages: Sequence[ChatMessage], tools: Sequence[Mapping]
+        self, model: str, messages: Sequence[ChatMessage], tools: Sequence[Mapping],
+        *, max_tokens: int | None = None,
     ) -> dict[str, Any]:
         """One non-thinking tool round; the application owns execution and budgets."""
         self._last_used_model = None
@@ -151,7 +152,7 @@ class DeepSeekCloudProvider(ChatProvider):
                 "tool_choice": "auto",
                 "stream": False,
                 "thinking": {"type": "disabled"},
-                "max_tokens": 4096,
+                "max_tokens": min(max_tokens or 4096, 4096),
             },
             ensure_ascii=False,
             allow_nan=False,
@@ -201,13 +202,15 @@ class DeepSeekCloudProvider(ChatProvider):
         messages: Sequence[ChatMessage],
         *,
         cancel_event: threading.Event | None = None,
+        max_tokens: int | None = None,
     ) -> Iterator[str]:
         """Yield actual SSE text deltas; an unfinished stream is never complete."""
         self._last_used_model = None
         self._last_response_model = None
         model_name = self.resolve_model(model, messages)
         payload = _completion_request_body(
-            model_name, messages, thinking={"type": "disabled"}, stream=True
+            model_name, messages, thinking={"type": "disabled"}, stream=True,
+            max_tokens=max_tokens,
         )
         stopped = cancel_event or threading.Event()
         received_text = False

@@ -8,6 +8,7 @@ from PySide6.QtWidgets import (
     QApplication,
     QDateEdit,
     QDateTimeEdit,
+    QDialog,
     QFileDialog,
     QFrame,
     QHBoxLayout,
@@ -111,6 +112,23 @@ class MainWindow(QMainWindow):
         self.local_migration_source_path = None
         self._last_snapshot_revision = None
         self.cloud_mode = bool(getattr(auth_service, "uses_network", False))
+        self.developer_service = None
+        self._developer_snapshot_applied = None
+        self._pending_developer_snapshot = None
+        self._pending_developer_warning = ""
+        self._developer_initialization_error = ""
+        try:
+            from ..services.developer import LocalDeveloperService, RemoteDeveloperService
+            if self.cloud_mode:
+                self.developer_service = RemoteDeveloperService(
+                    auth_service.client, secret_store=secret_store)
+            elif getattr(auth_service, "database", None) is not None:
+                self.developer_service = LocalDeveloperService(auth_service.database, secret_store)
+            if self.developer_service is not None:
+                secret_store = self.developer_service.launch_secret_store
+                self.secret_store = secret_store
+        except Exception:
+            self._developer_initialization_error = "开发设置无法安全读取，请检查本机配置后重试。"
         self._tasks: list[FunctionTask] = []
         self._active_workspace: QWidget | None = None
         self._new_profile_user_id = None
@@ -214,6 +232,10 @@ class MainWindow(QMainWindow):
 
         toolbar = QToolBar("应用设置", self)
         toolbar.setMovable(False)
+        self.developer_button = QPushButton("开发者模式")
+        self.developer_button.setAccessibleName("开发者模式，需要重新验证账号密码")
+        self.developer_button.clicked.connect(self._open_developer_mode)
+        toolbar.addWidget(self.developer_button)
         self.offline_status_label = QLabel()
         self.offline_status_label.setWordWrap(True)
         self.offline_status_label.setMaximumWidth(620)
@@ -270,6 +292,50 @@ class MainWindow(QMainWindow):
             )
 
         self._show_login()
+
+    def _open_developer_mode(self):
+        from .developer_workspace import DeveloperLoginDialog, DeveloperWorkspaceDialog
+        if self.developer_service is None:
+            QMessageBox.information(self, "开发者模式暂不可用", self._developer_initialization_error
+                                    or "此构建未配置开发权限管理服务。")
+            return
+        login = DeveloperLoginDialog(self.developer_service, self)
+        if login.exec() != QDialog.DialogCode.Accepted:
+            self.developer_service.close_session()
+            return
+        dialog = DeveloperWorkspaceDialog(self.developer_service, self)
+        QTimer.singleShot(0, dialog.reload)
+        dialog.exec()
+
+    def _apply_launch_developer_settings(self):
+        if self.developer_service is None:
+            return
+        snapshot = (self._pending_developer_snapshot if self.cloud_mode
+                    else self.developer_service.startup_snapshot)
+        if snapshot is None:
+            return
+        # Compare the data as well as revision: the safe fallback uses revision 0.
+        if self._developer_snapshot_applied == snapshot:
+            return
+        for workspace in (self.chat_page, self.health_workspace, self.advisor_workspace):
+            apply = getattr(workspace, "apply_developer_snapshot", None)
+            if callable(apply):
+                apply(snapshot)
+        ai_panel = getattr(self.advisor_workspace, "ai_panel", None)
+        if ai_panel is not None:
+            ai_panel.secret_store = self.secret_store
+            apply = getattr(ai_panel, "apply_developer_snapshot", None)
+            if callable(apply):
+                apply(snapshot)
+            ai_panel.setEnabled(snapshot["settings"]["features"]["ai"]
+                                and snapshot["settings"]["ai"]["enabled"])
+        runtime = snapshot["settings"]["runtime"]
+        if runtime["announcement"]:
+            self.statusBar().showMessage(runtime["announcement"], 20000)
+        if runtime["maintenance_enabled"]:
+            QMessageBox.information(self, "服务维护提示", runtime["maintenance_message"] or
+                                    "部分服务正在维护，请稍后再试。")
+        self._developer_snapshot_applied = snapshot
 
     def configure_cloud_sync(self, client, *, sync_service=None):
         from ..paths import user_data_dir
@@ -577,10 +643,39 @@ class MainWindow(QMainWindow):
             {"allow_offline": allow_offline, "remember_offline": remember_offline}
             if self.cloud_mode else {}
         )
-        task = FunctionTask(self.auth_service.authenticate, username, password, **options)
+        def authenticate_and_capture():
+            user = self.auth_service.authenticate(username, password, **options)
+            snapshot, warning = None, ""
+            if self.cloud_mode and self.developer_service is not None:
+                try:
+                    snapshot = self.developer_service.load_startup_snapshot()
+                except Exception as error:
+                    from ..services.developer_settings import default_snapshot
+                    cached = self.developer_service.cached_snapshot_for_user(user.id)
+                    if cached is not None:
+                        snapshot = cached
+                        warning = "当前无法读取云端新配置，采用本次运行中该账号已验证的配置。"
+                    elif getattr(error, "code", "") == "not_found":
+                        snapshot = default_snapshot()
+                        warning = "当前后端尚未开放 1.7 开发配置，暂用原有功能设置。"
+                    else:
+                        snapshot = default_snapshot()
+                        snapshot["settings"]["ai"]["enabled"] = False
+                        snapshot["settings"]["features"]["ai"] = False
+                        warning = ("暂未取得该账号的可信云端配置，AI 暂停；"
+                                   "记录可继续使用，请联网重新登录。")
+            return user, snapshot, warning
+
+        def captured(result):
+            user, snapshot, warning = result
+            self._pending_developer_snapshot = snapshot
+            self._pending_developer_warning = warning
+            self._login_succeeded(user)
+
+        task = FunctionTask(authenticate_and_capture)
         self._start_task(
             task,
-            self._login_succeeded,
+            captured,
             lambda error: self.login_page.show_error(str(error) or "登录失败。"),
             lambda: self.login_page.set_busy(False),
         )
@@ -593,6 +688,13 @@ class MainWindow(QMainWindow):
             self.login_page.show_error("账户角色无效，请联系运营人员检查账户。")
             self.pages.setCurrentWidget(self.login_page)
             return
+        try:
+            self._apply_launch_developer_settings()
+        except Exception:
+            self.statusBar().showMessage(
+                "本次未读取到新版开发配置，保留当前默认设置；开发者云端操作仍需在线授权。", 12000)
+        if self._pending_developer_warning:
+            self.statusBar().showMessage(self._pending_developer_warning, 20000)
         if self.cloud_sync_service is not None:
             self._last_snapshot_revision = None
             try:

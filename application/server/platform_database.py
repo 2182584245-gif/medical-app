@@ -30,6 +30,8 @@ class Identity:
     auth_username: str | None = None
     token_digest: str | None = None
     registering: bool = False
+    developer: bool = False
+    developer_activation: bool = False
 
 
 _ANONYMOUS = Identity()  # frozen and immutable; never mutated between requests
@@ -281,6 +283,8 @@ class PlatformDatabase:
         auth_username: str | None = None,
         token_digest: str | None = None,
         registering: bool = False,
+        developer: bool = False,
+        developer_activation: bool = False,
     ):
         if user_id is not None and (
             isinstance(user_id, bool) or not isinstance(user_id, int) or user_id <= 0
@@ -295,7 +299,15 @@ class PlatformDatabase:
         ):
             raise ValueError("Invalid normalized username")
         token = self._identity.set(
-            Identity(user_id, role_code, auth_username, token_digest, registering)
+            Identity(
+                user_id,
+                role_code,
+                auth_username,
+                token_digest,
+                registering,
+                developer,
+                developer_activation,
+            )
         )
         active = self._active.get()
         try:
@@ -317,6 +329,8 @@ class PlatformDatabase:
             ("medical_app.auth_username", ident.auth_username or ""),
             ("medical_app.token_digest", ident.token_digest or ""),
             ("medical_app.registering", "true" if ident.registering else "false"),
+            ("medical_app.developer", "true" if ident.developer else "false"),
+            ("medical_app.developer_activation", "true" if ident.developer_activation else "false"),
         )
         # One bound statement installs all five transaction-local values. This
         # preserves explicit clearing on every request without five network trips.

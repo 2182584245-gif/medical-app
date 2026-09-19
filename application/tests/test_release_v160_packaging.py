@@ -18,7 +18,7 @@ def test_desktop_release_identity_matches_all_active_packaging_metadata():
     resource = (PROJECT / "packaging/version_info.txt").read_text(encoding="utf-8")
     installer = (PROJECT / "packaging/installer.iss").read_text(encoding="utf-8")
     version = tuple(map(int, APP_VERSION.split("."))) + (0,)
-    assert APP_VERSION == project["project"]["version"] == "1.6.0"
+    assert APP_VERSION == project["project"]["version"] == "1.7.0"
     assert SCHEMA_VERSION == 7  # The AI additions must not downgrade local databases.
     for field in ("filevers", "prodvers"):
         match = re.search(rf"{field}=\(([^)]+)\)", resource)

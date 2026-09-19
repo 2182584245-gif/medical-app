@@ -808,6 +808,8 @@ class HealthWorkspace(QWidget):
     def show_page(self, index: int) -> None:
         if not 0 <= index < self.stack.count():
             return
+        if index in getattr(self, "_developer_disabled_pages", set()):
+            index = 4  # Personal settings/profile and logout always remain reachable.
         self.stack.setCurrentIndex(index)
         for button_index, button in enumerate(self.navigation_buttons):
             button.setChecked(button_index == index)
@@ -815,6 +817,32 @@ class HealthWorkspace(QWidget):
         page = self.stack.currentWidget()
         if hasattr(page, "refresh"):
             page.refresh()
+
+    def apply_developer_snapshot(self, snapshot: dict) -> None:
+        """Apply an immutable launch policy without deleting anyone's stored records."""
+        features = snapshot["settings"]["features"]
+        ai = snapshot["settings"]["ai"]
+        flags = (features["today"], features["statistics"],
+                 features["services"] or features["commerce"],
+                 features["ai"] and ai["enabled"], True)
+        self._developer_disabled_pages = {i for i, enabled in enumerate(flags) if not enabled}
+        for index, enabled in enumerate(flags):
+            self.navigation_buttons[index].setEnabled(enabled)
+            self.navigation_buttons[index].setToolTip(
+                "" if enabled else "此板块暂未开放；已有记录仍保留。")
+        self.service_page.section_tabs.setTabEnabled(0, features["services"])
+        self.service_page.section_tabs.setTabEnabled(1, features["commerce"])
+        self.service_page.commerce_panel.setEnabled(features["commerce"])
+        if not hasattr(self, "_developer_appointment_service"):
+            self._developer_appointment_service = self.service_page.appointment_service
+        self.service_page.appointment_service = (self._developer_appointment_service
+                                                if features["appointments"] else None)
+        if not features["appointments"]:
+            self.service_page.appointment_button.setEnabled(False)
+            self.service_page.appointment_button.setToolTip("上门预约暂未开放。")
+        else:
+            self.service_page.appointment_button.setToolTip("")
+        self.show_page(self.stack.currentIndex())
 
     def open_profile(self) -> None:
         """Optional registration follow-up; closing it never invents profile data."""

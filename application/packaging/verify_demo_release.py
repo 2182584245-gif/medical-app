@@ -69,6 +69,7 @@ def verify_directory(
         raise RuntimeError("示例版文件哈希不匹配。")
     metadata = json.loads((root / "portable.json").read_text(encoding="utf-8"))
     digest = base._sha256(root / base.EXECUTABLE_NAME)
+    result = common.verify_payload(root)
     if (
         metadata.get("application") != common.APP_NAME
         or metadata.get("version") != common.APP_VERSION
@@ -80,7 +81,7 @@ def verify_directory(
         or metadata.get("dpapi_included") is not False
         or metadata.get("executable_sha256") != digest
         or metadata.get("source_executable_sha256") != digest
-        or metadata.get("synthetic_counts") != common.COUNTS
+        or metadata.get("synthetic_counts") != result["counts"]
     ):
         raise RuntimeError("示例版元数据没有正确声明虚构资料、版本和密钥边界。")
     if expected_executable_sha256 and digest != expected_executable_sha256.upper():
@@ -106,7 +107,6 @@ def verify_directory(
             raise RuntimeError("示例别名必须明确说明不支持动态云商品图片下载。")
     elif "cloud_assets" in metadata:
         raise RuntimeError("示例图片别名必须提供明确审阅的外部计划才能验证。")
-    result = common.verify_payload(root)
     return dict(
         kind="synthetic_directory",
         path=str(root),

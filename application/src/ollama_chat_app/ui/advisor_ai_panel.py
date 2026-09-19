@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import sys
 from collections.abc import Mapping, Sequence
+from copy import deepcopy
 from typing import Any
 
 from PySide6.QtCore import QThreadPool
@@ -19,10 +20,11 @@ from PySide6.QtWidgets import (
 )
 
 from ..config import DEEPSEEK_DEFAULT_MODEL, DEFAULT_LOCAL_MODEL
-from ..providers.deepseek_cloud import DeepSeekCloudProvider
 from ..providers.demo_life import DEMO_MODEL, DemoLifeProvider
 from ..providers.local_ollama import LocalOllamaProvider
 from ..providers.ollama_cloud import OllamaCloudProvider
+from ..services.ai_provider_resolver import resolve_deepseek
+from ..services.ai_runtime import ConfiguredAIProvider, ai_settings
 from ..workers.task import FunctionTask
 from .ai_proposals_panel import AiProposalsPanel
 from .cloud_key_dialog import CloudKeyDialog
@@ -45,6 +47,7 @@ class AdvisorAiPanel(QWidget):
         self._tasks: list[FunctionTask] = []
         self._session_keys: dict[str, str] = {}
         self._persistent_identity: str | None = None
+        self._developer_snapshot = {}
 
         root = QVBoxLayout(self)
         hint = QLabel(
@@ -237,7 +240,16 @@ class AdvisorAiPanel(QWidget):
                 key = self.secret_store.get_persistent_api_key(self._persistent_identity, mode)
         return key
 
+    def apply_developer_snapshot(self, snapshot):
+        self._developer_snapshot = deepcopy(snapshot)
+
     def _provider(self) -> tuple[object, str, str] | None:
+        settings = ai_settings(self._developer_snapshot)
+        if (settings.get("enabled") is False
+                or self._developer_snapshot.get("settings", {}).get("features", {}).get("ai")
+                is False):
+            self._set_status("本次启动的配置已关闭 AI 服务。", True)
+            return None
         if self.demo_checkbox.isChecked():
             return DemoLifeProvider(), "workflow_demo", DEMO_MODEL
         mode = str(self.mode_combo.currentData())
@@ -247,6 +259,20 @@ class AdvisorAiPanel(QWidget):
                 self._set_status("请填写本地 Ollama 模型名称。", True)
                 return None
             return LocalOllamaProvider(), "ollama_local", model
+        if mode == "deepseek_cloud" and self.secret_store is not None:
+            try:
+                provider = resolve_deepseek(
+                    self.secret_store, self._persistent_identity or str(self.advisor_user_id),
+                    session_key=self._read_key(mode),
+                    cloud_client=getattr(self.ai_service, "client", None),
+                )
+                if provider is not None:
+                    if settings:
+                        provider = ConfiguredAIProvider(provider, self._developer_snapshot)
+                    return provider, mode, settings.get("model", DEEPSEEK_DEFAULT_MODEL)
+            except Exception:
+                self._set_status("无法安全读取 AI 配置，请检查连接或密钥。", True)
+                return None
         try:
             key = self._read_key(mode)
         except Exception:
@@ -264,7 +290,12 @@ class AdvisorAiPanel(QWidget):
                 self._set_status("请先验证 Key 并选择云端模型。", True)
                 return None
             return OllamaCloudProvider(key), mode, str(model)
-        return DeepSeekCloudProvider(key), mode, DEEPSEEK_DEFAULT_MODEL
+        from ..providers.deepseek_cloud import DeepSeekCloudProvider
+
+        provider = DeepSeekCloudProvider(key)
+        if settings:
+            provider = ConfiguredAIProvider(provider, self._developer_snapshot)
+        return provider, mode, settings.get("model", DEEPSEEK_DEFAULT_MODEL)
 
     def generate_summary(self) -> None:
         member_id = self.member_combo.currentData()

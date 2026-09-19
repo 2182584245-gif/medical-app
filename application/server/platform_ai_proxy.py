@@ -295,6 +295,7 @@ class PlatformAIProxy:
         self.settings = settings or AIProxySettings.from_environment()
         self.quota = AIQuota(auth, self.settings)
         self.transport, self.key_loader = transport, key_loader
+        self.developer_service = None
         self._capacity = asyncio.Semaphore(2)
 
     async def authorize(self, request):
@@ -311,11 +312,44 @@ class PlatformAIProxy:
     async def prepare(self, request, value):
         token, principal = await self.authorize(request)
         payload = request_payload(value)
-        if not self.settings.envelope_path or not self.settings.key_path:
-            raise AIProxyError()
-        key = await asyncio.to_thread(
-            self.key_loader, self.settings.envelope_path, self.settings.key_path
-        )
+        key = None
+        revision_header = request.headers.get("x-application-settings-revision")
+        if revision_header is not None or self.developer_service is not None:
+            if (
+                revision_header is not None
+                and not re.fullmatch(r"0|[1-9][0-9]{0,9}", revision_header)
+            ) or self.developer_service is None:
+                raise AIProxyError(422, "invalid_settings_revision")
+            try:
+                revision = int(revision_header) if revision_header is not None else None
+                snapshot = await asyncio.to_thread(
+                    self.developer_service.capture_for_ai, principal, revision
+                )
+                revision = snapshot["revision"]
+                configuration = snapshot["settings"]
+                if not configuration["features"]["ai"] or not configuration["ai"]["enabled"]:
+                    raise AIProxyError(403, "ai_disabled_for_application_session")
+                if configuration["runtime"]["maintenance_enabled"]:
+                    raise AIProxyError(503, "application_maintenance")
+                payload["max_tokens"] = min(
+                    payload["max_tokens"], configuration["ai"]["max_tokens"]
+                )
+                # User-facing prompt/skill/knowledge injection is performed by
+                # the captured desktop configuration. Fixed server safety always
+                # remains the first system message; settings cannot replace it.
+                key = await asyncio.to_thread(
+                    self.developer_service.key_for_revision, principal, revision
+                )
+            except AIProxyError:
+                raise
+            except Exception:
+                raise AIProxyError(409, "settings_revision_unavailable") from None
+        if key is None:
+            if not self.settings.envelope_path or not self.settings.key_path:
+                raise AIProxyError()
+            key = await asyncio.to_thread(
+                self.key_loader, self.settings.envelope_path, self.settings.key_path
+            )
         await asyncio.to_thread(self.quota.reserve, principal.user.id)
         payload["user_id"] = hmac.new(
             self.quota.key, f"ai-user:{principal.user.id}".encode(), hashlib.sha256

@@ -23,6 +23,7 @@ _MESSAGES = {
     "not_authenticated": "请先登录云端账户。",
     "authentication": "用户名或密码错误，或登录已失效，请重新登录。",
     "permission": "当前账户没有执行此操作的权限。",
+    "feature_disabled": "此板块暂未开放；离线修改仍保留为待处理，开放后可重新确认提交。",
     "not_found": "请求的数据不存在，或当前账户无权访问。",
     "conflict": "数据发生冲突，请刷新后确认；不要重复提交新的操作。",
     "validation": "提交内容不符合要求，请检查输入及文件大小。",
@@ -168,6 +169,9 @@ class CloudAPIClient:
         self._lock = RLock()
         self._token: str | None = None
         self._user: dict | None = None
+        self._session_serial = 0
+        self._application_settings_revision = None
+        self._configured_read_timeout = 90.0
         self.offline_store = offline_store
         self._offline_lease = None
         self._offline_session = False
@@ -204,6 +208,22 @@ class CloudAPIClient:
         return self._token is not None
 
     @property
+    def session_serial(self):
+        """An opaque in-process change counter, never the authentication token."""
+        return self._session_serial
+
+    def apply_session_settings(self, revision: int, timeout_seconds: int):
+        if type(revision) is not int or revision < 0:
+            raise CloudAPIError("validation")
+        if type(timeout_seconds) is not int or not 30 <= timeout_seconds <= 120:
+            raise CloudAPIError("validation")
+        with self._lock:
+            self._application_settings_revision = revision
+            self._configured_read_timeout = float(timeout_seconds)
+            self._http.timeout = httpx.Timeout(
+                connect=10.0, read=float(timeout_seconds), write=30.0, pool=10.0)
+
+    @property
     def is_offline_session(self):
         return self._offline_session
 
@@ -222,6 +242,8 @@ class CloudAPIClient:
 
     def clear_session(self) -> None:
         with self._lock:
+            self._session_serial += 1
+            self._application_settings_revision = None
             self._token = None
             self._user = None
             self._offline_lease = None
@@ -264,6 +286,9 @@ class CloudAPIClient:
             headers = {"Content-Type": "application/json"} if body is not None else {}
             if authenticated:
                 headers["Authorization"] = "Bearer " + self._token
+                if path.startswith("/v1/ai/") and self._application_settings_revision is not None:
+                    headers["X-Application-Settings-Revision"] = str(
+                        self._application_settings_revision)
             self._http.cookies.clear()
             try:
                 with self._http.stream(
@@ -273,6 +298,26 @@ class CloudAPIClient:
                     if 300 <= status < 400:
                         raise CloudAPIError("redirect", status_code=status)
                     if not 200 <= status < 300:
+                        if status == 403:
+                            # Only fixed feature-denial codes avoid revoking the
+                            # account's separate offline authorization. Never echo
+                            # a server-supplied message or accept arbitrary codes.
+                            denied_body = bytearray()
+                            for chunk in response.iter_bytes(chunk_size=1024):
+                                if len(denied_body) + len(chunk) > 4096:
+                                    denied_body.clear()
+                                    break
+                                denied_body.extend(chunk)
+                            try:
+                                detail = json_module.loads(denied_body).get("detail")
+                            except (ValueError, TypeError, AttributeError):
+                                detail = None
+                            if isinstance(detail, str) and detail in {
+                                "feature_disabled_today", "feature_disabled_ai",
+                                "feature_disabled_statistics", "feature_disabled_services",
+                                "feature_disabled_commerce", "feature_disabled_appointments",
+                            }:
+                                raise CloudAPIError("feature_disabled", status_code=status)
                         if status in {401, 403} and authenticated:
                             self.revoke_offline_access()
                         if status == 401 and authenticated:
@@ -348,11 +393,16 @@ class CloudAPIClient:
                 raise CloudAPIError("offline" if self._offline_session else "not_authenticated")
             headers = {"Authorization": "Bearer " + self._token,
                        "Content-Type": "application/json"}
+            if self._application_settings_revision is not None:
+                headers["X-Application-Settings-Revision"] = str(
+                    self._application_settings_revision)
             self._http.cookies.clear()
             try:
                 with self._http.stream("POST", self.base_url + "/v1/ai/chat/stream",
                                        content=raw, headers=headers,
-                                       timeout=httpx.Timeout(30.0, connect=10.0)) as response:
+                                       timeout=httpx.Timeout(
+                                           self._configured_read_timeout,
+                                           connect=10.0)) as response:
                     if not 200 <= response.status_code < 300:
                         status = response.status_code
                         if status in {401, 403}:
@@ -477,6 +527,36 @@ class CloudAPIClient:
                 self.offline_opt_in = True
             self._token, self._user = token, user
             self.sync_protocol = 2 if result.get("sync_protocol") == 2 else 1
+            return dict(user)
+
+    def developer_login(self, username: str, password: str) -> dict:
+        """Fresh password verification for a separate developer-only client.
+
+        This never enrolls offline credentials and cannot reuse a normal login.
+        Only the server may issue the step-up marker; no username bypass exists.
+        """
+        if self._on_gui_thread():
+            from ..workers.cloud_bridge import run_cloud_operation
+            return run_cloud_operation(self.developer_login, username, password)
+        with self._lock:
+            self.clear_session()
+            result = self.request(
+                "POST", "/v1/developer/login", authenticated=False,
+                json={"username": username, "password": password},
+            )
+            if not isinstance(result, dict) or result.get("developer") is not True:
+                raise CloudAPIError("permission")
+            token = result.get("access_token")
+            if not isinstance(token, str) or not re.fullmatch(
+                r"[A-Za-z0-9._~+/=-]{16,4096}", token
+            ):
+                raise CloudAPIError("protocol")
+            if result.get("token_type", "bearer") != "bearer":
+                raise CloudAPIError("protocol")
+            user = self._user_view(result.get("user"))
+            if user["role_code"] != "operator" or user["account_status"] != "active":
+                raise CloudAPIError("permission")
+            self._token, self._user = token, user
             return dict(user)
 
     def me(self) -> dict:

@@ -358,6 +358,10 @@ def test_identity_resets_between_requests_and_scopes(database):
         "",
         "medical_app.registering",
         "false",
+        "medical_app.developer",
+        "false",
+        "medical_app.developer_activation",
+        "false",
     )
 
 

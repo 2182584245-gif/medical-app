@@ -35,6 +35,7 @@ STATUS_LABELS = {
     "rejected": "云端未接受",
 }
 ERROR_LABELS = {
+    "feature_disabled": "板块暂未开放，资料仍保留；重新开放并登录后自动继续上传。",
     "conflict": "云端内容已有变化，请核对后决定保留哪一版。",
     "validation": "云端校验未通过，重新提交仍可能失败；可放弃本项后重新填写。",
     "permission": "当前权限不允许提交，请联系运营人员。",

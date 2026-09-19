@@ -336,6 +336,7 @@ class CloudSyncService(QObject):
         self._lock = threading.RLock()
         self._intent_lock = threading.RLock()
         self._authorization_blocked = False
+        self._feature_paused_operations = set()
         self.timer = QTimer(self)
         self.timer.setInterval(max(1000, interval_ms))
         self.timer.timeout.connect(self.sync_now)
@@ -359,6 +360,7 @@ class CloudSyncService(QObject):
         self.actor_id = actor_id
         self.actor_role = role_code
         self._authorization_blocked = False
+        self._feature_paused_operations.clear()
         self.identity = (
             SyncIdentity(self.client.base_url, expected_server_instance_id, actor_id)
             if expected_server_instance_id
@@ -604,6 +606,10 @@ class CloudSyncService(QObject):
             else:
                 status = "queued"
             self.outbox.set_status(identity, item["operation_id"], status, error.code)
+            if error.code == "feature_disabled":
+                # Keep the original operation/UUID. A fresh login captures a new
+                # feature policy and clears this in-memory pause automatically.
+                self._feature_paused_operations.add(item["operation_id"])
             self._notify_outbox()
             if (identity == self.identity and identity.actor_id == self.actor_id
                     and error.code in {"authentication", "not_authenticated", "permission"}):
@@ -622,12 +628,14 @@ class CloudSyncService(QObject):
         if identity.actor_id != actor_id:
             raise CloudAPIError("permission")
         for item in self.outbox.list(identity, include_payload=True):
+            if item["operation_id"] in self._feature_paused_operations:
+                continue
             if item["status"] not in {"queued", "uncertain"}:
                 continue
             try:
                 self._send_intent(identity, item)
             except CloudAPIError as error:
-                if error.code not in {"conflict", "validation", "not_found"}:
+                if error.code not in {"conflict", "validation", "not_found", "feature_disabled"}:
                     raise
 
     def sync_now(self):

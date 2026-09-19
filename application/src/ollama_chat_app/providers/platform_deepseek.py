@@ -65,9 +65,9 @@ class PlatformDeepSeekProvider(ChatProvider):
         self._last_used_model = self._last_response_model = result["model"]
         return result["content"]
 
-    def chat_stream(self, model, messages, *, cancel_event=None):
+    def chat_stream(self, model, messages, *, cancel_event=None, max_tokens=None):
         self._last_used_model = self._last_response_model = None
-        payload = self._payload(model, messages)
+        payload = self._payload(model, messages, max_tokens)
         done = False
         try:
             for event in self.client.ai_stream(payload, cancel_event=cancel_event):

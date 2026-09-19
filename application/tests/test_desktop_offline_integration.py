@@ -13,6 +13,7 @@ from ollama_chat_app.data.database import Database
 from ollama_chat_app.endpoint_settings import EndpointSettings, EndpointSettingsStore
 from ollama_chat_app.main import build_desktop_window
 from ollama_chat_app.services.cloud_client import CloudAPIClient
+from ollama_chat_app.services.developer_settings import default_snapshot
 from ollama_chat_app.services.offline_access import OfflineAccessStore
 from ollama_chat_app.services.offline_outbox import QueuedOperation
 from ollama_chat_app.time_utils import display_timezone_name, set_display_timezone
@@ -67,7 +68,12 @@ def cloud_window(qtbot, tmp_path):
             })
         if request.url.path == "/aliyun/v1/auth/logout":
             return httpx.Response(204)
-        pytest.fail("Unexpected network operation; only synthetic login/logout are allowed")
+        if request.url.path == "/aliyun/v1/client-start":
+            assert request.method == "POST"
+            assert request.headers["Authorization"] == (
+                "Bearer synthetic-token-never-persisted-1234")
+            return httpx.Response(200, json=default_snapshot())
+        pytest.fail("Unexpected operation; only synthetic login/logout and startup policy allowed")
 
     client = CloudAPIClient(ENDPOINT, transport=httpx.MockTransport(handler),
                             offline_store=offline_store)
@@ -114,7 +120,10 @@ def test_extended_cloud_login_submits_once_and_forwards_explicit_options(
     assert not legacy and extended == [True]
     assert calls == [(USER["username"], PASSWORD,
                       {"allow_offline": True, "remember_offline": True})]
-    assert [request.url.path for request in context.requests] == ["/aliyun/v1/auth/login"]
+    assert [request.url.path for request in context.requests] == [
+        "/aliyun/v1/auth/login", "/aliyun/v1/client-start"]
+    assert [request.method for request in context.requests] == ["POST", "POST"]
+    assert window._pending_developer_snapshot == default_snapshot()
     assert context.client.is_online_authenticated
     assert context.client.offline_opt_in
 

@@ -2,6 +2,7 @@ param(
     [Parameter(Mandatory = $true)][string]$ExecutablePath,
     [Parameter(Mandatory = $true)][string]$ExpectedSha256,
     [Parameter(Mandatory = $true)][string]$TestRoot,
+    [string]$AllowedTestParent = 'D:\medical-app-release-20260919-v170\startup',
     [switch]$ConfirmRun
 )
 
@@ -9,7 +10,10 @@ param(
 $ErrorActionPreference = 'Stop'
 $medicalExe = (Resolve-Path -LiteralPath $ExecutablePath).Path
 $medicalTest = [IO.Path]::GetFullPath($TestRoot)
-$medicalParent = 'D:\medical-app-release-20260914-v160\startup'
+$medicalParent = [IO.Path]::GetFullPath($AllowedTestParent).TrimEnd('\')
+if ($medicalParent -eq [IO.Path]::GetPathRoot($medicalParent).TrimEnd('\')) {
+    throw 'A specific release test directory is required, not a drive root.'
+}
 if (-not $medicalTest.StartsWith($medicalParent + '\', [StringComparison]::OrdinalIgnoreCase)) {
     throw 'A new child of this release startup directory is required.'
 }

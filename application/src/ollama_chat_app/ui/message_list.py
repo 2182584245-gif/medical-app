@@ -90,6 +90,26 @@ class MessageList(QScrollArea):
         self.layout.addStretch(1)
         self.setWidget(self.container)
         self._bubbles: dict[int, MessageBubble] = {}
+        self._daily_tip_widgets: list[QLabel] = []
+
+    def set_daily_tips(self, tips) -> None:
+        """Display developer daily tips as plain text, not executable rich text."""
+        for label in self._daily_tip_widgets:
+            self.welcome.layout().removeWidget(label)
+            label.deleteLater()
+        self._daily_tip_widgets.clear()
+        if not isinstance(tips, list):
+            return
+        for tip in tips[:5]:
+            if not isinstance(tip, str) or not tip.strip():
+                continue
+            label = QLabel("今日小提示 · " + tip.strip()[:500])
+            label.setTextFormat(Qt.TextFormat.PlainText)
+            label.setWordWrap(True)
+            label.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
+            label.setStyleSheet("padding: 10px; background: #fff2d6; border-radius: 12px;")
+            self.welcome.layout().addWidget(label)
+            self._daily_tip_widgets.append(label)
 
     def clear_messages(self) -> None:
         for bubble in self._bubbles.values():

@@ -1,6 +1,6 @@
 # Windows 安全构建约束
 
-本说明用于构建“健康生活服务平台”1.6.0 的 Windows `onedir` 版本。
+本说明用于构建“健康生活服务平台”1.7.0 的 Windows `onedir` 版本。
 这是构建与验收要求，不是本次成品已构建、已扫描或已通过公网验收的证明；必须以对应产物的实际报告为准。
 
 ## 构建前
@@ -25,7 +25,7 @@
 
 - 验证 `Analysis-00.toc` 时应按字段检查：运行时 Hook、实际收集的 Python 模块、二进制和数据中不得包含 `keyring`、`multiprocessing`、`setuptools` 或 `pkg_resources`；`excludes` 配置字段中出现这些名称是正常的。任何二进制或数据的来源路径均不得包含 `.cache\\codex-runtimes`、`.codex` 或其他宿主工具缓存。
 - 成品中不应包含来自其他开发工具运行时的 OpenSSL、Poppler、ICU 或 MSVC DLL。
-- EXE 的文件属性应显示产品名、说明和 `1.6.0` 版本。
+- EXE 的文件属性应显示产品名、说明和 `1.7.0` 版本。
 - EXE 的清单必须是 `requestedExecutionLevel="asInvoker"`、`uiAccess="false"`。
 - `verify_build.py` 必须确认构建目录包含五个云端模块：`cloud_config`、`services.cloud_client`、`services.cloud_rpc_codec`、`services.remote_services`、`workers.cloud_bridge`。
 - 使用构建所用的 Python 运行 `python packaging\verify_embedded_source.py "<最终发布目录>\健康生活服务平台.exe"`，直接读取最终 EXE 中唯一的 PYZ，确认上述云端模块和主入口/登录窗口模块实际存在，且全部应用字节码与当前已测试源码一致。报告记录该 EXE 的 SHA-256；这是代码归档检查，不会启动 EXE。

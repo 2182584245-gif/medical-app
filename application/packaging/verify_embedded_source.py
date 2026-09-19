@@ -28,6 +28,10 @@ REQUIRED_APP_MODULES = REQUIRED_CLOUD_MODULES | {
     "ollama_chat_app.services.life_agent", "ollama_chat_app.services.agent_tools",
     "ollama_chat_app.services.device_observations", "ollama_chat_app.providers.demo_life",
     "ollama_chat_app.ui.meal_capture_dialog",
+    "ollama_chat_app.services.developer",
+    "ollama_chat_app.services.developer_settings",
+    "ollama_chat_app.services.ai_runtime",
+    "ollama_chat_app.ui.developer_workspace",
 }
 
 

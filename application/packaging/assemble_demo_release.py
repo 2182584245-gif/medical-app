@@ -131,6 +131,8 @@ def assemble(
     )
     if alias_plan is not None:
         metadata["cloud_assets"] = cloud_assets.stage(destination, alias_plan)
+    if payload.get("profile"):
+        metadata["synthetic_profile"] = payload["profile"]
     (destination / "portable.json").write_text(
         json.dumps(metadata, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
     )
@@ -158,6 +160,18 @@ def assemble(
 六项来源映射去重后为五个 PNG；包内 cloud-assets-plan.json 和 SHA256SUMS.txt 记录完整清单。
 这不是动态云商品图片下载功能；运营后续新增或更换商品图片不会自动随本包出现。
 没有修改 EXE、示例数据库或原图片；别名不证明云端数据已导入或公网图片服务已上线。
+"""
+    if payload.get("profile") == "expanded-v170":
+        instructions += """
+
+1.7.0 电脑版说明：
+左上角“开发者模式”需要独立授予的开发权限，不是普通管理者登录的快捷入口。
+公开发行包不附带开发者密码、开发授权、共享 API Key 或服务器私钥。
+云端通过已授权服务器代理使用默认 AI；本地默认 Key 由当前 Windows 用户 DPAPI 保存。
+开发设置与个人资料调整在下次启动加载；云端重新登录也算新会话。账号和有效期调整立即生效。
+AI 专业知识为审核条目的轻量关键词检索，文本技能是有界任务说明，不是模型训练。
+主界面的预设人物不带“示例”标识；来源清单仍明确注明虚构，避免与真实资料混用。
+新版 EXE 不代表阿里云后端已经更新；云端开发权限和数据库迁移以实际部署验收为准。
 """
     (destination / "使用说明.txt").write_text(instructions, encoding="utf-8-sig")
     _hash_manifest(destination)

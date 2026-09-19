@@ -10,6 +10,7 @@ from __future__ import annotations
 
 from PySide6.QtCore import QEvent, QEventLoop, QObject, Qt, QThread, QThreadPool, Slot
 from PySide6.QtWidgets import QApplication, QProgressDialog
+from shiboken6 import isValid
 
 from .task import FunctionTask
 
@@ -89,9 +90,14 @@ def run_cloud_operation(function, *args, **kwargs):
             raise state.error
         return state.result
     finally:
-        if parent is not None:
-            parent.removeEventFilter(state)
-        dialog.removeEventFilter(state)
-        dialog.close()
-        dialog.deleteLater()
-        _busy = False
+        try:
+            # A previously queued deleteLater may outlive a mode-switch window,
+            # even while Close events are blocked. Never strand the global guard.
+            if parent is not None and isValid(parent):
+                parent.removeEventFilter(state)
+            if isValid(dialog):
+                dialog.removeEventFilter(state)
+                dialog.close()
+                dialog.deleteLater()
+        finally:
+            _busy = False

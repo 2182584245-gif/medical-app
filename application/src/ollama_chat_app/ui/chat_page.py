@@ -4,6 +4,7 @@ import hashlib
 import threading
 from collections.abc import Mapping
 from contextlib import suppress
+from copy import deepcopy
 from pathlib import Path
 from typing import Any
 
@@ -44,6 +45,7 @@ from ..providers.local_ollama import LocalOllamaProvider
 from ..providers.ollama_cloud import OllamaCloudProvider
 from ..security.secret_store import SecretStore
 from ..services.ai_provider_resolver import resolve_deepseek
+from ..services.ai_runtime import ConfiguredAIProvider, ai_settings, answer_preferences
 from ..services.backup import PortableBackupService
 from ..services.chat import ChatService, ChatTurn
 from ..services.chat_attachments import (
@@ -93,6 +95,7 @@ class ChatPage(QWidget):
         self.preferences_service = preferences_service
         self.cloud_client = cloud_client
         self._preferences: dict[str, object] = {}
+        self._developer_snapshot: dict = {}
         self._cancel_event = threading.Event()
         self.stream_progress.connect(self._stream_update)
         self.current_user: Any | None = None
@@ -407,6 +410,17 @@ class ChatPage(QWidget):
 
         self.message_input.installEventFilter(self)
 
+    def apply_developer_snapshot(self, snapshot: Mapping) -> None:
+        """Called by the launch loader, never by a developer save callback."""
+        self._developer_snapshot = deepcopy(dict(snapshot))
+        settings = ai_settings(self._developer_snapshot)
+        self.message_list.set_daily_tips(settings.get("daily_tips", []))
+        model = settings.get("model")
+        if model:
+            index = self.deepseek_model_combo.findData(model)
+            if index >= 0:
+                self.deepseek_model_combo.setCurrentIndex(index)
+
     def eventFilter(self, watched: object, event: object) -> bool:
         if (
             watched is self.message_input
@@ -461,7 +475,8 @@ class ChatPage(QWidget):
         self._refresh_drafts()
 
     def _apply_model_preference(self) -> None:
-        model = str(self._preferences.get("ai_model") or DEEPSEEK_DEFAULT_MODEL)
+        model = str(ai_settings(self._developer_snapshot).get("model")
+                    or self._preferences.get("ai_model") or DEEPSEEK_DEFAULT_MODEL)
         provider = self.mode_combo.currentData()
         if provider == "deepseek_cloud":
             index = self.deepseek_model_combo.findData(model)
@@ -1316,6 +1331,7 @@ class ChatPage(QWidget):
             self.context_checkbox.blockSignals(True)
             self.context_checkbox.setChecked(bool(preferences.get("ai_context_consent", False)))
             self.context_checkbox.blockSignals(False)
+        preferences = answer_preferences(preferences, self._developer_snapshot)
         context_service = (
             self.ai_assistant_service
             if getattr(self.current_user, "role_code", "member") == "member"
@@ -1652,6 +1668,12 @@ class ChatPage(QWidget):
         )
 
     def _selected_provider(self) -> tuple[object, str, str] | None:
+        settings = ai_settings(self._developer_snapshot)
+        if (settings.get("enabled") is False
+                or self._developer_snapshot.get("settings", {}).get("features", {}).get("ai")
+                is False):
+            self._set_status("本次启动的配置已关闭 AI 服务，下次启动会读取最新配置。", "error")
+            return None
         if self.demo_checkbox.isChecked():
             return DemoLifeProvider(), "workflow_demo", DEMO_MODEL
         mode = self.mode_combo.currentData()
@@ -1692,6 +1714,8 @@ class ChatPage(QWidget):
             if provider is None:
                 self._set_status("本机尚未配置默认 AI，请登录云端或设置个人 APIKEY。", "error")
                 return None
+            if settings:
+                provider = ConfiguredAIProvider(provider, self._developer_snapshot)
             return provider, "deepseek_cloud", str(self.deepseek_model_combo.currentData())
         except Exception:
             self._set_status("无法安全读取 AI 设置；请重新设置个人 APIKEY 后再试。", "error")

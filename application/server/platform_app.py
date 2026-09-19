@@ -272,6 +272,18 @@ def create_app(settings=None, *, database=None, ai_proxy_settings=None, ai_trans
     application.state.ai_proxy = PlatformAIProxy(
         auth, settings=ai_proxy_settings, transport=ai_transport
     )
+    from .platform_developer import DeveloperService, create_developer_router
+
+    application.state.developer_service = DeveloperService(
+        auth,
+        key_path=application.state.ai_proxy.settings.key_path,
+        legacy_key_configured=bool(
+            application.state.ai_proxy.settings.envelope_path
+            and application.state.ai_proxy.settings.key_path
+        ),
+    )
+    application.state.ai_proxy.developer_service = application.state.developer_service
+    application.include_router(create_developer_router(application.state.developer_service))
     application.include_router(create_ai_router(application.state.ai_proxy))
     application.add_middleware(PlatformBoundary, settings=settings, auth=auth)
     allowed_hosts = list(settings.allowed_hosts)
@@ -308,7 +320,17 @@ def create_app(settings=None, *, database=None, ai_proxy_settings=None, ai_trans
         try:
             principal = auth.resolve_token(header[7:])
             with auth.identity(principal):
-                result = dispatcher.invoke(principal.user.id, service, method, payload)
+                result = dispatcher.invoke(
+                    principal.user.id,
+                    service,
+                    method,
+                    payload,
+                    operation_guard=lambda target_service, target_method, arguments: (
+                        application.state.developer_service.enforce_operation(
+                            principal, target_service, target_method, arguments
+                        )
+                    ),
+                )
             if not isinstance(result, Mapping):
                 raise RpcError(500, "invalid_result")
             maximum_result = (8 if service == "sync" else 32) * 1024 * 1024
