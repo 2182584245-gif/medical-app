@@ -25,6 +25,10 @@ from .platform_auth import PlatformAuthError
 
 AI_URL = "https://api.deepseek.com/chat/completions"
 AI_MODELS = {"deepseek-v4-flash", "deepseek-v4-flash-vision-exp"}
+# The provider retains the two request aliases but now returns its canonical
+# Flash identifier. This is an exact allowlist, never a prefix/fuzzy match and
+# never permission to request another model or a higher-priced model family.
+AI_RESPONSE_MODELS = {name: frozenset({name, "deepseek-flash"}) for name in AI_MODELS}
 ENVELOPE_MAGIC = b"HEALTHLIFE-DEFAULT-AI-1\n"
 ENVELOPE_AAD = b"HealthLife/server-default-ai/v1"
 MAX_BODY = 4 * 1024 * 1024
@@ -39,6 +43,14 @@ class AIProxyError(RuntimeError):
     def __init__(self, status=503, code="default_ai_unavailable"):
         self.status, self.code = status, code
         super().__init__(code)
+
+
+def response_model_matches(requested: str, actual) -> bool:
+    return (
+        requested in AI_RESPONSE_MODELS
+        and isinstance(actual, str)
+        and actual in AI_RESPONSE_MODELS[requested]
+    )
 
 
 def _private_file(path: str, maximum: int) -> bytes:
@@ -385,7 +397,7 @@ class PlatformAIProxy:
                     choice = data["choices"][0]
                     content = choice["message"]["content"]
                     if (
-                        data.get("model") != payload["model"]
+                        not response_model_matches(payload["model"], data.get("model"))
                         or choice.get("finish_reason") != "stop"
                         or not isinstance(content, str)
                         or not content.strip()
@@ -445,7 +457,9 @@ class PlatformAIProxy:
                                 yield event({"done": True, "model": payload["model"]})
                                 return
                             data = json.loads(piece)
-                            if data.get("model") != payload["model"] or data.get("error"):
+                            if not response_model_matches(
+                                payload["model"], data.get("model")
+                            ) or data.get("error"):
                                 raise ValueError
                             for choice in data.get("choices", []):
                                 reason = choice.get("finish_reason")

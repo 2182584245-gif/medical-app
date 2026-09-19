@@ -112,6 +112,111 @@ def test_stream_real_route_returns_deltas_and_completion(context):
     assert SYNTHETIC_KEY not in result.text and len(calls) == 1
 
 
+@pytest.mark.parametrize("requested", ["deepseek-v4-flash", "deepseek-v4-flash-vision-exp"])
+@pytest.mark.parametrize("stream", [False, True])
+def test_known_flash_canonical_response_preserves_legacy_client_wire_model(
+    context, requested, stream
+):
+    database, app, client, headers, calls = context
+
+    def canonical(request):
+        calls.append(request)
+        sent = json.loads(request.content)
+        assert sent["model"] == requested
+        assert sent["max_tokens"] == 2048
+        assert "不得诊断" in sent["messages"][0]["content"]
+        if stream:
+            events = [
+                {
+                    "model": "deepseek-flash",
+                    "choices": [
+                        {"delta": {"content": "规范名称的合成回答"}, "finish_reason": None}
+                    ],
+                },
+                {"model": "deepseek-flash", "choices": [{"delta": {}, "finish_reason": "stop"}]},
+            ]
+            data = "".join("data: " + json.dumps(event) + "\n\n" for event in events)
+            return httpx.Response(
+                200, text=data + "data: [DONE]\n\n", headers={"content-type": "text/event-stream"}
+            )
+        return httpx.Response(
+            200,
+            json={
+                "model": "deepseek-flash",
+                "choices": [
+                    {"message": {"content": "规范名称的合成回答"}, "finish_reason": "stop"}
+                ],
+            },
+        )
+
+    app.state.ai_proxy.transport = httpx.MockTransport(canonical)
+    payload = {**body(), "model": requested}
+    result = client.post(
+        "/v1/ai/chat/stream" if stream else "/v1/ai/chat", json=payload, headers=headers
+    )
+    assert result.status_code == 200, result.text
+    if stream:
+        events = [
+            json.loads(line[6:]) for line in result.text.splitlines() if line.startswith("data: ")
+        ]
+        assert events[-1] == {"done": True, "model": requested}
+        assert events[0]["delta"] == "规范名称的合成回答"
+        assert not any("error" in event for event in events)
+    else:
+        assert result.json() == {"content": "规范名称的合成回答", "model": requested}
+    assert len(calls) == 1 and SYNTHETIC_KEY not in result.text
+    assert database.scalar("SELECT attempts FROM auth_rate_buckets WHERE bucket_id=8191") == 1
+
+
+@pytest.mark.parametrize(
+    "actual",
+    [
+        "deepseek-v4-pro",
+        "deepseek-flash-unreviewed",
+        None,
+        {"model": "deepseek-flash"},
+        "deepseek-v4-flash-vision-exp",
+    ],
+)
+@pytest.mark.parametrize("stream", [False, True])
+def test_canonical_allowlist_still_rejects_other_model_families_or_shapes(context, actual, stream):
+    _, app, client, headers, calls = context
+
+    def wrong_model(request):
+        calls.append(request)
+        if stream:
+            event = {
+                "model": actual,
+                "choices": [{"delta": {"content": "不得当作成功"}, "finish_reason": "stop"}],
+            }
+            return httpx.Response(
+                200,
+                text="data: " + json.dumps(event) + "\n\ndata: [DONE]\n\n",
+                headers={"content-type": "text/event-stream"},
+            )
+        return httpx.Response(
+            200,
+            json={
+                "model": actual,
+                "choices": [{"message": {"content": "不得当作成功"}, "finish_reason": "stop"}],
+            },
+        )
+
+    app.state.ai_proxy.transport = httpx.MockTransport(wrong_model)
+    result = client.post(
+        "/v1/ai/chat/stream" if stream else "/v1/ai/chat", json=body(), headers=headers
+    )
+    if stream:
+        assert result.status_code == 200
+        assert '"error":"default_ai_incomplete"' in result.text
+        assert '"done":true' not in result.text
+    else:
+        assert result.status_code == 502
+        assert result.json()["detail"] == "invalid_ai_response"
+    assert "不得当作成功" not in result.text
+    assert SYNTHETIC_KEY not in result.text and len(calls) == 1
+
+
 @pytest.mark.parametrize(
     "mutation",
     [

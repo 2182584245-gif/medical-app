@@ -69,6 +69,7 @@ analysis = Analysis(
         "ollama_chat_app.services.developer_settings",
         "ollama_chat_app.services.ai_runtime",
         "ollama_chat_app.ui.developer_workspace",
+        "ollama_chat_app.workers.gui_gc",
         "PySide6.QtMultimedia",
         "PySide6.QtMultimediaWidgets",
         "PySide6.QtTextToSpeech",

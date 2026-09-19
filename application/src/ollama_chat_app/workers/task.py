@@ -5,6 +5,8 @@ from typing import Any
 
 from PySide6.QtCore import QObject, QRunnable, Signal, Slot
 
+from .gui_gc import install_gui_gc
+
 
 class TaskSignals(QObject):
     result = Signal(object)
@@ -16,6 +18,7 @@ class FunctionTask(QRunnable):
     """Run a callable in Qt's global thread pool and return its result by signal."""
 
     def __init__(self, function: Callable[..., Any], *args: Any, **kwargs: Any) -> None:
+        install_gui_gc()
         super().__init__()
         self.function = function
         self.args = args

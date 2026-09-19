@@ -51,6 +51,7 @@ from .services.remote_services import (
 from .services.service_management import ServiceManagementService
 from .ui.main_window import MainWindow
 from .ui.theme import APP_STYLE
+from .workers.gui_gc import install_gui_gc
 
 
 def configure_logging() -> None:
@@ -369,6 +370,17 @@ class DesktopWindowController(QObject):
 
 def main() -> int:
     app = QApplication(sys.argv)
+    gui_gc = install_gui_gc()
+    try:
+        return _run_application(app)
+    finally:
+        # aboutToQuit stops the timer without restoring automatic GC. Drain
+        # remaining data-only workers before allowing normal process teardown.
+        if gui_gc is not None:
+            gui_gc.shutdown(wait_ms=3000)
+
+
+def _run_application(app: QApplication) -> int:
     app.setApplicationName(APP_NAME)
     app.setApplicationVersion(APP_VERSION)
     app.setOrganizationName("Local")

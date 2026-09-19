@@ -1,6 +1,8 @@
 """Synthetic API tests. RLS enforcement is independently tested with PostgreSQL."""
 
+import os
 import secrets
+import stat
 from datetime import timedelta
 
 import pytest
@@ -51,6 +53,11 @@ def context(tmp_path):
     application = create_app(settings, database=database)
     key_path = tmp_path / "encryption.key"
     key_path.write_bytes(secrets.token_bytes(32))
+    # Match the production private-key contract on POSIX rather than relying on
+    # the CI runner's umask (commonly 0644). Windows does not use these mode bits.
+    key_path.chmod(0o600)
+    if os.name == "posix":
+        assert stat.S_IMODE(key_path.stat().st_mode) == 0o600
     application.state.developer_service.key_path = str(key_path)
     with TestClient(
         application, base_url="https://testserver", raise_server_exceptions=False
