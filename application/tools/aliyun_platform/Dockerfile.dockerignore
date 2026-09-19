@@ -19,6 +19,9 @@ server/**
 !server/platform_schema.py
 !server/platform_experience_schema.py
 !server/platform_medical_schema.py
+!server/platform_developer.py
+!server/platform_developer_schema.py
+!server/platform_developer_catalog.py
 !server/platform_accounts.py
 !server/platform_rpc.py
 !server/platform_uploads.py
@@ -79,4 +82,5 @@ tools/aliyun_platform/**
 !tools/aliyun_platform/guard.py
 !tools/aliyun_platform/bootstrap.py
 !tools/aliyun_platform/upgrade_medical.py
+!tools/aliyun_platform/upgrade_developer.py
 !tools/aliyun_platform/api_entrypoint.py

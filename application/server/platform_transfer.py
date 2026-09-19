@@ -430,7 +430,16 @@ def catalog_guard(connection) -> str:
         "WHERE n.nspname=%s AND c.relkind='r'",
         (PLATFORM_SCHEMA,),
     ).fetchall()
-    if {row[0] for row in tables} != set(PLATFORM_COLUMNS) or any(
+    from .platform_developer_catalog import NEW_COLUMNS, require_reviewed_v4
+    expected_columns = PLATFORM_COLUMNS
+    actual_names = {row[0] for row in tables}
+    if actual_names == set(PLATFORM_COLUMNS) | set(NEW_COLUMNS):
+        expected_columns = {**PLATFORM_COLUMNS, **NEW_COLUMNS}
+        try:
+            require_reviewed_v4(connection)
+        except ValueError:
+            raise TransferError("开发者安全结构不符合已审核 v4；禁止迁移。") from None
+    if actual_names != set(expected_columns) or any(
         tuple(row[1:]) != (True, True, PLATFORM_MARKER) for row in tables
     ):
         raise TransferError("平台不是已审核的 32 表强制 RLS 结构。")
@@ -442,7 +451,7 @@ def catalog_guard(connection) -> str:
     columns = {}
     for table, column in actual:
         columns.setdefault(table, []).append(column)
-    if {table: tuple(items) for table, items in columns.items()} != PLATFORM_COLUMNS:
+    if {table: tuple(items) for table, items in columns.items()} != expected_columns:
         raise TransferError("平台列定义不匹配，未迁移未知结构。")
     triggers = connection.execute(
         "SELECT count(*) FROM pg_trigger t JOIN pg_class c ON c.oid=t.tgrelid "

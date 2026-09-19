@@ -1,4 +1,9 @@
-"""Local Docker-only synthetic smoke. Creates new uniquely labelled lab resources, no cloud."""
+"""Historical v2/v3 Docker-only smoke; not v4 deployment acceptance.
+
+The v4 path requires its owned upgrade plan, configured private key, the real PG
+developer tests, and fresh deployment backup/restore/HTTPS acceptance. This old
+lab remains frozen for historical reproduction and never connects to the cloud.
+"""
 
 from __future__ import annotations
 

@@ -226,6 +226,9 @@ def prepare(root: Path, host: str, *, confirm_new: bool = False) -> dict:
         "ssl_key_file='/run/db-secrets/server.key'\n"
         "hba_file='/etc/postgresql/pg_hba.conf'\npassword_encryption='scram-sha-256'\n"
         "max_connections=30\nshared_buffers='128MB'\nwork_mem='2MB'\n"
+        # Short OLTP/RLS queries must not retain LLVM/JIT allocations across
+        # the bounded connection pool. This does not change RLS or SQL results.
+        "jit=off\n"
         "idle_in_transaction_session_timeout='30s'\nidle_session_timeout='10min'\n"
         f"medical_app.deployment_id='{deployment['id']}'\n",
         0o644,

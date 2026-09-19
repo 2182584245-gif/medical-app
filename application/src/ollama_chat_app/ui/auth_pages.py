@@ -384,10 +384,12 @@ class LoginPage(QWidget):
         self.cloud_url_input.setText(self._endpoint_settings.base_url)
         self._connection_selection_changed()
         self._card.subtitle_label.setText(
-            "云端账户、健康记录、聊天和上传附件存于所选服务。"
-            "AI 是独立服务，确认后才发送；本机历史不会自动迁移。"
-            if mode == "cloud"
-            else "当前为本地模式：使用本机账户，数据保存在本地便携数据库中。"
+            ("当前为阿里云模式：云端账户、健康记录、聊天和上传附件存于所选服务。"
+             "AI 是独立服务，确认后才发送；本机历史不会自动迁移。"
+             if mode == "cloud"
+             else "当前为本地模式：使用本机账户，数据保存在本地便携数据库中。")
+            + "本地账号与阿里云账号相互独立，请使用对应模式的账号；"
+            "应用不会自动切换到另一种模式登录。"
         )
         self._card.subtitle_label.setToolTip(
             "云端模式的账号、健康记录、聊天和上传附件保存在所选应用服务方。"

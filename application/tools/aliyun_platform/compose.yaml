@@ -1,6 +1,6 @@
 name: medical-app-aliyun
 x-api: &api
-  image: medical-app-aliyun-api:v3
+  image: medical-app-aliyun-api:v4
   build:
     context: ${SOURCE_ROOT:-/opt/medical-app/source}
     dockerfile: tools/aliyun_platform/Dockerfile
@@ -33,7 +33,8 @@ services:
       - ./config/init.sql:/docker-entrypoint-initdb.d/10-owned.sql:ro
       - ./backups:/backups
     networks: [database]
-    mem_limit: 384m
+    # The purchased 4GB host needs headroom for v4 RLS planning and snapshots.
+    mem_limit: 1g
     shm_size: 128m
     pids_limit: 128
     healthcheck:
@@ -66,6 +67,7 @@ services:
       API_TARGET: aliyun
       HEALTHLIFE_AI_SECRET_ENVELOPE: /run/ai-secrets/deepseek-key.aesgcm
       HEALTHLIFE_AI_SECRET_KEY_FILE: /run/ai-key/default-ai-kek.bin
+      HEALTHLIFE_DEVELOPER_KEY_FILE: /run/ai-key/default-ai-kek.bin
       HEALTHLIFE_AI_USER_MINUTE_LIMIT: '2'
       HEALTHLIFE_AI_USER_DAY_LIMIT: '20'
       HEALTHLIFE_AI_GLOBAL_MINUTE_LIMIT: '6'

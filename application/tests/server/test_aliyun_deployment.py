@@ -73,6 +73,36 @@ def test_prepare_retained_volume_refused_before_any_write(isolated_root, monkeyp
     assert not isolated_root.exists()
 
 
+def test_prepared_postgres_oltp_config_disables_jit_without_weakening_security(isolated_root):
+    result = prepare.prepare(isolated_root, "39.106.166.15", confirm_new=True)
+    path = isolated_root / "config/postgresql.conf"
+    lines = [line for line in path.read_text().splitlines() if line and not line.startswith("#")]
+    pairs = [line.split("=", 1) for line in lines]
+    values = dict(pairs)
+    assert len(values) == len(pairs), (
+        "Duplicate PostgreSQL settings can silently override safeguards"
+    )
+    assert values["jit"] == "off"
+    assert values["max_connections"] == "30"
+    assert values["shared_buffers"] == "'128MB'"
+    assert values["work_mem"] == "'2MB'"
+    assert values["ssl"] == "on"
+    assert values["ssl_min_protocol_version"] == "'TLSv1.2'"
+    assert values["password_encryption"] == "'scram-sha-256'"
+    assert values["hba_file"] == "'/etc/postgresql/pg_hba.conf'"
+    assert values["idle_in_transaction_session_timeout"] == "'30s'"
+    assert values["idle_session_timeout"] == "'10min'"
+    assert values["medical_app.deployment_id"] == repr(result["deployment_id"])
+    assert "row_security" not in values
+    assert "fsync" not in values and "synchronous_commit" not in values
+    # New-install preparation must still refuse to overwrite an existing
+    # installation: upgrades use an explicitly reviewed config/reload step.
+    before = path.read_bytes()
+    with pytest.raises(guard.DeploymentError, match="preserved"):
+        prepare.prepare(isolated_root, "39.106.166.15", confirm_new=True)
+    assert path.read_bytes() == before
+
+
 @pytest.mark.parametrize(
     "value",
     ["localhost", "127.0.0.1", "10.0.0.1", "0.0.0.0", "example.com\nfoo", "../other", "abc..com"],

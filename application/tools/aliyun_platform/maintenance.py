@@ -11,6 +11,7 @@ import subprocess
 import uuid
 from datetime import UTC, datetime, timedelta
 
+from server.platform_developer_schema import NEW_TABLES as DEVELOPER_TABLES
 from server.platform_experience_schema import PLATFORM_TABLES
 
 from .guard import ADMIN, DATABASE, MARKER, PROJECT, ROOT, DeploymentError, host_root, marker
@@ -81,6 +82,71 @@ def _identity(deployment: dict) -> None:
         raise DeploymentError("Backup target ownership differs.")
 
 
+# Definitions only, not business contents. Comparing source/dump-restored/source
+# catches concurrent DDL and verifies types, defaults, constraints, expressions,
+# privileges, indexes, comments and ownership rather than only table counts.
+CATALOG_SQL = """
+SELECT json_build_object(
+ 'relations',(SELECT json_agg(x ORDER BY relname) FROM (
+   SELECT c.relname,c.relkind,pg_get_userbyid(c.relowner) AS owner,
+          c.relrowsecurity,c.relforcerowsecurity,c.relacl::text,
+          obj_description(c.oid,'pg_class') AS comment
+   FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace
+   WHERE n.nspname='medical_app_platform') x),
+ 'columns',(SELECT json_agg(x ORDER BY relname,attnum) FROM (
+   SELECT c.relname,a.attname,a.attnum,format_type(a.atttypid,a.atttypmod) AS type,
+          a.attnotnull,a.attidentity,a.attgenerated,a.attacl::text,
+          pg_get_expr(d.adbin,d.adrelid,false) AS default_expr
+   FROM pg_attribute a JOIN pg_class c ON c.oid=a.attrelid
+   JOIN pg_namespace n ON n.oid=c.relnamespace
+   LEFT JOIN pg_attrdef d ON d.adrelid=a.attrelid AND d.adnum=a.attnum
+   WHERE n.nspname='medical_app_platform' AND a.attnum>0 AND NOT a.attisdropped) x),
+ 'constraints',(SELECT json_agg(x ORDER BY relname,conname) FROM (
+   SELECT c.relname,k.conname,k.convalidated,pg_get_constraintdef(k.oid,false) AS definition
+   FROM pg_constraint k JOIN pg_class c ON c.oid=k.conrelid
+   JOIN pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname='medical_app_platform') x),
+ 'policies',(SELECT json_agg(x ORDER BY tablename,policyname) FROM (
+   SELECT tablename,policyname,permissive,roles::text,cmd,qual,with_check
+   FROM pg_policies WHERE schemaname='medical_app_platform') x),
+ 'indexes',(SELECT json_agg(x ORDER BY indexname) FROM (
+   SELECT indexname,indexdef FROM pg_indexes WHERE schemaname='medical_app_platform') x),
+ 'schema',(SELECT json_agg(x) FROM (
+   SELECT pg_get_userbyid(nspowner) AS owner,nspacl::text,
+          obj_description(oid,'pg_namespace') AS comment
+   FROM pg_namespace WHERE nspname='medical_app_platform') x),
+ 'default_acl',(SELECT json_agg(x ORDER BY owner,defaclobjtype) FROM (
+   SELECT pg_get_userbyid(a.defaclrole) AS owner,a.defaclobjtype,a.defaclacl::text
+   FROM pg_default_acl a JOIN pg_namespace n ON n.oid=a.defaclnamespace
+   WHERE n.nspname='medical_app_platform') x),
+ 'triggers',(SELECT json_agg(x ORDER BY relname,tgname) FROM (
+   SELECT c.relname,t.tgname,pg_get_triggerdef(t.oid,false) AS definition
+   FROM pg_trigger t JOIN pg_class c ON c.oid=t.tgrelid
+   JOIN pg_namespace n ON n.oid=c.relnamespace
+   WHERE n.nspname='medical_app_platform' AND NOT t.tgisinternal) x),
+ 'functions',(SELECT json_agg(x ORDER BY name) FROM (
+   SELECT p.oid::regprocedure::text AS name,pg_get_functiondef(p.oid) AS definition
+   FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace
+   WHERE n.nspname='medical_app_platform') x)
+);
+"""
+
+
+def _catalog(database):
+    value = json.loads(_pg(database, CATALOG_SQL))
+    tables = [row for row in value["relations"] if row["relkind"] == "r"]
+    names = {row["relname"] for row in tables}
+    if names not in (set(PLATFORM_TABLES), set(PLATFORM_TABLES) | set(DEVELOPER_TABLES)):
+        raise DeploymentError("Backup table set is not a reviewed v3/v4 set.")
+    if any(
+        row["owner"] != ADMIN or not row["relrowsecurity"] or not row["relforcerowsecurity"]
+        for row in tables
+    ):
+        raise DeploymentError("Backup ownership or forced RLS differs.")
+    if value["triggers"] or value["functions"]:
+        raise DeploymentError("Unreviewed functions or triggers prohibit backup verification.")
+    return value
+
+
 def capacity() -> dict:
     host_root()
     marker(ROOT / "deployment.json")
@@ -129,6 +195,7 @@ def backup() -> dict:
     if backup_root.is_symlink() or backup_root.resolve() != ROOT / "backups":
         raise DeploymentError("Backup directory must be the fixed deployment subdirectory.")
     _identity(deployment)
+    source_catalog = _catalog(DATABASE)
     nonce = uuid.uuid4().hex
     stem = datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ") + "-" + nonce
     archive = backup_root / (stem + ".dump")
@@ -197,11 +264,18 @@ def backup() -> dict:
         "WHERE n.nspname='medical_app_platform' AND c.relkind='r' ORDER BY c.relname;",
     )
     rows = [line.split("|") for line in tables.splitlines()]
-    if {row[0] for row in rows} != set(PLATFORM_TABLES) or any(
+    expected_tables = {
+        row["relname"] for row in source_catalog["relations"] if row["relkind"] == "r"
+    }
+    if {row[0] for row in rows} != expected_tables or any(
         len(row) != 3 or row[1:] != ["t", "t"] for row in rows
     ):
         raise DeploymentError(
             "Restored structure failed; archive and verification database retained."
+        )
+    if _catalog(verification_db) != source_catalog or _catalog(DATABASE) != source_catalog:
+        raise DeploymentError(
+            "Restored catalog or live DDL changed; archive and verification database retained."
         )
     counts = {}
     for row in rows:
@@ -227,6 +301,7 @@ def backup() -> dict:
         archive=archive.name,
         sha256=digest,
         restored_table_count=len(rows),
+        restored_catalog_matches_source=True,
         restored_row_counts=counts,
         restore_database_removed=True,
         automatic_archive_deletion=False,

@@ -3,6 +3,9 @@
 !server/platform_transfer.py
 !server/platform_transfer_assets.py
 !server/platform_transfer_package.py
+!server/platform_developer_schema.py
+!server/platform_developer_catalog.py
+!server/developer_admin.py
 !tools/
 !tools/aliyun_platform/
 !tools/aliyun_platform/Transfer.Dockerfile

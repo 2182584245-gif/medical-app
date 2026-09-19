@@ -58,6 +58,10 @@ def create_cloud_app():
                 raise DeploymentError("API database deployment identity differs.")
         app = create_app(settings, database=database)
         app.state.platform_auth.check_ready()
+        app.state.developer_service.require_ready()
+        # Uses the configured private 32-byte encryption key, without returning
+        # it or silently accepting a permissive Linux file mode.
+        app.state.developer_service._crypt_key()
         return app
     except Exception:
         database.dispose()

@@ -294,6 +294,13 @@ class MainWindow(QMainWindow):
         self._show_login()
 
     def _open_developer_mode(self):
+        if self.login_page._connection_pending():
+            QMessageBox.information(
+                self, "请先应用所选模式",
+                "请先点击登录页的“应用所选模式”，再进入该模式的开发者界面。"
+                "本地与阿里云的账号和开发权限相互独立。",
+            )
+            return
         from .developer_workspace import DeveloperLoginDialog, DeveloperWorkspaceDialog
         if self.developer_service is None:
             QMessageBox.information(self, "开发者模式暂不可用", self._developer_initialization_error
@@ -639,6 +646,8 @@ class MainWindow(QMainWindow):
             self.login_page.show_error("用户名和密码不能为空。")
             return
         self.login_page.set_busy(True)
+        self._pending_developer_snapshot = None
+        self._pending_developer_warning = ""
         options = (
             {"allow_offline": allow_offline, "remember_offline": remember_offline}
             if self.cloud_mode else {}
@@ -650,6 +659,17 @@ class MainWindow(QMainWindow):
                 try:
                     snapshot = self.developer_service.load_startup_snapshot()
                 except Exception as error:
+                    if (getattr(error, "status_code", None) == 401
+                            or getattr(error, "code", "") in {
+                                "authentication", "not_authenticated"}):
+                        # A rejected session is not an optional-config outage.
+                        # Never continue into the workspace with a cleared token
+                        # or silently substitute a local/offline identity.
+                        self.auth_service.clear_session()
+                        raise RuntimeError(
+                            "云端登录状态已失效，请重新登录。"
+                            "本次未进入应用，也未改用本地账号登录。"
+                        ) from None
                     from ..services.developer_settings import default_snapshot
                     cached = self.developer_service.cached_snapshot_for_user(user.id)
                     if cached is not None:

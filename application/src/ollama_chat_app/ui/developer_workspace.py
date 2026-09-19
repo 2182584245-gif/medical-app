@@ -119,13 +119,15 @@ class AsyncDialog(QDialog):
             lambda error: QMessageBox.warning(
                 self,
                 "操作未完成",
-                str(error)
-                if isinstance(error, (DeveloperError, RuntimeError))
-                else "无法完成操作；原始错误已隐藏，请检查配置和连接。",
+                self._error_message(error),
             )
         )
         task.signals.finished.connect(lambda: self._finished(task))
         QThreadPool.globalInstance().start(task)
+
+    def _error_message(self, error):
+        return (str(error) if isinstance(error, (DeveloperError, RuntimeError))
+                else "无法完成操作；原始错误已隐藏，请检查配置和连接。")
 
     def _finished(self, task):
         if task in self._tasks:
@@ -171,6 +173,16 @@ class DeveloperLoginDialog(AsyncDialog):
         self.password_field.line_edit.returnPressed.connect(self._submit)
         layout.addRow(self.buttons)
         fit_dialog(self, width=650, height=360)
+
+    def _error_message(self, error):
+        from ..services.cloud_client import CloudAPIError
+
+        if (getattr(self.service, "uses_network", False)
+                and isinstance(error, CloudAPIError) and error.code == "not_found"):
+            return ("云端开发者接口尚未升级（不是密码错误）。"
+                    "请联系部署管理员完成阿里云后端升级及开发权限配置后重试；"
+                    "本机开发者账号不会自动获得云端权限。")
+        return super()._error_message(error)
 
     def _submit(self):
         username = self.username_input.text().strip()

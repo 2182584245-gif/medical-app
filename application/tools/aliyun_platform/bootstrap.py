@@ -9,8 +9,10 @@ from pathlib import Path
 import psycopg
 from psycopg import sql
 
+from server import platform_developer_schema as v4
 from server import platform_experience_schema as v2
 from server import platform_schema as v1
+from server.platform_developer_catalog import NEW_RELATIONS, POLICY_KEYS, require_reviewed_v4
 from server.platform_medical_schema import (
     ALTER_CATEGORY_SQL,
     CATEGORY_CHECK,
@@ -73,16 +75,19 @@ def ddl(*, revision=PLATFORM_REVISION) -> tuple[str, ...]:
     )
     if revision == "platform_0002":
         return statements
-    if revision != PLATFORM_REVISION:
+    if revision not in {PLATFORM_REVISION, v4.PLATFORM_REVISION}:
         raise DeploymentError("Unsupported reviewed installation revision.")
-    return (*statements, ALTER_CATEGORY_SQL)
+    statements = (*statements, ALTER_CATEGORY_SQL)
+    if revision == v4.PLATFORM_REVISION:
+        statements = (*statements, *v4.TABLE_DDL, *v4.policy_ddl(), *v4.grant_ddl())
+    return statements
 
 
 def ddl_digest(*, revision=PLATFORM_REVISION) -> str:
     return hashlib.sha256("\n".join(ddl(revision=revision)).encode()).hexdigest()
 
 
-def catalog_digest(connection, *, exclude_medical_category=False) -> str:
+def catalog_digest(connection, *, exclude_medical_category=False, exclude_developer=False) -> str:
     # Data values and sequence counters deliberately excluded. Include effective
     # policy expressions, owners, ACLs, types, defaults, indexes and constraints.
     queries = (
@@ -104,6 +109,14 @@ def catalog_digest(connection, *, exclude_medical_category=False) -> str:
         "WHERE n.nspname=%s ORDER BY 1,2",
     )
     rows = [connection.execute(query, (v2.PLATFORM_SCHEMA,)).fetchall() for query in queries]
+    if exclude_developer:
+        # Filter ONLY the precisely frozen additions; unexpected policies or
+        # objects remain in the digest and make an upgrade fail closed.
+        rows[0] = [row for row in rows[0] if row[0] not in NEW_RELATIONS]
+        rows[1] = [row for row in rows[1] if tuple(row[:2]) not in POLICY_KEYS]
+        rows[2] = [row for row in rows[2] if row[0] not in v4.NEW_TABLES]
+        rows[3] = [row for row in rows[3] if row[0] not in NEW_RELATIONS]
+        rows[4] = [row for row in rows[4] if row[0] not in v4.NEW_TABLES]
     if exclude_medical_category:
         rows[4] = [
             row
@@ -132,7 +145,10 @@ def verify_installation(connection, deployment: dict, *, revision=PLATFORM_REVIS
         "ON n.oid=c.relnamespace WHERE n.nspname=%s AND c.relkind='r'",
         (v2.PLATFORM_SCHEMA,),
     ).fetchall()
-    if {row[0] for row in tables} != set(v2.PLATFORM_TABLES) or any(
+    expected_tables = set(v2.PLATFORM_TABLES)
+    if revision == v4.PLATFORM_REVISION:
+        expected_tables.update(v4.NEW_TABLES)
+    if {row[0] for row in tables} != expected_tables or any(
         tuple(row[1:]) != (ADMIN, True, True, v2.PLATFORM_MARKER) for row in tables
     ):
         raise DeploymentError("Business tables are not the reviewed forced-RLS set.")
@@ -146,8 +162,13 @@ def verify_installation(connection, deployment: dict, *, revision=PLATFORM_REVIS
     ).fetchone()
     if scope != (True, False, False, False, False):
         raise DeploymentError("Runtime database scope is broader than allowed.")
-    if revision == PLATFORM_REVISION and category_check(connection) != (CATEGORY_CHECK, True):
+    if revision in {PLATFORM_REVISION, v4.PLATFORM_REVISION} and category_check(connection) != (
+        CATEGORY_CHECK,
+        True,
+    ):
         raise DeploymentError("Medical category constraint is not the verified v3 constraint.")
+    if revision == v4.PLATFORM_REVISION:
+        require_reviewed_v4(connection)
 
 
 def install_empty(connection, deployment: dict, password: str) -> None:
