@@ -1,0 +1,4 @@
+# Local test databases, logs, screenshots and receipts are not public source.
+*
+!.gitignore
+!README.md

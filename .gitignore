@@ -1,0 +1,8 @@
+# The published Windows ZIP is tracked with Git LFS; this unpacked copy is local.
+/健康生活服务平台-1.7.0-电脑版/
+
+# Contains account/password information; do not publish this local hand-off file.
+/示例账号与使用说明.txt
+
+# 本地维护/ and 测试/ contain their own allowlist-style .gitignore files.
+# Only their README.md and .gitignore may be added; raw data stays local.

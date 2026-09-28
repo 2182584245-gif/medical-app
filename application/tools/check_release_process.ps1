@@ -2,13 +2,15 @@ param(
     [Parameter(Mandatory = $true)][string]$ExecutablePath,
     [Parameter(Mandatory = $true)][string]$ExpectedSha256,
     [Parameter(Mandatory = $true)][string]$TestRoot,
-    [string]$AllowedTestParent = 'D:\medical-app-release-20260919-v170\startup',
+    [string]$AllowedTestParent = (Join-Path (Split-Path (Split-Path $PSScriptRoot -Parent) -Parent) '测试\startup'),
+    [string]$PythonPath = (Join-Path (Split-Path $PSScriptRoot -Parent) '.venv\Scripts\python.exe'),
     [switch]$ConfirmRun
 )
 
 # Process/log smoke only: does not control native UI or imply a visual/E2E pass.
 $ErrorActionPreference = 'Stop'
 $medicalExe = (Resolve-Path -LiteralPath $ExecutablePath).Path
+$medicalBuildPython = (Resolve-Path -LiteralPath $PythonPath).Path
 $medicalTest = [IO.Path]::GetFullPath($TestRoot)
 $medicalParent = [IO.Path]::GetFullPath($AllowedTestParent).TrimEnd('\')
 if ($medicalParent -eq [IO.Path]::GetPathRoot($medicalParent).TrimEnd('\')) {
@@ -49,7 +51,6 @@ try {
         [Environment]::SetEnvironmentVariable($name, $null, 'Process')
     }
     # An existing isolated empty SQLite file prevents legacy data discovery.
-    $medicalBuildPython = 'D:\medical-app-release-20260909\.venv-build\Scripts\python.exe'
     & $medicalBuildPython -I -c 'import sqlite3,sys; sqlite3.connect(sys.argv[1]).close()' (Join-Path $medicalData 'app.db')
     if ($LASTEXITCODE -ne 0) { throw 'Isolated SQLite preparation failed.' }
     $medicalChild = Start-Process -FilePath $medicalExe -WorkingDirectory $medicalTest -WindowStyle Hidden -PassThru

@@ -5,6 +5,7 @@ param(
     [Parameter(Mandatory = $true)][string]$TestRoot,
     [string]$ExpectedVersion = '1.4.0',
     [int]$StartupTimeoutSeconds = 45,
+    [string]$AllowedTestParent = (Join-Path (Split-Path (Split-Path $PSScriptRoot -Parent) -Parent) '测试\startup'),
     [switch]$ConfirmRun
 )
 
@@ -13,7 +14,10 @@ $resolvedExecutable = (Resolve-Path -LiteralPath $ExecutablePath).Path
 $resolvedPython = (Resolve-Path -LiteralPath $PythonPath).Path
 $testTarget = [IO.Path]::GetFullPath($TestRoot)
 $sourceRoot = Split-Path $PSScriptRoot -Parent
-$startupParent = [IO.Path]::GetFullPath('D:\medical-app-release-20260908\startup')
+$startupParent = [IO.Path]::GetFullPath($AllowedTestParent).TrimEnd('\')
+if ($startupParent -eq [IO.Path]::GetPathRoot($startupParent).TrimEnd('\')) {
+    throw 'A specific release test directory is required, not a drive root.'
+}
 if ($ExpectedSha256 -notmatch '^[a-fA-F0-9]{64}$') { throw 'An exact expected EXE SHA256 is required.' }
 if ((Get-FileHash -LiteralPath $resolvedExecutable -Algorithm SHA256).Hash -ne $ExpectedSha256) {
     throw 'EXE hash differs from the frozen, approved build; nothing started.'
