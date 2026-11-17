@@ -1,0 +1,945 @@
+from __future__ import annotations
+
+from importlib import import_module
+from pathlib import Path
+
+from PySide6.QtCore import QStandardPaths, QSize, Qt, QThreadPool, QTimer, Signal
+from PySide6.QtWidgets import (
+    QApplication,
+    QDateEdit,
+    QDateTimeEdit,
+    QDialog,
+    QFileDialog,
+    QFrame,
+    QHBoxLayout,
+    QInputDialog,
+    QLabel,
+    QMainWindow,
+    QMessageBox,
+    QPushButton,
+    QProgressBar,
+    QSizePolicy,
+    QStackedWidget,
+    QToolBar,
+    QVBoxLayout,
+    QWidget,
+)
+
+from ..config import APP_NAME
+from ..security.secret_store import SecretStore
+from ..services.auth import AuthService
+from ..services.backup import PortableBackupService
+from ..services.chat import ChatService
+from ..services.health import HealthService
+from ..workers.task import FunctionTask
+from .auth_pages import LoginPage, RegisterPage
+from .art_icons import rounded_icon
+from .chat_page import ChatPage
+from .health_workspace import HealthWorkspace
+from .operator_setup_dialog import OperatorSetupDialog
+
+
+class _UnavailableRoleWorkspace(QWidget):
+    """Safe placeholder used only while a role-specific UI module is absent."""
+
+    logout_requested = Signal()
+    export_requested = Signal()
+    import_requested = Signal()
+
+    def __init__(self, role_label: str) -> None:
+        super().__init__()
+        self.current_user: object | None = None
+        outer = QHBoxLayout(self)
+        outer.addStretch(1)
+        card = QFrame()
+        card.setObjectName("Card")
+        card.setMaximumWidth(620)
+        layout = QVBoxLayout(card)
+        layout.setContentsMargins(36, 34, 36, 34)
+        title = QLabel(f"{role_label}工作台尚未加载")
+        title.setObjectName("Title")
+        layout.addWidget(title)
+        message = QLabel("当前构建缺少该角色的工作台模块，请更新到完整版本后再使用。")
+        message.setObjectName("Subtitle")
+        message.setWordWrap(True)
+        layout.addWidget(message)
+        logout_button = QPushButton("退出登录")
+        logout_button.setObjectName("PrimaryButton")
+        logout_button.clicked.connect(self.logout_requested)
+        layout.addWidget(logout_button)
+        outer.addWidget(card)
+        outer.addStretch(1)
+
+    def start_session(self, user: object) -> None:
+        self.current_user = user
+
+    def end_session(self) -> None:
+        self.current_user = None
+
+
+class MainWindow(QMainWindow):
+    connection_change_requested = Signal(str, str)
+
+    def __init__(
+        self,
+        auth_service: AuthService,
+        chat_service: ChatService,
+        secret_store: SecretStore,
+        backup_service: PortableBackupService | None = None,
+        health_service: HealthService | None = None,
+        service_management_service: object | None = None,
+        advisor_workspace: QWidget | None = None,
+        operator_workspace: QWidget | None = None,
+        commerce_service: object | None = None,
+        file_management_service: object | None = None,
+        ai_assistant_service: object | None = None,
+        cloud_base_url: str = "",
+        preferences_service: object | None = None,
+        appointment_service: object | None = None,
+        endpoint_store=None,
+    ) -> None:
+        super().__init__()
+        self.auth_service = auth_service
+        self.chat_service = chat_service
+        self.secret_store = secret_store
+        self.backup_service = backup_service
+        self.health_service = health_service
+        self.service_management_service = service_management_service
+        self.commerce_service = commerce_service
+        self.file_management_service = file_management_service
+        self.ai_assistant_service = ai_assistant_service
+        self.preferences_service = preferences_service
+        self._current_user = None
+        self.cloud_sync_service = None
+        self.local_migration_source_path = None
+        self._last_snapshot_revision = None
+        self.cloud_mode = bool(getattr(auth_service, "uses_network", False))
+        self.developer_service = None
+        self._developer_snapshot_applied = None
+        self._pending_developer_snapshot = None
+        self._pending_developer_warning = ""
+        self._developer_initialization_error = ""
+        try:
+            from ..services.developer import LocalDeveloperService, RemoteDeveloperService
+            if self.cloud_mode:
+                self.developer_service = RemoteDeveloperService(
+                    auth_service.client, secret_store=secret_store)
+            elif getattr(auth_service, "database", None) is not None:
+                self.developer_service = LocalDeveloperService(auth_service.database, secret_store)
+            if self.developer_service is not None:
+                secret_store = self.developer_service.launch_secret_store
+                self.secret_store = secret_store
+        except Exception:
+            self._developer_initialization_error = "开发设置无法安全读取，请检查本机配置后重试。"
+        self._tasks: list[FunctionTask] = []
+        self._active_workspace: QWidget | None = None
+        self._new_profile_user_id = None
+        self._reminder_popups = []
+        self._network_state = {}
+
+        self.setWindowTitle(APP_NAME)
+        screen = QApplication.primaryScreen()
+        available = screen.availableGeometry() if screen else None
+        geometry = screen.geometry() if screen else None
+        self.resize(
+            min(round(geometry.width() * 5 / 6), available.width()) if geometry else 1280,
+            min(round(geometry.height() * .65), available.height()) if geometry else 700,
+        )
+        self.setMinimumSize(640, 360)
+        if available:
+            self.move(available.x() + (available.width() - self.width()) // 2,
+                      available.y() + (available.height() - self.height()) // 2)
+
+        self.pages = QStackedWidget()
+        self.setCentralWidget(self.pages)
+
+        self.login_page = LoginPage(endpoint_store=endpoint_store)
+        self.login_page.set_import_available(False)
+        self.login_page.set_connection_context(
+            "cloud" if self.cloud_mode else "local", cloud_base_url
+        )
+        self.register_page = RegisterPage()
+        self.register_page.set_cloud_mode(self.cloud_mode)
+        self.chat_page = ChatPage(
+            chat_service,
+            secret_store,
+            backup_service,
+            ai_assistant_service,
+            file_management_service,
+            preferences_service=preferences_service,
+            cloud_client=getattr(auth_service, "client", None),
+        )
+        self.health_workspace = (
+            HealthWorkspace(
+                health_service,
+                self.chat_page,
+                backup_service,
+                commerce_service=commerce_service,
+                file_management_service=file_management_service,
+                preferences_service=preferences_service,
+                ai_service=ai_assistant_service,
+                appointment_service=appointment_service,
+            )
+            if health_service is not None
+            else None
+        )
+        self.member_workspace = self.health_workspace or self.chat_page
+        self.advisor_workspace = (
+            advisor_workspace
+            if advisor_workspace is not None
+            else self._create_role_workspace("advisor")
+        )
+        self.operator_workspace = (
+            operator_workspace
+            if operator_workspace is not None
+            else self._create_role_workspace("operator")
+        )
+        self._role_workspaces: dict[str, QWidget] = {
+            "member": self.member_workspace,
+            "advisor": self.advisor_workspace,
+            "operator": self.operator_workspace,
+        }
+        self.pages.addWidget(self.login_page)
+        self.pages.addWidget(self.register_page)
+        for workspace in self._role_workspaces.values():
+            if self.pages.indexOf(workspace) < 0:
+                self.pages.addWidget(workspace)
+
+        self.login_page.login_requested.connect(self._login)
+        self.login_page.set_login_options_enabled(self.cloud_mode)
+        self.login_page.login_options_requested.connect(self._login_with_options)
+        self.login_page.register_requested.connect(self._show_register)
+        self.login_page.import_requested.connect(self._import_data_from_login)
+        self.login_page.operator_setup_requested.connect(self._open_operator_setup)
+        self.login_page.connection_change_requested.connect(self._request_connection_change)
+        self.register_page.create_requested.connect(self._register)
+        self.register_page.back_requested.connect(self._show_login)
+        connected: set[int] = set()
+        for workspace in self._role_workspaces.values():
+            if id(workspace) in connected:
+                continue
+            connected.add(id(workspace))
+            self._connect_workspace_signals(workspace)
+        # ChatPage emits this after a successful data import. The idempotent
+        # logout method safely handles the member workspace forwarding it too.
+        self.chat_page.logout_requested.connect(self._logout)
+
+        # The old whole-database ZIP import/export UI has been retired.
+        # Internal safety snapshots remain available to migration tooling.
+        for surface in (self.login_page, self.chat_page, *self._role_workspaces.values()):
+            for name in ("backup_button", "export_button", "import_button"):
+                button = getattr(surface, name, None)
+                if button is not None:
+                    button.hide()
+
+        toolbar = QToolBar("应用设置", self)
+        toolbar.setObjectName("GlobalToolbar")
+        toolbar.setMovable(False)
+        toolbar.setIconSize(QSize(24, 24))
+        self.developer_button = QPushButton("开发者模式")
+        self.developer_button.setObjectName("DeveloperButton")
+        self.developer_button.setAccessibleName("开发者模式，需要重新验证账号密码")
+        self.developer_button.clicked.connect(self._open_developer_mode)
+        toolbar.addWidget(self.developer_button)
+        self.offline_status_label = QLabel()
+        self.offline_status_label.setWordWrap(True)
+        self.offline_status_label.setMaximumWidth(620)
+        self.offline_status_label.setAccessibleName("离线授权与待提交状态")
+        self.offline_status_label.setStyleSheet(
+            "QLabel { color: #654c22; background: #fff1cd; padding: 8px; border-radius: 8px; }"
+        )
+        self.offline_status_label.hide()
+        toolbar.addWidget(self.offline_status_label)
+        spacer = QWidget()
+        spacer.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
+        toolbar.addWidget(spacer)
+        self.network_button = QPushButton("延迟 — · ↓ — · ↑ —")
+        self.network_button.setObjectName("NetworkButton")
+        self.network_button.setIcon(rounded_icon("network", size=26, color="#405b45", background="#eef4ea"))
+        self.network_button.setIconSize(QSize(26, 26))
+        self.network_button.setAccessibleName("网络状态、延迟和连接位置")
+        self.network_button.setMaximumWidth(400)
+        self.network_button.clicked.connect(self._show_network_details)
+        toolbar.addWidget(self.network_button)
+        self.loading_progress = QProgressBar()
+        self.loading_progress.setObjectName("GlobalProgress")
+        self.loading_progress.setRange(0, 0)
+        self.loading_progress.setFixedWidth(120)
+        self.loading_progress.setToolTip("正在加载云端数据")
+        self.loading_progress.hide()
+        toolbar.addWidget(self.loading_progress)
+        self.sync_button = QPushButton("数据与同步")
+        self.sync_button.clicked.connect(self._open_data_sync)
+        # Kept as an internal compatibility handle for the cloud-sync service;
+        # the member-facing scheme-3 shell intentionally no longer exposes a
+        # separate "数据与同步" toolbar action.
+        self.sync_button.hide()
+        self.timezone_button = QPushButton("时区 · 北京")
+        self.timezone_button.setAccessibleName("设置时区，默认北京时间")
+        self.timezone_button.clicked.connect(self._choose_timezone)
+        # Beijing time is fixed by the app; the old manual timezone control is
+        # retained only for legacy calls and is not placed in the toolbar.
+        self.timezone_button.hide()
+        self.addToolBar(toolbar)
+        from ..services.network_status import NetworkStatusMonitor
+        from ..services.reminder_scheduler import ReminderScheduler
+
+        self.network_monitor = NetworkStatusMonitor(cloud_base_url if self.cloud_mode else "", self)
+        self.network_monitor.changed.connect(self._network_changed)
+        self.reminder_scheduler = None
+        if health_service is not None and preferences_service is not None:
+            self.reminder_scheduler = ReminderScheduler(
+                health_service, preferences_service,
+                namespace=("cloud:" + cloud_base_url if self.cloud_mode else
+                           "local:" + str(getattr(getattr(health_service, "database", None),
+                                                   "path", "local"))), parent=self)
+            self.reminder_scheduler.reminder_due.connect(self._reminder_due)
+            if self.health_workspace is not None:
+                for page, signal_name in (
+                    (self.health_workspace.today_page, "record_changed"),
+                    (self.health_workspace.profile_page, "profile_changed"),
+                    (self.health_workspace.service_page, "reminder_changed"),
+                    (self.health_workspace.my_platform_page, "preferences_changed"),
+                ):
+                    changed = getattr(page, signal_name, None)
+                    if changed is not None:
+                        changed.connect(lambda *_: self.reminder_scheduler.refresh())
+        if hasattr(self.chat_page, "preferences_changed"):
+            self.chat_page.preferences_changed.connect(self.apply_preferences)
+        if self.health_workspace is not None:
+            self.health_workspace.my_platform_page.preferences_changed.connect(
+                self.apply_preferences
+            )
+
+        self._show_login()
+
+    def _open_developer_mode(self):
+        if self.login_page._connection_pending():
+            QMessageBox.information(
+                self, "请先应用所选模式",
+                "请先点击登录页的“应用所选模式”，再进入该模式的开发者界面。"
+                "本地与阿里云的账号和开发权限相互独立。",
+            )
+            return
+        from .developer_workspace import DeveloperLoginDialog, DeveloperWorkspaceDialog
+        if self.developer_service is None:
+            QMessageBox.information(self, "开发者模式暂不可用", self._developer_initialization_error
+                                    or "此构建未配置开发权限管理服务。")
+            return
+        login = DeveloperLoginDialog(self.developer_service, self)
+        if login.exec() != QDialog.DialogCode.Accepted:
+            self.developer_service.close_session()
+            return
+        dialog = DeveloperWorkspaceDialog(self.developer_service, self)
+        QTimer.singleShot(0, dialog.reload)
+        dialog.exec()
+
+    def _apply_launch_developer_settings(self):
+        if self.developer_service is None:
+            return
+        snapshot = (self._pending_developer_snapshot if self.cloud_mode
+                    else self.developer_service.startup_snapshot)
+        if snapshot is None:
+            return
+        # Compare the data as well as revision: the safe fallback uses revision 0.
+        if self._developer_snapshot_applied == snapshot:
+            return
+        for workspace in (self.chat_page, self.health_workspace, self.advisor_workspace):
+            apply = getattr(workspace, "apply_developer_snapshot", None)
+            if callable(apply):
+                apply(snapshot)
+        ai_panel = getattr(self.advisor_workspace, "ai_panel", None)
+        if ai_panel is not None:
+            ai_panel.secret_store = self.secret_store
+            apply = getattr(ai_panel, "apply_developer_snapshot", None)
+            if callable(apply):
+                apply(snapshot)
+            ai_panel.setEnabled(snapshot["settings"]["features"]["ai"]
+                                and snapshot["settings"]["ai"]["enabled"])
+        runtime = snapshot["settings"]["runtime"]
+        if runtime["announcement"]:
+            self.statusBar().showMessage(runtime["announcement"], 20000)
+        if runtime["maintenance_enabled"]:
+            QMessageBox.information(self, "服务维护提示", runtime["maintenance_message"] or
+                                    "部分服务正在维护，请稍后再试。")
+        self._developer_snapshot_applied = snapshot
+
+    def configure_cloud_sync(self, client, *, sync_service=None):
+        from ..paths import user_data_dir
+        from ..services.cloud_sync import CloudMirrorStore, CloudSyncService
+
+        self.cloud_sync_service = sync_service or CloudSyncService(
+            client, CloudMirrorStore(user_data_dir() / "cloud-mirrors"), self
+        )
+        self.cloud_sync_service.setParent(self)
+        self.cloud_sync_service.status_changed.connect(self._sync_status_changed)
+        self.cloud_sync_service.authorization_lost.connect(self._cloud_authorization_lost)
+        self.cloud_sync_service.snapshot_changed.connect(self._snapshot_arrived)
+        self.cloud_sync_service.reauthentication_required.connect(self._reauthentication_required)
+        self.cloud_sync_service.outbox_changed.connect(self._outbox_changed)
+        self.chat_page.data_changed.connect(self.cloud_sync_service.sync_now)
+        self.chat_page.set_cloud_client(client)
+
+    def _network_changed(self, state):
+        previous = self._network_state.get("state")
+        self._network_state = state
+        labels = {"online": "在线", "local": "在线", "offline": "离线",
+                  "timeout": "连接超时", "tls_error": "证书需检查",
+                  "service_error": "服务暂不可用", "unknown": "状态待检查"}
+        delay = f"{state['latency_ms']} ms" if state.get("latency_ms") is not None else "—"
+        down = state.get("download_kbps")
+        up = state.get("upload_kbps")
+        down_text = f"{down:.0f}K/s" if isinstance(down, (int, float)) else "—"
+        up_text = f"{up:.0f}K/s" if isinstance(up, (int, float)) else "—"
+        self.network_button.setText(
+            f"{labels.get(state['state'], '检测中')} · {delay} · ↓{down_text} · ↑{up_text}"
+        )
+        self.network_button.setToolTip(
+            f"本机网络：{state.get('network', '未识别')}\n"
+            f"服务位置：{state.get('service_location', '未验证')}\n"
+            "延迟为 HTTPS 业务服务往返耗时；上下行数字是本次云端探测的估算值。")
+        if state["state"] == "online" and previous != "online" and self.cloud_sync_service:
+            self.cloud_sync_service.sync_now()
+
+    def _show_network_details(self):
+        state = self._network_state
+        QMessageBox.information(self, "网络与同步说明",
+            f"本机网络：{state.get('network', '正在检测')}\n"
+            f"服务位置：{state.get('service_location', '正在检测')}\n"
+            f"服务地址：{state.get('host', '正在检测')}\n\n"
+            "状态约每 5 秒检查；活动网卡不等于互联网或云数据库可用。\n"
+            f"延迟：{state.get('latency_ms', '—')} ms\n"
+            f"估算下行：{state.get('download_kbps', '—')} K/s；估算上行：{state.get('upload_kbps', '—')} K/s\n"
+            "显示的北京是服务器位置，不代表您的所在城市；不查询或上传您的 IP 属地。\n"
+            "登录和记录只使用阿里云服务，网络恢复后会继续读取云端数据。")
+
+    def _reminder_due(self, payload):
+        if self._current_user is None or payload.get("user_id") != self._current_user.id:
+            return
+        popup = QMessageBox(self)
+        popup.setWindowTitle("温馨提醒")
+        popup.setTextFormat(Qt.TextFormat.PlainText)
+        popup.setText(str(payload.get("message", "您有一项生活提醒，请从容安排。")))
+        popup.setIcon(QMessageBox.Icon.Information)
+        popup.addButton("知道啦，谢谢提醒", QMessageBox.ButtonRole.AcceptRole)
+        popup.setWindowModality(Qt.WindowModality.NonModal)
+        popup.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose)
+        self._reminder_popups.append(popup)
+        popup.finished.connect(lambda _: self._reminder_popups.remove(popup)
+                               if popup in self._reminder_popups else None)
+        popup.show()
+
+    def _stop_reminders(self):
+        if self.reminder_scheduler is not None:
+            self.reminder_scheduler.stop()
+        for popup in list(self._reminder_popups):
+            popup.close()
+
+    def _sync_status_changed(self, state):
+        labels = {
+            "online": "已同步",
+            "syncing": "同步中",
+            "connecting": "连接中",
+            "offline": "离线镜像",
+            "unauthorized": "需登录",
+            "blocked": "需检查",
+        }
+        self.sync_button.setText("数据与同步 · " + labels.get(state["state"], "未连接"))
+        self.sync_button.setToolTip(state["message"])
+        pending, conflicts = state.get("pending_count", 0), state.get("conflict_count", 0)
+        parts = []
+        if state["state"] == "offline":
+            from ..time_utils import format_beijing
+
+            parts.append("当前离线，显示上次同步的记录")
+            expiry = state.get("offline_expires_at")
+            if expiry:
+                parts.append("离线查看到期：" + format_beijing(expiry))
+        if pending:
+            parts.append(f"{pending} 项尚未提交云端（其中 {conflicts} 项需处理）")
+        self.offline_status_label.setText("\n".join(parts))
+        self.offline_status_label.setVisible(bool(parts))
+
+    def _outbox_changed(self, _summary):
+        if self.cloud_sync_service is not None:
+            self._sync_status_changed(self.cloud_sync_service.state())
+
+    def _reauthentication_required(self, message):
+        if self._active_workspace is not None:
+            self._logout()
+        self.login_page.allow_offline_checkbox.setChecked(False)
+        self.login_page.clear_password()
+        self.login_page.show_error(message)
+
+    def _snapshot_arrived(self, snapshot):
+        from .snapshot_refresh import refresh_current_workspace
+
+        refresh_current_workspace(self, snapshot)
+        if self.reminder_scheduler is not None:
+            self.reminder_scheduler.refresh()
+        if snapshot["revision"] == self._last_snapshot_revision:
+            return
+        self._last_snapshot_revision = snapshot["revision"]
+        self.statusBar().showMessage("已载入完整云端镜像；离线修改会单独列为待提交。", 6000)
+
+    def _cloud_authorization_lost(self):
+        if self._active_workspace is not None:
+            self._logout()
+        self.login_page.show_error("云端身份或权限已失效。已锁定镜像，请重新在线登录。")
+
+    def _open_data_sync(self):
+        if not self.cloud_mode:
+            QMessageBox.information(
+                self,
+                "本地数据",
+                "当前使用本机数据库。\n\n"
+                "要连接云端，请退出登录，在登录页选择阿里云模式并登录云端账户。"
+                "之后可在这里验证本机源账户、预览首次迁移；不会自动上传历史数据。\n\n"
+                "原一键打包功能已移除，数据迁移不会删除本机原件。",
+            )
+            return
+        if self._current_user is None or self.cloud_sync_service is None:
+            QMessageBox.information(self, "数据与同步", "请先在线登录云端账户。")
+            return
+        from .data_sync_dialog import DataSyncDialog
+
+        options = {}
+        source_path = self.local_migration_source_path
+        if source_path is not None and self._current_user.role_code == "member":
+            from ..paths import user_data_dir
+            from ..services.cloud_migration import (
+                MemberMigrationPlanner,
+                MemberMigrationService,
+                MigrationJournal,
+            )
+            from .local_migration_auth import authenticate_local_migration
+
+            journal = MigrationJournal(
+                user_data_dir() / "cloud-mirrors" / "migration-journal.sqlite"
+            )
+            options = {
+                "planner": MemberMigrationPlanner(source_path, journal),
+                "migration_service": MemberMigrationService(
+                    self.cloud_client, journal, sync_service=self.cloud_sync_service
+                ),
+                "source_authenticator": lambda: authenticate_local_migration(source_path, self),
+            }
+        DataSyncDialog(self.cloud_sync_service, self, **options).exec()
+
+    def apply_preferences(self, preferences: dict) -> None:
+        from ..time_utils import set_display_timezone
+        from .theme import build_style
+        from .time_fields import current_qtimezone
+
+        name = "Asia/Shanghai"
+        set_display_timezone(name)
+        self.timezone_button.setText("北京时间")
+        self.setStyleSheet(
+            build_style(
+                preferences.get("font_size", 20),
+                preferences.get("theme_color", "sage"),
+                preferences.get("brightness", 100),
+            )
+        )
+        for editor in self.findChildren(QDateTimeEdit):
+            if isinstance(editor, QDateEdit):
+                # Birthdays and other civil dates are not instants.
+                continue
+            # A timezone change relabels an instant; it must not reschedule it.
+            instant = editor.dateTime()
+            editor.setTimeZone(current_qtimezone())
+            editor.setDateTime(instant.toTimeZone(current_qtimezone()))
+        for workspace in self._role_workspaces.values():
+            apply = getattr(workspace, "apply_preferences", None)
+            if callable(apply):
+                apply(preferences)
+        self.statusBar().showMessage("时间统一按北京时间显示。", 6000)
+
+    def _choose_timezone(self) -> None:
+        QMessageBox.information(self, "北京时间", "当前版本统一使用北京时间，不能手动切换。")
+
+    def _request_connection_change(self, mode: str, base_url: str) -> None:
+        if self._tasks or self._active_workspace is not None:
+            self.login_page.show_error("请先等待当前操作结束并退出登录，再切换数据模式。")
+            return
+        if mode != "cloud":
+            return
+        from ..services.cloud_client import CloudAPIError, validate_base_url
+
+        try:
+            base_url = validate_base_url(base_url)
+        except CloudAPIError as error:
+            self.login_page.show_error(str(error))
+            return
+        self.login_page.clear_password()
+        self.register_page.reset()
+        self.secret_store.clear_api_keys()
+        self.connection_change_requested.emit(mode, base_url)
+
+    def _create_role_workspace(self, role_code: str) -> QWidget:
+        role_labels = {"advisor": "家庭生活顾问", "operator": "运营"}
+        if self.service_management_service is None:
+            return _UnavailableRoleWorkspace(role_labels[role_code])
+        workspace_class = self._load_role_workspace_class(role_code)
+        if workspace_class is None:
+            return _UnavailableRoleWorkspace(role_labels[role_code])
+        try:
+            workspace = workspace_class(
+                self.service_management_service,
+                self.backup_service,
+                commerce_service=self.commerce_service,
+            )
+            if not isinstance(workspace, QWidget):
+                raise TypeError("角色工作台必须是 QWidget")
+            return workspace
+        except Exception:
+            # A partially installed role module must not break member login or
+            # accidentally expose the member workspace to staff accounts.
+            return _UnavailableRoleWorkspace(role_labels[role_code])
+
+    @staticmethod
+    def _load_role_workspace_class(role_code: str) -> type[QWidget] | None:
+        class_name = "AdvisorWorkspace" if role_code == "advisor" else "OperatorWorkspace"
+        module_name = f"ollama_chat_app.ui.{role_code}_workspace"
+        try:
+            module = import_module(module_name)
+        except ModuleNotFoundError as exc:
+            if exc.name == module_name:
+                return None
+            raise
+        workspace_class = getattr(module, class_name, None)
+        return workspace_class if isinstance(workspace_class, type) else None
+
+    def _connect_workspace_signals(self, workspace: QWidget) -> None:
+        if hasattr(workspace, "logout_requested"):
+            workspace.logout_requested.connect(self._logout)
+        if hasattr(workspace, "export_requested"):
+            workspace.export_requested.connect(self.chat_page._export_data_backup)
+        if hasattr(workspace, "import_requested"):
+            workspace.import_requested.connect(self.chat_page._import_data_backup)
+
+    def _show_login(self) -> None:
+        self.register_page.reset()
+        self.login_page.clear_error()
+        self.login_page.clear_password()
+        self.pages.setCurrentWidget(self.login_page)
+        self.developer_button.show()
+        self._refresh_operator_setup_availability()
+        self.login_page.focus_username()
+
+    def _show_register(self) -> None:
+        self.login_page.clear_error()
+        self.register_page.reset()
+        self.register_page.username_input.setText(self.login_page.username_input.text().strip())
+        self.pages.setCurrentWidget(self.register_page)
+        self.register_page.username_input.setFocus()
+
+    def _login_with_options(self, username: str, password: str, options: dict) -> None:
+        self._login(
+            username, password,
+            allow_offline=options.get("allow_offline") is True,
+            remember_offline=options.get("remember_offline") is True,
+        )
+
+    def _login(
+        self, username: str, password: str, *, allow_offline=False, remember_offline=False
+    ) -> None:
+        if not username.strip() or not password:
+            self.login_page.show_error("用户名和密码不能为空。")
+            return
+        self.login_page.set_busy(True)
+        self._pending_developer_snapshot = None
+        self._pending_developer_warning = ""
+        options = (
+            {"allow_offline": allow_offline, "remember_offline": remember_offline}
+            if self.cloud_mode else {}
+        )
+        def authenticate_and_capture():
+            user = self.auth_service.authenticate(username, password, **options)
+            snapshot, warning = None, ""
+            if self.cloud_mode and self.developer_service is not None:
+                try:
+                    snapshot = self.developer_service.load_startup_snapshot()
+                except Exception as error:
+                    if (getattr(error, "status_code", None) == 401
+                            or getattr(error, "code", "") in {
+                                "authentication", "not_authenticated"}):
+                        # A rejected session is not an optional-config outage.
+                        # Never continue into the workspace with a cleared token
+                        # or silently substitute a local/offline identity.
+                        self.auth_service.clear_session()
+                        raise RuntimeError(
+                            "云端登录状态已失效，请重新登录。"
+                            "本次未进入应用，也未改用本地账号登录。"
+                        ) from None
+                    from ..services.developer_settings import default_snapshot
+                    cached = self.developer_service.cached_snapshot_for_user(user.id)
+                    if cached is not None:
+                        snapshot = cached
+                        warning = "当前无法读取云端新配置，采用本次运行中该账号已验证的配置。"
+                    elif getattr(error, "code", "") == "not_found":
+                        snapshot = default_snapshot()
+                        warning = "当前后端尚未开放 2.1 开发配置，暂用原有功能设置。"
+                    else:
+                        snapshot = default_snapshot()
+                        snapshot["settings"]["ai"]["enabled"] = False
+                        snapshot["settings"]["features"]["ai"] = False
+                        warning = ("暂未取得该账号的可信云端配置，AI 暂停；"
+                                   "记录可继续使用，请联网重新登录。")
+            return user, snapshot, warning
+
+        def captured(result):
+            user, snapshot, warning = result
+            self._pending_developer_snapshot = snapshot
+            self._pending_developer_warning = warning
+            self._login_succeeded(user)
+
+        task = FunctionTask(authenticate_and_capture)
+        self._start_task(
+            task,
+            captured,
+            lambda error: self.login_page.show_error(str(error) or "登录失败。"),
+            lambda: self.login_page.set_busy(False),
+        )
+
+    def _login_succeeded(self, user: object) -> None:
+        self.login_page.clear_password()
+        role_code = str(getattr(user, "role_code", "member"))
+        workspace = self._role_workspaces.get(role_code)
+        if workspace is None:
+            self.login_page.show_error("账户角色无效，请联系运营人员检查账户。")
+            self.pages.setCurrentWidget(self.login_page)
+            return
+        try:
+            self._apply_launch_developer_settings()
+        except Exception:
+            self.statusBar().showMessage(
+                "本次未读取到新版开发配置，保留当前默认设置；开发者云端操作仍需在线授权。", 12000)
+        if self._pending_developer_warning:
+            self.statusBar().showMessage(self._pending_developer_warning, 20000)
+        if self.cloud_sync_service is not None:
+            self._last_snapshot_revision = None
+            try:
+                self.cloud_sync_service.start(user.id, role_code=user.role_code)
+            except Exception:
+                self.cloud_sync_service.stop()
+                self.auth_service.clear_session()
+                self.login_page.show_error("离线资料尚未准备好或授权已失效，请连接网络后登录。")
+                self.pages.setCurrentWidget(self.login_page)
+                return
+        self._active_workspace = workspace
+        # Developer mode is deliberately available from the login screen only.
+        self.developer_button.hide()
+        self._current_user = user
+        if self.preferences_service is not None:
+            try:
+                self.apply_preferences(self.preferences_service.get(user.id))
+            except Exception:
+                self.statusBar().showMessage("个人设置暂时未能读取，使用默认北京时间。")
+        # Staff workspaces do not embed ChatPage, but its existing portable
+        # backup handlers require an authenticated in-memory user marker.
+        if role_code != "member":
+            self.chat_page.current_user = user
+        workspace.start_session(user)
+        self.pages.setCurrentWidget(workspace)
+        if self.reminder_scheduler is not None and role_code == "member":
+            self.reminder_scheduler.start(user)
+        if self._new_profile_user_id == user.id and role_code == "member":
+            self._new_profile_user_id = None
+            QTimer.singleShot(0, lambda: workspace.open_profile()
+                              if self._active_workspace is workspace
+                              and getattr(self._current_user, "id", None) == user.id else None)
+
+    def _refresh_operator_setup_availability(self) -> None:
+        has_operator = getattr(self.auth_service, "has_operator", None)
+        if not callable(has_operator):
+            self.login_page.set_operator_setup_available(False)
+            return
+        try:
+            available = not bool(has_operator())
+        except Exception as exc:
+            self.login_page.set_operator_setup_available(False)
+            self.login_page.show_error(f"无法检查首次配置状态：{exc}")
+            return
+        self.login_page.set_operator_setup_available(available)
+
+    def _open_operator_setup(self) -> None:
+        has_operator = getattr(self.auth_service, "has_operator", None)
+        bootstrap_operator = getattr(self.auth_service, "bootstrap_operator", None)
+        if not callable(has_operator) or not callable(bootstrap_operator):
+            self.login_page.show_error("当前版本没有启用运营账户初始化功能。")
+            return
+        try:
+            if has_operator():
+                self._refresh_operator_setup_availability()
+                self.login_page.show_error("运营账户已经完成首次配置，不能再次初始化。")
+                return
+        except Exception as exc:
+            self.login_page.show_error(f"无法检查首次配置状态：{exc}")
+            return
+
+        dialog = OperatorSetupDialog(self.login_page.username_input.text().strip(), self)
+        if dialog.exec() != dialog.DialogCode.Accepted:
+            return
+
+        self.login_page.clear_error()
+        self.login_page.set_busy(True)
+        task = FunctionTask(bootstrap_operator, dialog.username, dialog.password)
+        self._start_task(
+            task,
+            self._operator_setup_succeeded,
+            self._operator_setup_failed,
+            lambda: self.login_page.set_busy(False),
+        )
+
+    def _operator_setup_succeeded(self, user: object) -> None:
+        self._refresh_operator_setup_availability()
+        username = str(getattr(user, "username", ""))
+        QMessageBox.information(
+            self,
+            "首次配置完成",
+            "首个运营账户已经创建，请使用该账户登录运营工作台。",
+        )
+        self._show_login()
+        self.login_page.username_input.setText(username)
+        self.login_page.password_input.setFocus()
+
+    def _operator_setup_failed(self, error: object) -> None:
+        self._refresh_operator_setup_availability()
+        self.login_page.show_error(str(error) or "创建运营账户失败。")
+
+    def _register(self, username: str, password: str, confirmation: str) -> None:
+        if password != confirmation:
+            self.register_page.show_error("两次输入的密码不一致。")
+            return
+        self.register_page.set_busy(True)
+        task = FunctionTask(self.auth_service.register, username, password)
+        self._start_task(
+            task,
+            lambda user: self._registration_succeeded(user, password),
+            lambda error: self.register_page.show_error(str(error) or "注册失败。"),
+            lambda: self.register_page.set_busy(False),
+        )
+
+    def _registration_succeeded(self, user: object, password: str | None = None) -> None:
+        username = getattr(user, "username", "")
+        self._new_profile_user_id = getattr(user, "id", None)
+        self._show_login()
+        self.login_page.username_input.setText(username)
+        if password:
+            self._login(username, password, remember_offline=False)
+            return
+        QMessageBox.information(self, "注册成功", "账户已经创建，请使用新账户登录。\n"
+                                "登录后会引导填写个人档案，可以只填一部分或稍后再填。")
+        self.login_page.password_input.setFocus()
+
+    def _import_data_from_login(self) -> None:
+        if self.backup_service is None:
+            self.login_page.show_error("当前运行方式没有启用数据导入功能。")
+            return
+
+        download_dir = QStandardPaths.writableLocation(
+            QStandardPaths.StandardLocation.DownloadLocation
+        )
+        start_dir = Path(download_dir) if download_dir else Path.home()
+        selected, _ = QFileDialog.getOpenFileName(
+            self,
+            "选择数据备份",
+            str(start_dir),
+            "ZIP 压缩包 (*.zip)",
+        )
+        if not selected:
+            return
+
+        answer = QMessageBox.warning(
+            self,
+            "确认导入数据",
+            "导入后，当前应用中的全部账户、聊天与健康生活数据会被所选备份替换。\n\n"
+            "应用会先自动保存一份当前数据备份；如果检查或导入失败，当前数据"
+            "不会被替换。所选 ZIP 必须由本应用的“导出数据”功能生成。\n\n"
+            "云端 API Key 不会随备份迁移。是否继续？",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.Cancel,
+            QMessageBox.StandardButton.Cancel,
+        )
+        if answer != QMessageBox.StandardButton.Yes:
+            return
+
+        self.login_page.clear_error()
+        self.login_page.set_busy(True)
+        task = FunctionTask(self.backup_service.import_archive, Path(selected).expanduser())
+        self._start_task(
+            task,
+            self._login_import_succeeded,
+            self._login_import_failed,
+            lambda: self.login_page.set_busy(False),
+        )
+
+    def _login_import_succeeded(self, result: object) -> None:
+        safety_backup = Path(getattr(result, "safety_backup_path", ""))
+        user_count = int(getattr(result, "user_count", 0))
+        message_count = int(getattr(result, "message_count", 0))
+        self.secret_store.clear_api_keys()
+        self.login_page.clear_password()
+        QMessageBox.information(
+            self,
+            "导入完成",
+            f"已导入 {user_count} 个账户、{message_count} 条聊天消息。\n\n"
+            f"导入前的当前数据已自动保存到：\n{safety_backup}\n\n"
+            "请使用备份中的账户登录；云端 API Key 需要重新输入。",
+        )
+        self._show_login()
+
+    def _login_import_failed(self, error: object) -> None:
+        message = str(error) or "导入数据备份失败，当前数据没有被替换。"
+        self.login_page.show_error(message)
+        QMessageBox.warning(self, "导入失败", message)
+
+    def _logout(self) -> None:
+        self._stop_reminders()
+        workspace = self._active_workspace
+        if workspace is None:
+            return
+        if self.cloud_sync_service is not None:
+            self.cloud_sync_service.stop()
+        self._active_workspace = None
+        self._current_user = None
+        self.apply_preferences({})
+        workspace.end_session()
+        if workspace is not self.member_workspace:
+            self.chat_page.end_session()
+        self._show_login()
+        if self.cloud_mode:
+            # Login stays disabled until the old bearer has been revoked/cleared.
+            # Network failure still clears local credentials in the client finally.
+            self.login_page.set_busy(True)
+            task = FunctionTask(self.auth_service.logout)
+            self._start_task(
+                task,
+                lambda _value: None,
+                lambda _error: self.login_page.show_error(
+                    "本机登录已清除，但云端注销未获确认；原令牌将在到期后失效。"
+                ),
+                lambda: self.login_page.set_busy(False),
+            )
+
+    def _start_task(
+        self,
+        task: FunctionTask,
+        on_result,
+        on_error,
+        on_finished=None,
+    ) -> None:
+        self._tasks.append(task)
+        self.loading_progress.show()
+        task.signals.result.connect(on_result)
+        task.signals.error.connect(on_error)
+        if on_finished:
+            task.signals.finished.connect(on_finished)
+        task.signals.finished.connect(lambda: self._task_finished(task))
+        QThreadPool.globalInstance().start(task)
+
+    def _task_finished(self, task: FunctionTask) -> None:
+        if task in self._tasks:
+            self._tasks.remove(task)
+        if not self._tasks:
+            self.loading_progress.hide()

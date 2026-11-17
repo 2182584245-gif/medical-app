@@ -1,0 +1,36 @@
+# Local Android tooling and build state
+.gradle/
+build/
+.build/
+local.properties
+key.properties
+*.apk
+*.aab
+*.jks
+*.keystore
+*.p12
+*.pfx
+*.dpapi.xml
+
+# Reproducible dependencies and test output
+.venv*/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+node_modules/
+playwright-report/
+test-results/
+
+# Local service settings
+.env
+.env.*
+!.env.example
+config/secret_key
+*.sqlite*
+*.db
+packaging/private-android-signing/
+
+# A locally supplied, redistributable knowledge library
+assets/ai_library/*
+!assets/ai_library/README.md
+

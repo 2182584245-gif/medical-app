@@ -1,4 +1,0 @@
-# Local-only deployment packages, private databases and rollback copies.
-*
-!.gitignore
-!README.md

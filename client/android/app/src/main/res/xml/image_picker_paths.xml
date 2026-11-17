@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<paths xmlns:android="http://schemas.android.com/apk/res/android">
+    <cache-path name="captured" path="picked-images/" />
+    <files-path name="guest_captured" path="guest-ai11614/picked-images/" />
+</paths>

@@ -1,0 +1,246 @@
+{
+  "schema_version": 1,
+  "retrieved_at": "2026-10-17",
+  "records": [
+    {
+      "id": "fda:raw:apple",
+      "source_item_name": "Apple",
+      "source_url": "https://www.fda.gov/food/nutrition-food-labeling-and-critical-foods/raw-fruits-poster-text-version-accessible-version",
+      "source_serving_grams": 242,
+      "source_rounded_nutrients": {
+        "energy_kcal": 130,
+        "protein_g": 1,
+        "fat_g": 0,
+        "carbohydrate_g": 34,
+        "fiber_g": 5,
+        "sodium_mg": 0
+      },
+      "unit_basis": "FDA raw edible weight per stated serving"
+    },
+    {
+      "id": "fda:raw:banana",
+      "source_item_name": "Banana",
+      "source_url": "https://www.fda.gov/food/nutrition-food-labeling-and-critical-foods/raw-fruits-poster-text-version-accessible-version",
+      "source_serving_grams": 126,
+      "source_rounded_nutrients": {
+        "energy_kcal": 110,
+        "protein_g": 1,
+        "fat_g": 0,
+        "carbohydrate_g": 30,
+        "fiber_g": 3,
+        "sodium_mg": 0
+      },
+      "unit_basis": "FDA raw edible weight per stated serving"
+    },
+    {
+      "id": "fda:raw:orange",
+      "source_item_name": "Orange",
+      "source_url": "https://www.fda.gov/food/nutrition-food-labeling-and-critical-foods/raw-fruits-poster-text-version-accessible-version",
+      "source_serving_grams": 154,
+      "source_rounded_nutrients": {
+        "energy_kcal": 80,
+        "protein_g": 1,
+        "fat_g": 0,
+        "carbohydrate_g": 19,
+        "fiber_g": 3,
+        "sodium_mg": 0
+      },
+      "unit_basis": "FDA raw edible weight per stated serving"
+    },
+    {
+      "id": "fda:raw:pear",
+      "source_item_name": "Pear",
+      "source_url": "https://www.fda.gov/food/nutrition-food-labeling-and-critical-foods/raw-fruits-poster-text-version-accessible-version",
+      "source_serving_grams": 166,
+      "source_rounded_nutrients": {
+        "energy_kcal": 100,
+        "protein_g": 1,
+        "fat_g": 0,
+        "carbohydrate_g": 26,
+        "fiber_g": 6,
+        "sodium_mg": 0
+      },
+      "unit_basis": "FDA raw edible weight per stated serving"
+    },
+    {
+      "id": "fda:raw:grapes",
+      "source_item_name": "Grapes",
+      "source_url": "https://www.fda.gov/food/nutrition-food-labeling-and-critical-foods/raw-fruits-poster-text-version-accessible-version",
+      "source_serving_grams": 126,
+      "source_rounded_nutrients": {
+        "energy_kcal": 90,
+        "protein_g": 0,
+        "fat_g": 0,
+        "carbohydrate_g": 23,
+        "fiber_g": 1,
+        "sodium_mg": 15
+      },
+      "unit_basis": "FDA raw edible weight per stated serving"
+    },
+    {
+      "id": "fda:raw:kiwifruit",
+      "source_item_name": "Kiwifruit",
+      "source_url": "https://www.fda.gov/food/nutrition-food-labeling-and-critical-foods/raw-fruits-poster-text-version-accessible-version",
+      "source_serving_grams": 148,
+      "source_rounded_nutrients": {
+        "energy_kcal": 90,
+        "protein_g": 1,
+        "fat_g": 1,
+        "carbohydrate_g": 20,
+        "fiber_g": 4,
+        "sodium_mg": 0
+      },
+      "unit_basis": "FDA raw edible weight per stated serving"
+    },
+    {
+      "id": "fda:raw:strawberries",
+      "source_item_name": "Strawberries",
+      "source_url": "https://www.fda.gov/food/nutrition-food-labeling-and-critical-foods/raw-fruits-poster-text-version-accessible-version",
+      "source_serving_grams": 147,
+      "source_rounded_nutrients": {
+        "energy_kcal": 50,
+        "protein_g": 1,
+        "fat_g": 0,
+        "carbohydrate_g": 11,
+        "fiber_g": 2,
+        "sodium_mg": 0
+      },
+      "unit_basis": "FDA raw edible weight per stated serving"
+    },
+    {
+      "id": "fda:raw:watermelon",
+      "source_item_name": "Watermelon",
+      "source_url": "https://www.fda.gov/food/nutrition-food-labeling-and-critical-foods/raw-fruits-poster-text-version-accessible-version",
+      "source_serving_grams": 280,
+      "source_rounded_nutrients": {
+        "energy_kcal": 80,
+        "protein_g": 1,
+        "fat_g": 0,
+        "carbohydrate_g": 21,
+        "fiber_g": 1,
+        "sodium_mg": 0
+      },
+      "unit_basis": "FDA raw edible weight per stated serving"
+    },
+    {
+      "id": "fda:raw:broccoli",
+      "source_item_name": "Broccoli",
+      "source_url": "https://www.fda.gov/food/nutrition-food-labeling-and-critical-foods/nutrition-information-raw-vegetables",
+      "source_serving_grams": 148,
+      "source_rounded_nutrients": {
+        "energy_kcal": 45,
+        "protein_g": 4,
+        "fat_g": 0.5,
+        "carbohydrate_g": 8,
+        "fiber_g": 3,
+        "sodium_mg": 80
+      },
+      "unit_basis": "FDA raw edible weight per stated serving"
+    },
+    {
+      "id": "fda:raw:carrot",
+      "source_item_name": "Carrot",
+      "source_url": "https://www.fda.gov/food/nutrition-food-labeling-and-critical-foods/nutrition-information-raw-vegetables",
+      "source_serving_grams": 78,
+      "source_rounded_nutrients": {
+        "energy_kcal": 30,
+        "protein_g": 1,
+        "fat_g": 0,
+        "carbohydrate_g": 7,
+        "fiber_g": 2,
+        "sodium_mg": 60
+      },
+      "unit_basis": "FDA raw edible weight per stated serving"
+    },
+    {
+      "id": "fda:raw:cauliflower",
+      "source_item_name": "Cauliflower",
+      "source_url": "https://www.fda.gov/food/nutrition-food-labeling-and-critical-foods/nutrition-information-raw-vegetables",
+      "source_serving_grams": 99,
+      "source_rounded_nutrients": {
+        "energy_kcal": 25,
+        "protein_g": 2,
+        "fat_g": 0,
+        "carbohydrate_g": 5,
+        "fiber_g": 2,
+        "sodium_mg": 30
+      },
+      "unit_basis": "FDA raw edible weight per stated serving"
+    },
+    {
+      "id": "fda:raw:cucumber",
+      "source_item_name": "Cucumber",
+      "source_url": "https://www.fda.gov/food/nutrition-food-labeling-and-critical-foods/nutrition-information-raw-vegetables",
+      "source_serving_grams": 99,
+      "source_rounded_nutrients": {
+        "energy_kcal": 10,
+        "protein_g": 1,
+        "fat_g": 0,
+        "carbohydrate_g": 2,
+        "fiber_g": 1,
+        "sodium_mg": 0
+      },
+      "unit_basis": "FDA raw edible weight per stated serving"
+    },
+    {
+      "id": "fda:raw:mushrooms",
+      "source_item_name": "Mushrooms",
+      "source_url": "https://www.fda.gov/food/nutrition-food-labeling-and-critical-foods/nutrition-information-raw-vegetables",
+      "source_serving_grams": 84,
+      "source_rounded_nutrients": {
+        "energy_kcal": 20,
+        "protein_g": 3,
+        "fat_g": 0,
+        "carbohydrate_g": 3,
+        "fiber_g": 1,
+        "sodium_mg": 15
+      },
+      "unit_basis": "FDA raw edible weight per stated serving"
+    },
+    {
+      "id": "fda:raw:onion",
+      "source_item_name": "Onion",
+      "source_url": "https://www.fda.gov/food/nutrition-food-labeling-and-critical-foods/nutrition-information-raw-vegetables",
+      "source_serving_grams": 148,
+      "source_rounded_nutrients": {
+        "energy_kcal": 45,
+        "protein_g": 1,
+        "fat_g": 0,
+        "carbohydrate_g": 11,
+        "fiber_g": 3,
+        "sodium_mg": 5
+      },
+      "unit_basis": "FDA raw edible weight per stated serving"
+    },
+    {
+      "id": "fda:raw:sweet-corn",
+      "source_item_name": "Sweet Corn",
+      "source_url": "https://www.fda.gov/food/nutrition-food-labeling-and-critical-foods/nutrition-information-raw-vegetables",
+      "source_serving_grams": 90,
+      "source_rounded_nutrients": {
+        "energy_kcal": 90,
+        "protein_g": 4,
+        "fat_g": 2.5,
+        "carbohydrate_g": 18,
+        "fiber_g": 2,
+        "sodium_mg": 0
+      },
+      "unit_basis": "FDA raw edible weight per stated serving"
+    },
+    {
+      "id": "fda:raw:tomato",
+      "source_item_name": "Tomato",
+      "source_url": "https://www.fda.gov/food/nutrition-food-labeling-and-critical-foods/nutrition-information-raw-vegetables",
+      "source_serving_grams": 148,
+      "source_rounded_nutrients": {
+        "energy_kcal": 25,
+        "protein_g": 1,
+        "fat_g": 0,
+        "carbohydrate_g": 5,
+        "fiber_g": 1,
+        "sodium_mg": 20
+      },
+      "unit_basis": "FDA raw edible weight per stated serving"
+    }
+  ]
+}

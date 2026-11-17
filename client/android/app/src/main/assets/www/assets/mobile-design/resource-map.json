@@ -1,0 +1,1160 @@
+{
+  "version": 1,
+  "asset_base": "assets/mobile-design/",
+  "approved_baseline_sha256": "8bbf22db5386be0d3f26a27fb62f442c77657fc170ceb09e0501819f32b3209e",
+  "image_count": 30,
+  "image_ok_count": 30,
+  "images": [
+    {
+      "key": "rest",
+      "url": "https://lh3.googleusercontent.com/aida/AEtjO1WB17zH5mHIgHROFxXMQrZHy21lqkcENY4fcb4d1Yv5s3bMAYxbDO__2hP76sm9_M_-eGvgimLkE7IEcPcor_Vj1OYy6Qnht2TTHx2UUbMEvBTOIKa5IPCFxFzJG25xThFwfoU-0SiACkqTHVab8hv7Gmo7ZvsGO10mBXCIWzdFPsXiPbviMArXS4VBhmrBCHMqmM3wquxF8h-ZxLcEbXm1dErIbDqA8RXOg4plTwLPjQ8PTVW0U4Cl8q-_0Fjii-dQM9x2F5rT4m0=s0",
+      "kind": "existing-original-illustration",
+      "ok": true,
+      "sha256": "17e4a602c68dccbd0888604751037145cc351a9be86346ac62f1854d73021b50",
+      "bytes": 2900599,
+      "mime": "image/png",
+      "bundle_path": "assets/mobile-design/images/rest.png"
+    },
+    {
+      "key": "journal",
+      "url": "https://lh3.googleusercontent.com/aida/AEtjO1WcWIgmqkGPJ0uhnv6hEZYoj1GqtNQPV7pnO2Fe2a7wGD4CQsCOWZfV0Vhv_0U_XWFlH_GqckcTeiD3aXwddobRQ1-llIbWmbtGzuY7OiCjiqNz6kTBFwQpoaPTrcIDoLKXquB8EeJNj7ISb0ANGsk8bD8nKY-5B8M7SYC2Ixvfw8wv4bXQYfveFX-75aVR4QBW5rPT7fd4y-k9x8YfEshrcRU3KkgX0IicSWK8HgCxa6AW00mY17MZIhe6Fcq5eXBBFi4zU1rMJg=s0",
+      "kind": "existing-original-illustration",
+      "ok": true,
+      "sha256": "de4cc549950d93d828fbbe5ea017eed8f5302eab20fcbdf08c25549e8ec2f683",
+      "bytes": 2560033,
+      "mime": "image/png",
+      "bundle_path": "assets/mobile-design/images/journal.png"
+    },
+    {
+      "key": "meal",
+      "url": "https://lh3.googleusercontent.com/aida/AEtjO1XG_J7AOwlXTBXfo5GTmb_Z9AQ2M1X88G0dHJivSuetPd9fO592pK5Knpd6XuKh03rAc1TkVwNCanq7L8ttLCx_ZiPSD0BE1pM_uRP4segK5xm4LyGRp4FjyRptfUcaNHzhrjgBbZNq-gVvVwUwt2B6CmXyuZkJzOS0at1BX3VILTtKJOLfydflzsAsMrtDLGh2fofDhcX0KsEMMdl0VlqBZkz4fnnQqyVg1k-orO4VNqIIvKcgBstjUR7qdBix2-jgqRYsRrVHunQ=s0",
+      "kind": "existing-original-illustration",
+      "ok": true,
+      "sha256": "cda8d901a77861382915fbf139d5dda9133b48a7f531ee86b8aa1321dd7777f5",
+      "bytes": 2868452,
+      "mime": "image/png",
+      "bundle_path": "assets/mobile-design/images/meal.png"
+    },
+    {
+      "key": "voice",
+      "url": "https://lh3.googleusercontent.com/aida/AEtjO1X43h1aCb5fnqM3Xsrz7nXPXB3EsXifX79OuYq6uIdm07ZM-CqCI6mbvRtP1R0XFEPD4dQBC7ni-z8Qt4GBKer5gqjHiBjwCGV_ALXXFERIX4-QHxTItE8BOATfIlLcdhOSAL-tEqWEoMnCia_ltBVlTfvBYt8Fym0dslJoo3MIPtUz2Ab-Moq735ajk4ppgg37mYPEeJVDou9Q3uWROGOJrXAjBoUl8znY-qNcElxNr1imBcRDe5vkDKc-mNjy-_X9xJjQ1sfbxaY=s0",
+      "kind": "existing-original-illustration",
+      "ok": true,
+      "sha256": "53602d4ed0aa28a40eeccf38d68cafa467452eecbf081200e06fbc23b7f4b699",
+      "bytes": 2534297,
+      "mime": "image/png",
+      "bundle_path": "assets/mobile-design/images/voice.png"
+    },
+    {
+      "key": "logo",
+      "url": "https://lh3.googleusercontent.com/aida/AEtjO1Vvr2mBVmN5Em69NpM7rxaBERvKGJIsafNO9NXSjVn6m0ss7cjdT4eghLPFowQ78ppXGTMXGDPiRKc5mNC5CnnDdY1b0PtG0bblOaPrqY_v9Jfa_qF5dulyeq_qyvEtPSzL06AlQo7JEfYBxW15aDbQL80yy89aIixhztqu3Q7SoGirje3--nKKgv7GI_hFMJges5qzYIKK_g_nK4Q2c2l2CAe2YI6qRtmKuhG7e1vX0EKG7CPoMZz9g0_Y0jysBpslb5ZJHC1XtDs=s0",
+      "kind": "original-transparent-logo",
+      "ok": true,
+      "sha256": "83dadf1bf2860aba02b2fdaa7068377258f5d55a817239d358f0ac6eaf9ebd19",
+      "bytes": 856551,
+      "mime": "image/png",
+      "bundle_path": "assets/mobile-design/images/logo.png"
+    },
+    {
+      "key": "main_4b709543f450",
+      "url": "https://lh3.googleusercontent.com/aida-public/AB6AXuBmKBtshxSLzU68QKcnSYylZ7d4151nzJzxn3CzpFvUGk-HbhOt64etfYrYQC3uEQFNQsSKond7CwVh2j6ylbQbrKpW-VHrOb6lLqOlgb3-bBTf7qRgL25dMiFERSEDvnF6UXJYonKIaCHWZKwL4MGgghfLn7AJCP65mAs8P0bSIVfLXopxPrsLoQw-D15F1JjxwVDz9Lmyoqr5a69fNgU2IXwBmRGyFftasNELz9Ke_l4zBJODAzfy7uPg1jU4y_-RAMCN2LGdNOVX",
+      "source_file": null,
+      "kind": "approved-stitch-original",
+      "ok": true,
+      "sha256": "17a8dc105bc6526690b792808aea8aea1db5285f6831dab8234308cd89e6a69a",
+      "bytes": 199200,
+      "mime": "image/png",
+      "bundle_path": "assets/mobile-design/images/main_4b709543f450.png"
+    },
+    {
+      "key": "main_39a8085d6f50",
+      "url": "https://lh3.googleusercontent.com/aida-public/AB6AXuBob8AxoKvik1k6s_s0FPVlTYuFWjTuNHo2y6_WR4AciiY0mxTDq1wFJXKjT818ztv32YFkYs-cV5nVi2sYGXTVSAqoHHtD3730VUGBXggVNM5fORSjPFfshImUa0gITsLxdccfT6fITP3O2vw9Ag6h8XUo8OT5WwtJZX_sOZ6gFPj6wPCTFKIeFIXlE79iMsBXayLZJ-ASPZYB34YKEoTpOLtCeRNwiB7nP0mHnCPROjfxwm10NBCGxIW0zCxGDaTRaqE",
+      "source_file": null,
+      "kind": "approved-stitch-original",
+      "ok": true,
+      "sha256": "753a9f970d69cd1884598e076c73280a5fe1c58e30def3696bccb3a782c32004",
+      "bytes": 325087,
+      "mime": "image/png",
+      "bundle_path": "assets/mobile-design/images/main_39a8085d6f50.png"
+    },
+    {
+      "key": "main_a49fc1f8df6b",
+      "url": "https://lh3.googleusercontent.com/aida-public/AB6AXuAFhAvWXUX8O0DM_1mXVOo-tTvc3BZ4U23pN3WSVx-vfh52xfFH8Bi3NbsImtS2BPExpN1EtxRRQZKuoUQs0Uv96p7jJpks4eWNl75BLPj0wDuf6czGjP6dGrDZTTnCHww-Df41aNAXiaKgB-2oGidaPaxizoa2PcmtOuIZFRc07eK-BFBL4vDQcaoQqhYN5GebiqFTs4xpXe8xo-3uEaa-7X2dGlPo3BCAhIgeIDtC_t7TN7RMGtjFiBqd2DYrR0nZhek",
+      "source_file": null,
+      "kind": "approved-stitch-original",
+      "ok": true,
+      "sha256": "6bce5156115a1ea33cea5c22374436739b34aa636b862acdeec57f1499bbf2fb",
+      "bytes": 303588,
+      "mime": "image/png",
+      "bundle_path": "assets/mobile-design/images/main_a49fc1f8df6b.png"
+    },
+    {
+      "key": "main_d36ac1c0e261",
+      "url": "https://lh3.googleusercontent.com/aida-public/AB6AXuC-p1PuYgp7waFiElmAzqMZ1pjJHs_BuFu8zW40vimcBc4nfqwOq8jwtjmJO_npU5WkMpUZbNcdNEEjnJRtl8rdIV5NqrzJgKCP9fhXRkJoYjoCDF9n5PeOFiaAa3spv7-6CQ_ofyMbKvuHZOtGtdWO_pB6IbWBA_3lCjkrUJep_K1b20k2sJpo2k64BocipRyBIizF2vzP2WLBTJphS6G4FR7e3WNgz7mYR_gD8n1wKkuNisQrzOVkRLYXv8GLhnZt8bg",
+      "source_file": null,
+      "kind": "approved-stitch-original",
+      "ok": true,
+      "sha256": "6bce5156115a1ea33cea5c22374436739b34aa636b862acdeec57f1499bbf2fb",
+      "bytes": 303588,
+      "mime": "image/png",
+      "bundle_path": "assets/mobile-design/images/main_d36ac1c0e261.png"
+    },
+    {
+      "key": "main_308d09f56727",
+      "url": "https://lh3.googleusercontent.com/aida-public/AB6AXuBRWtqLtMKKDNifg_h1JHlLgh6-pGrE6JT7skSSxKVUM8KMztGtpqyG8beEFFzcXbt-SJ-avN3gV07Wj42Qu7gbrNpebM3WkEttimG9YQcKJt4yJseS334VmB1OaEfRBDnVUoU0O6bzL6-ursnLHutiezebi_3i33a24o_2L_LyDXAjpbvrJ7chxSNYxRq8b6o3x3TW5vvs4hcnlNUnTPPdhmdtm2QwXcSj8IwRbtzpCiflpA6S2bJS0g",
+      "source_file": null,
+      "kind": "approved-stitch-original",
+      "ok": true,
+      "sha256": "41134d06db1bc33dc15d3b14a5e06cc32fc1d0eae28385a5e2bec94dc210f9ce",
+      "bytes": 44879,
+      "mime": "image/jpeg",
+      "bundle_path": "assets/mobile-design/images/main_308d09f56727.jpg"
+    },
+    {
+      "key": "today-reading",
+      "url": "https://lh3.googleusercontent.com/aida/AEtjO1WLZMANBzMd5iouB3tTfK5X1Vts35cNWlxGbsyrI4HfoM6OlP2ltZ57tWDWPUplj_diarAlYZED6nSYYOH5gtbpErTb5b9RIP7KYoL_L2cVsLo8xv519GOnB575MBPXQU_YnwH3rAK3uzT36kJYmt33JTzaHpSeUc1k975l-8t7p00s5otK8wnCIAP2LbPInH-RfxaqV9DOYstACunM1DazcKAPuIfCXdcOBvxZ2QpdJJxj00j-D0VflueoPto8ZDS_LyOFqNJzLZE=s0",
+      "kind": "existing-original-illustration",
+      "ok": true,
+      "sha256": "0001a233c2e12b6b88ffba46859bb2bc5eb13ceafcab96e4781567d5498490d1",
+      "bytes": 3031817,
+      "mime": "image/png",
+      "bundle_path": "assets/mobile-design/images/today-reading.png"
+    },
+    {
+      "key": "today-habits",
+      "url": "https://lh3.googleusercontent.com/aida/AEtjO1X57yFlIB7jGmQ1i1Rb8g8jm7irLnzE3AQvZI7Hskr0LvAal210aVh9Eem4JHPxAQln8VG3dmx_fW_GPKk4bCwOdQcxovcPXtxhXw8mumoUaeVc7bVTtk0ghnaKXIdVWVGHCqiKNPPYl96bsMNIwa682PcJhsWlkdYhM6CLiGqV3-r8tn5n3xtf6uLD8gJ6EcK68umlSOI3YPJkjooChcdB4_M2NP3499jbIb1QYK42-ECYUk8fJDhSTa_AJRVJKCHTjHCLZpM-A3Y=s0",
+      "kind": "existing-original-illustration",
+      "ok": true,
+      "sha256": "5023260e7067c6847931c05faba1619d01319957b71ba5da671ffac8450dae38",
+      "bytes": 2718093,
+      "mime": "image/png",
+      "bundle_path": "assets/mobile-design/images/today-habits.png"
+    },
+    {
+      "key": "today-reminders",
+      "url": "https://lh3.googleusercontent.com/aida/AEtjO1UFpW8xyUvJFsMD1dHkq4IhXZdGZEW6aJyV8hMRhfzdvzd9aU8HxNcahOJucL56bAH0f-wmKxu-e2-zd_mHdwOX1qyhOkTxkvUv_6L7MoaiF81YnyBJ87xgnTROIUt2pBMW5sEWi5fnh-Vz1iU0mgLGCtBdLdE7ruxmaDy6vWOsJN62VfuM1NmXt06CPKY-QOCDogj3lqZIBWwY0DECApGfM5BkyQm2mGG9Msxzx1zV589jv0VbmDYxMoRlnhV-9hKvXCkndE-e02g=s0",
+      "kind": "existing-original-illustration",
+      "ok": true,
+      "sha256": "c424955dbadf08516bb4712e7a3cc7aaa0d98f860242ce0f6d6fa5940fdd60c2",
+      "bytes": 2670280,
+      "mime": "image/png",
+      "bundle_path": "assets/mobile-design/images/today-reminders.png"
+    },
+    {
+      "key": "today-services",
+      "url": "https://lh3.googleusercontent.com/aida/AEtjO1UGST_urw8dq_7oqHyeGKQHMvMHB5PvdDHaNkC1bbIUoE3WlJzrOFovX4F0143AMo3yWiZZ0acehjQtv58aK6vEeTG2yGJRwIxhrd_7Cpt6rIVIb6mX6czP0ntuu57goXpdkv-mwOE0lB8jGUvKYUy3x9W5MSdQj-vgwlyaAc22BedOcCtEFQqFyro38IAhB7GlsfT0Lw4PU62OFeEkL8SQZsfZOIbFhcxpxYrIpnJ-HSRjvIVFN3q9oHE-ZW7AO1dVdq_loL7IG-E=s0",
+      "kind": "existing-original-illustration",
+      "ok": true,
+      "sha256": "55da3f4a78ffdef73fb80d7fdddad4d859ff15bdcd8225e9659fa2e07662b9dd",
+      "bytes": 2682664,
+      "mime": "image/png",
+      "bundle_path": "assets/mobile-design/images/today-services.png"
+    },
+    {
+      "key": "today-goods",
+      "url": "https://lh3.googleusercontent.com/aida/AEtjO1VcdPCle0Amg4tWczComQVYkQN_DpwJ0y-GpevubwbDpxieZ4jW1P6Mc-i2EBh2LlDIj31dVzGB9FeqZcInJoxVwP_fcZJxbILvjbMYPwXY9C28FkcEoKm2xTJ-ekH94cNgBWb4bV8FMs40hiAhOQJ4LClxOBKn3_-fLdBj4TCWaCkPbcv0JdCmMiLSolHKi-rkcMFd7ws_ao0PjnLzeEF0Y-q9VPXntnuSuFOdj2OFavLBrjcbKREAiU3wo-TspwtSGtblc3ChKw=s0",
+      "kind": "existing-original-illustration",
+      "ok": true,
+      "sha256": "bdd594aee2081495f921642f1ad1b3827100250fd448682c20370de2ba2be480",
+      "bytes": 2846223,
+      "mime": "image/png",
+      "bundle_path": "assets/mobile-design/images/today-goods.png"
+    },
+    {
+      "key": "today-product-bottle",
+      "url": "https://lh3.googleusercontent.com/aida/AEtjO1UYG-HefAAfPAeU7wMihOzjyr52cuDwZm93adYiwH9tudPpoO9FG77ETJKNItl_PgdJxAXqu981z12Md8uc2cfC2WAwwv6u0AMHyA3w086Fn2UvFsy_CoPCPme_L2yxW_m_G0vyG6jVtD23eYajiXwncQZYkPGBZZDZz8MDwIEfB_YCQevLvMMIh9bIiNs_DtzvHmqXDI9uI4ax5jgF9IyuoCIWfRGUIJs0vIEq9Clifd-dp52WE6MzsEBsgfiD9xnvfDlRTRezFS8=s0",
+      "kind": "existing-original-illustration",
+      "ok": true,
+      "sha256": "2c7971c170d20b700b7ff021c750f9cb9a656d3a2ba086e8ee75a115260e1f31",
+      "bytes": 2487905,
+      "mime": "image/png",
+      "bundle_path": "assets/mobile-design/images/today-product-bottle.png"
+    },
+    {
+      "key": "today-product-towel",
+      "url": "https://lh3.googleusercontent.com/aida/AEtjO1XlYLR0neNQPdVrw3EPRYgf01FRiD_RRtTXuJvtvY8HgZ8xkq_0iixMWSNWom1xuUAjVOJ3KTNAqWKUpMvvE0tZci8nCQORPASREy-5jQAroPZFbwVwVGlCwspBKXYQQxkOuffG_6ltZNTyuXCsqikawpCbUz1Un3TVMwUNm-AME2vTYSgd6vmHtoSJ_KYguDUUt18PcB28TLRBLrbMbbetv7xb6OxQMA_Cjf4Vmrid1WQ-W8pCXygH9ZoZS03JKxNTRT0tJO_tAiQ=s0",
+      "kind": "existing-original-illustration",
+      "ok": true,
+      "sha256": "fbd26bee8a4a7b427f8d0b0ebaf713bc3c704e7a25e36e906244b77a5155c6ef",
+      "bytes": 3119091,
+      "mime": "image/png",
+      "bundle_path": "assets/mobile-design/images/today-product-towel.png"
+    },
+    {
+      "key": "today-product-pillow",
+      "url": "https://lh3.googleusercontent.com/aida/AEtjO1V7qb__aSRo_g12vZ2EYzcUneQ0wJ8mGk86Zp6ETFbDETNFur8ufReCGPaXX9lf8V-VwsiPazPRXCKg7Tq1I9CEmYCo5OWY8XiTBofW0SyyWSi0nKM8YZ0Wces_qrBtQRa9Z_fXizpVhkoQK1NvHi6PSeuqmFZ5JfivttJSMznuc4eksT9xCsKHJ_exAfdPOeTojF6YFuLJP7VxK8J1VunuwJBOyIYYVVX2CMH90bcl_4lf925weeCkra3Owh3FAhNo3QyW15iceB0=s0",
+      "kind": "existing-original-illustration",
+      "ok": true,
+      "sha256": "b1f6497a7d3124ebcea56ec261c4336657b0f83fa8740bdda38bae65bbdd7709",
+      "bytes": 3268327,
+      "mime": "image/png",
+      "bundle_path": "assets/mobile-design/images/today-product-pillow.png"
+    },
+    {
+      "key": "today-article-mashi",
+      "url": "https://lh3.googleusercontent.com/aida/AEtjO1WwS47icmXPsH1ju6QkvILanES7VZl8G39cCdbxpejSkbavGeQr__vh8Yzxng3ae3PKLoKKj0xZB49PXtBs2EFuIQWsWMUCMiFYRU9vIYCaybpmkK_sTTiEE0WLf1S1rrjPulAj-mmDtmew7ToR9I4qPWpgrpNQiaNWuxLYQijiI252x9wVvtHIHQ0AM_cUgNbwEXzbOV-KUEvbyc1jG_GBe_kKWh8aXZt0vQxdpXKIKT1G0Ex761Y9mKFAqacJR1i7wVbek1KRQf0=s0",
+      "kind": "existing-original-illustration",
+      "ok": true,
+      "sha256": "528a8b6c41c9e8cf31407e3800b051a733bb7283fb38cca9ecf190fe0f8679ce",
+      "bytes": 3274585,
+      "mime": "image/png",
+      "bundle_path": "assets/mobile-design/images/today-article-mashi.png"
+    },
+    {
+      "key": "today-article-pasta",
+      "url": "https://lh3.googleusercontent.com/aida/AEtjO1XSa7fh_-G2-8QONmDD6tdgQtpGvtRmXjy29bJ8Gy7YF97Ny3H-p6EgaUO9aqlUpDPXWacr6BkXG4439C8fUItwCkOZrUHFImFWRYzyVveqFo3CmUnNd2JgEHQmkUlT2zpsHgTVe28KhI0LMqlyd3OfMJ6xrL7rwTx7XL_8BuQovhfTN6qOi0byAbmEjOMm24HNlIKBPwEg_UdD3OFxmpa51e6LkneKbBx8kpLcl-gY-10PyWIMzJ434zTyr45LHxr9kd0SRnglw4c=s0",
+      "kind": "existing-original-illustration",
+      "ok": true,
+      "sha256": "ddae19ac5427685ae9ac563e8804dd591bb3e1c147296abbbb8f01cff5d8a8d2",
+      "bytes": 2968943,
+      "mime": "image/png",
+      "bundle_path": "assets/mobile-design/images/today-article-pasta.png"
+    },
+    {
+      "key": "member-ai-settings",
+      "url": "https://lh3.googleusercontent.com/aida/AEtjO1UVDYHBED6YwvOfJolOqRDJa-N7oFjvn4a1wztWKwg1cbM8WGs7eTjxGqmojzNcuK-c9bCgsaVLiWuWedkNZA-KuJ2lXRFebSeN50Ox6f0Gmn4BdaFGonkG2Syq3KjN9NPRmGMo11VTRNPuNr8rEZuqzOFJsRsLtLDRrq__c1i26N-Jm16p0sR8Lrk5Nns5RGOuvujhCdXYYeueOe51_CkS0skBlhjy9gIU5nnknGNLGqs8mwu5Abi21Az_Ltw2Z-hEVZ40yw0B0Wc=s0",
+      "kind": "existing-original-illustration",
+      "ok": true,
+      "sha256": "de94be1b704f028db8441e7b30866e63e0c2117a66433bdd9226f06f543d5c48",
+      "bytes": 2850516,
+      "mime": "image/png",
+      "bundle_path": "assets/mobile-design/images/member-ai-settings.png"
+    },
+    {
+      "key": "member-photo",
+      "url": "https://lh3.googleusercontent.com/aida/AEtjO1W6Auc368WgWKM-M6bgkARBF1ujGUfCVX4htmsKu0kNFvxsaPlT9n5Ef4Auz2m1HwTSw1LGcxfJTInvTD425P-U3QNqYn_Azt6vkVhPnFrHdQ8Gfo3sAMU6tywFYOYVCYW3dAlt99fMev18Og6C_RjSl-oPwi7w21mxXARFUSJTSpHAlMZwjgl33-8FfXjL4WkfZeRtv-aqDN-L9y3Ie3RUrxCHsKR2ktDuo_sgfWXjQjJ0qc4YqdOV-TtuS2D-VRZLJV48AT_ypow=s0",
+      "kind": "existing-original-illustration",
+      "ok": true,
+      "sha256": "0bb43251667ce801b49949615901c86f10f1b135dc66e88c2006f782a4649ace",
+      "bytes": 2872145,
+      "mime": "image/png",
+      "bundle_path": "assets/mobile-design/images/member-photo.png"
+    },
+    {
+      "key": "member-voice",
+      "url": "https://lh3.googleusercontent.com/aida/AEtjO1UwpW85DSckJvxvlX_eZY6O124E8pEMrlJ536-Cx6Jx7GO0kJ39fjZhu8pDxwyQYaeDTcZXLPh4p1mGozpElckHkI17MtblGFZjSDN4Rwthx_6j6IPk9HmPw8gPFdkVayqqU6GlPugjof7yJ6v6aGhswAti85BclP0W0N7dXUC3y0e4jFwj6Pv0H5wCIoL33bc7Vx9piY4sdRMfHXG2xz8HA5HAVIM2xTDp73KYGxItBFpCANCBUMrx7PUgRtsVGGknQKRETmxM5A=s0",
+      "kind": "existing-original-illustration",
+      "ok": true,
+      "sha256": "7851bbe67d402beccb350bd3f71a7073a3b2337264f574cdba4ac2157ab680a8",
+      "bytes": 2518852,
+      "mime": "image/png",
+      "bundle_path": "assets/mobile-design/images/member-voice.png"
+    },
+    {
+      "key": "member-community",
+      "url": "https://lh3.googleusercontent.com/aida/AEtjO1XDjnBH_B3iepdhtgKTnFISSraeof06QA1a5vmhHm8dl45Gc4WKipOjpLyy9POh8_VaEnhv6USoQfQfjzSZxRZ6IbRv98vfNdJubCWophWS4FCCgpqqeqj0VKgg0emCt4UMOloTsGvmVbu_1yCrR7ejdrQrsjNTVBsDJ4XVnFcjvRFSsS9rj2xjZ_d8NXFY3XCFlXNLZ2yk90zQ79crahN1jqO9NzISoM5E8wrYUJHjNnC_ixRfJvpHsQc-E19xIo7OLr6R8FlvwzQ=s0",
+      "kind": "existing-original-illustration",
+      "ok": true,
+      "sha256": "01c2db839ab4d25968ad9d95c95068431f891aaf824954873adb0e098c4fd8fc",
+      "bytes": 3083304,
+      "mime": "image/png",
+      "bundle_path": "assets/mobile-design/images/member-community.png"
+    },
+    {
+      "key": "member-knowledge",
+      "url": "https://lh3.googleusercontent.com/aida/AEtjO1UDaF2BAmTDJnKFjmRQP3xEZS0eR-v4qb-OuXP743SuFOuFoeT9CSks79hnvTU6ZJiJCTuMsLyLuu6zFpSFnVhJBIGxox0xnxgHTd2x4pB2xuSYm9VYxMlJgmm6qer4tWYDyJiHvhfacrVJK_N6iXS42MQxLccUm774wlJGHYkYMVN3TzNLdBnUWZBr_xkkHdTYKXu30qf-eKqc6r3IIRyqQ-n1ts6pzK9bBzHiUMzhxNcfRmgv_PDVUvhEzZSH75FzV6Vk37ZxIRw=s0",
+      "kind": "existing-original-illustration",
+      "ok": true,
+      "sha256": "b118fda73726281f5a552d0989f3180470436fd164e165f7e0ac28953294ea76",
+      "bytes": 3163411,
+      "mime": "image/png",
+      "bundle_path": "assets/mobile-design/images/member-knowledge.png"
+    },
+    {
+      "key": "member-account",
+      "url": "https://lh3.googleusercontent.com/aida/AEtjO1W48mYXiB50ejC-9LO0gg17cBaVOlvF-Efgim7YVK_gzHWF-kfSKNOU44ty-p5K_bkijoLDZ1DRSDHn1fxR68JSqFAFghGrE4caIUUSIZSLkYZmIqv8Eq8cLI-iQso32t-fKDOQSkdBsZwr4f_bCmClKBkmAuaTeZO5mdmsghuy8GLXTx0YLQj4UsZ0o-88uwAcDdRw9as1dL4hSO_ifqL95fox2OX9V54FuGpSlOi19wOPC3qSxwYGCbLMW5n4PitH3edxql5fbHM=s0",
+      "kind": "existing-original-illustration",
+      "ok": true,
+      "sha256": "f7b7938a3ecf2ad4d77f49512618ea7bb7aa8c2b2ef201cd1d5333e99309616c",
+      "bytes": 2516449,
+      "mime": "image/png",
+      "bundle_path": "assets/mobile-design/images/member-account.png"
+    },
+    {
+      "key": "member-privacy",
+      "url": "https://lh3.googleusercontent.com/aida/AEtjO1Xh-ie836MQ9lv5Lzmq7RDKLikzJOnPHEYsf2U4vgwX3uDzkf6yYrB1w3-tvmZYiEkRMUiu4CdPLH_2O872joBe0s7ADJ3r7H3-6xQ4GUAeNzQsd5-n9cQAcnGX-oU0iTWTQcUANxZpGgo6sBC7vpxmskGWlmOT78SjzSdsCyrlktOfIbmbGo5DWf-AuHySIK3wq_ZMUblZcWSGe6HLm-T6FDPK4vNo27xgIOe6PnEdP3Rwc2iFixl_Vb3kxksvBPcJzqa2vtybfXg=s0",
+      "kind": "existing-original-illustration",
+      "ok": true,
+      "sha256": "e87b5f026f5dfe5a570b6108c0fb49343ecac7a5333caacc2721f0918501486b",
+      "bytes": 2699009,
+      "mime": "image/png",
+      "bundle_path": "assets/mobile-design/images/member-privacy.png"
+    },
+    {
+      "key": "community-background",
+      "url": "https://lh3.googleusercontent.com/aida-public/AB6AXuCt3jdH8mYV-50En2ThsMonxWwuIdOfe4kdqrn6TPfwHQDd-J1wV1gCtd2ZMPcr9_eEGEwF_PKIepE80LYsTX-83UlArpRGxLG9LGR2JR-5HgvCE8N4AAbU8KA1Rhvjrghfo7StjoukflRk3w-oIiCYwpGS78_WeE4Z0i2nUlfDI05NrzhuRGyMSpSviwguO1aHyoYLw52Ez_ynnfri2tEayODKmMgM6vELubW8acXLLU76RlPFTFgovA",
+      "source_file": null,
+      "kind": "approved-stitch-original-background",
+      "page": "community",
+      "ok": true,
+      "sha256": "5a24604a9f914d5cb632653845328e533e26444c48fa449b1cad2bc1334c38d9",
+      "bytes": 39029,
+      "mime": "image/jpeg",
+      "bundle_path": "assets/mobile-design/images/community-background.jpg"
+    },
+    {
+      "key": "login-background",
+      "url": "https://lh3.googleusercontent.com/aida-public/AB6AXuAVJf8GeZQbs26FJECTxfBDOJ5oFJoao9-dTjDY5LfQjYcW_dm9F_YmgQGTM0o_KDvsbfTqoXE-ZDH5WU668KeyyfBAJXS60g5TS4ywM6z4_MmpdOKq8fWeuZDGWC0Dq8KSwvscBTsi4NuxY8dlkEtdTEOnEM88PfBaDfGmzgIApl9UHEQQqYCn-5L5IacRpiRaIeH7937zI5EuBg6XhBLYu-Or4gf7y5jb37MkWgfiV6qkIsMEJR_72YeSYosVUHnaSpRTrQLEbBpg",
+      "source_file": null,
+      "kind": "approved-stitch-original-background",
+      "page": "login",
+      "ok": true,
+      "sha256": "17a8dc105bc6526690b792808aea8aea1db5285f6831dab8234308cd89e6a69a",
+      "bytes": 199200,
+      "mime": "image/png",
+      "bundle_path": "assets/mobile-design/images/login-background.png"
+    },
+    {
+      "key": "register-background",
+      "url": "https://lh3.googleusercontent.com/aida-public/AB6AXuAHv0G25KCTuKWfzcQuplfbNJwFesasgEGQyATCAMRwCAOIjRUxTMVqwVcwiYDZvVWHDu6RlqdNMbDZjfDWy_bXblOveYDidH4wbGwBPhc0tc1Zqzy7S0TgH0LK6b8TQHRKjd826qqEFUuhsFmQa60MQKKWhOp4XLZplJ5_K7fC0irg_R3RjjZ07yV-DFJqMlfrnKdS_JWavE_RAGOS1ghDtuEtz65tatsSkkck8PQC4ke28Bb_YNkkPeGz55SdxK7HGgMu3aKMgOUG",
+      "source_file": null,
+      "kind": "approved-stitch-original-background",
+      "page": "register",
+      "ok": true,
+      "sha256": "17a8dc105bc6526690b792808aea8aea1db5285f6831dab8234308cd89e6a69a",
+      "bytes": 199200,
+      "mime": "image/png",
+      "bundle_path": "assets/mobile-design/images/register-background.png"
+    }
+  ],
+  "missing_illustrations": [],
+  "fonts": {
+    "source_url": "https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;600;700&family=Newsreader:ital,wght@0,400;0,600;1,400&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap",
+    "source_css_sha256": "07ea485081807ad2caaa424081a0492d4c9041aba5fc677e2a700144788e3993",
+    "bundle_path": "assets/mobile-design/fonts/fonts.css",
+    "fonts": [
+      {
+        "url": "https://fonts.gstatic.com/s/newsreader/v26/cY9VfjOCX1hbuyalUrK49dLac06G1ZGsZBtoBAbCJYQraA.woff2",
+        "file": "4c1e3811b094e8ff313ae5fd.woff2",
+        "sha256": "f0dcc9795666850cc4cd8d50d55c44d48d9103cc86f552b4a12f0793eb915840",
+        "bytes": 11932,
+        "bundle_path": "assets/mobile-design/fonts/4c1e3811b094e8ff313ae5fd.woff2"
+      },
+      {
+        "url": "https://fonts.gstatic.com/s/newsreader/v26/cY9VfjOCX1hbuyalUrK49dLac06G1ZGsZBtoBAbDJYQraA.woff2",
+        "file": "354e14ff8ed49326d38914e6.woff2",
+        "sha256": "ac6fa9ed533278f4c8fd3ae44a1fc78c7df736040237ab86fc1160d020af0af2",
+        "bytes": 36244,
+        "bundle_path": "assets/mobile-design/fonts/354e14ff8ed49326d38914e6.woff2"
+      },
+      {
+        "url": "https://fonts.gstatic.com/s/newsreader/v26/cY9VfjOCX1hbuyalUrK49dLac06G1ZGsZBtoBAbNJYQ.woff2",
+        "file": "2cbd493549502909cc6e6296.woff2",
+        "sha256": "62981321d9a3cc7a61a73792729043703fd6112da86e8ec848bb57f088578757",
+        "bytes": 58084,
+        "bundle_path": "assets/mobile-design/fonts/2cbd493549502909cc6e6296.woff2"
+      },
+      {
+        "url": "https://fonts.gstatic.com/s/newsreader/v26/cY9kfjOCX1hbuyalUrK439vogqC9yFZCYg7oRZaLP4obnf7fTXglsMwoT9ZHFjQ.woff2",
+        "file": "209250f6d27828490dedaa8f.woff2",
+        "sha256": "fa9b900403949d9a723106752a5c8ad2797012a0c9057427b1da2db72d552148",
+        "bytes": 24340,
+        "bundle_path": "assets/mobile-design/fonts/209250f6d27828490dedaa8f.woff2"
+      },
+      {
+        "url": "https://fonts.gstatic.com/s/newsreader/v26/cY9kfjOCX1hbuyalUrK439vogqC9yFZCYg7oRZaLP4obnf7fTXglsMwoT9ZIFjSAgA.woff2",
+        "file": "809b85f68b7d72ea1ef9a832.woff2",
+        "sha256": "f7e98aa7b0c65d422b06851f7a5f148dca71df9083f19f0ed0ca888bc96055ad",
+        "bytes": 5556,
+        "bundle_path": "assets/mobile-design/fonts/809b85f68b7d72ea1ef9a832.woff2"
+      },
+      {
+        "url": "https://fonts.gstatic.com/s/newsreader/v26/cY9kfjOCX1hbuyalUrK439vogqC9yFZCYg7oRZaLP4obnf7fTXglsMwoT9ZJFjSAgA.woff2",
+        "file": "84f332efcfb1df39346e2a75.woff2",
+        "sha256": "b775f4faa4ffd1bbb36db8c9504c95af98d82e37209f3a6253915c7cae919d6a",
+        "bytes": 15228,
+        "bundle_path": "assets/mobile-design/fonts/84f332efcfb1df39346e2a75.woff2"
+      },
+      {
+        "url": "https://fonts.gstatic.com/s/notosanssc/v41/k3kXo84MPvpLmixcA63oeALRIIKIyQ4.woff2",
+        "file": "4e734958538f4e328260b0a8.woff2",
+        "sha256": "0049f7154dcc3fa0d585f80383b232cb9e497084ee77e10519747d668db3cb55",
+        "bytes": 8128,
+        "bundle_path": "assets/mobile-design/fonts/4e734958538f4e328260b0a8.woff2"
+      },
+      {
+        "url": "https://fonts.gstatic.com/s/notosanssc/v41/k3kXo84MPvpLmixcA63oeALRIYKIyQ4.woff2",
+        "file": "cb32afef0b9056bb6f8791bd.woff2",
+        "sha256": "310e65da63933201c3381173106418442de6441742594001290b4056abbc9ed8",
+        "bytes": 8976,
+        "bundle_path": "assets/mobile-design/fonts/cb32afef0b9056bb6f8791bd.woff2"
+      },
+      {
+        "url": "https://fonts.gstatic.com/s/notosanssc/v41/k3kXo84MPvpLmixcA63oeALRKoKIyQ4.woff2",
+        "file": "2d00c63396e2aaf960412648.woff2",
+        "sha256": "811e869a2b23ff46086eeff6fa59185bb1aa982f5bcd8d34db51e10ea8e5f7e1",
+        "bytes": 9896,
+        "bundle_path": "assets/mobile-design/fonts/2d00c63396e2aaf960412648.woff2"
+      },
+      {
+        "url": "https://fonts.gstatic.com/s/notosanssc/v41/k3kXo84MPvpLmixcA63oeALRLoKI.woff2",
+        "file": "736c6acd5b8d5b681a90b53a.woff2",
+        "sha256": "cf5346b0747cd71123c8f74da0ad41fc0f63eda07b9d8e0382e00882ae743733",
+        "bytes": 24880,
+        "bundle_path": "assets/mobile-design/fonts/736c6acd5b8d5b681a90b53a.woff2"
+      },
+      {
+        "url": "https://fonts.gstatic.com/s/notosanssc/v41/k3kXo84MPvpLmixcA63oeALhLOCT-xWNm8Hqd37g1OkDRZe7lR4sg1IzSy-MNbE9VH8V.100.woff2",
+        "file": "22eb4ecc88430ea71aa6bebd.woff2",
+        "sha256": "2c5ddf9cdfad73afb5235e06bc8ed3b5c627849200d673978148700c78f84160",
+        "bytes": 64376,
+        "bundle_path": "assets/mobile-design/fonts/22eb4ecc88430ea71aa6bebd.woff2"
+      },
+      {
+        "url": "https://fonts.gstatic.com/s/notosanssc/v41/k3kXo84MPvpLmixcA63oeALhLOCT-xWNm8Hqd37g1OkDRZe7lR4sg1IzSy-MNbE9VH8V.101.woff2",
+        "file": "35130d6c5e231cb069fc5868.woff2",
+        "sha256": "a33308bf652e64ac2884bfe830996e933322b939b915bb823fd47383580664ad",
+        "bytes": 58028,
+        "bundle_path": "assets/mobile-design/fonts/35130d6c5e231cb069fc5868.woff2"
+      },
+      {
+        "url": "https://fonts.gstatic.com/s/notosanssc/v41/k3kXo84MPvpLmixcA63oeALhLOCT-xWNm8Hqd37g1OkDRZe7lR4sg1IzSy-MNbE9VH8V.102.woff2",
+        "file": "0f742d556c2130a4e65d8e1c.woff2",
+        "sha256": "4ea85e144cb385ce086b21b307730d3fdb70a587aaf350b12d0c4c2f13e66d27",
+        "bytes": 60516,
+        "bundle_path": "assets/mobile-design/fonts/0f742d556c2130a4e65d8e1c.woff2"
+      },
+      {
+        "url": "https://fonts.gstatic.com/s/notosanssc/v41/k3kXo84MPvpLmixcA63oeALhLOCT-xWNm8Hqd37g1OkDRZe7lR4sg1IzSy-MNbE9VH8V.103.woff2",
+        "file": "23a12db6ab06d08ce09545ba.woff2",
+        "sha256": "1bfdb1f001006c62434577b60064c3ec0562e4a68191acbc7feeba4b303bf095",
+        "bytes": 63732,
+        "bundle_path": "assets/mobile-design/fonts/23a12db6ab06d08ce09545ba.woff2"
+      },
+      {
+        "url": "https://fonts.gstatic.com/s/notosanssc/v41/k3kXo84MPvpLmixcA63oeALhLOCT-xWNm8Hqd37g1OkDRZe7lR4sg1IzSy-MNbE9VH8V.104.woff2",
+        "file": "e63f3a5f4c8f3b2bff4d5507.woff2",
+        "sha256": "1e716b78655e396075808be52a9e749df1b6b5d17bd0ccedc6dcb89586903737",
+        "bytes": 61404,
+        "bundle_path": "assets/mobile-design/fonts/e63f3a5f4c8f3b2bff4d5507.woff2"
+      },
+      {
+        "url": "https://fonts.gstatic.com/s/notosanssc/v41/k3kXo84MPvpLmixcA63oeALhLOCT-xWNm8Hqd37g1OkDRZe7lR4sg1IzSy-MNbE9VH8V.105.woff2",
+        "file": "92cb3eb52559818c5d42ae58.woff2",
+        "sha256": "ade910a27a4bd65baed59a8a86a3a6a80f6083daa7123bb9ff32da15e56fda9d",
+        "bytes": 61612,
+        "bundle_path": "assets/mobile-design/fonts/92cb3eb52559818c5d42ae58.woff2"
+      },
+      {
+        "url": "https://fonts.gstatic.com/s/notosanssc/v41/k3kXo84MPvpLmixcA63oeALhLOCT-xWNm8Hqd37g1OkDRZe7lR4sg1IzSy-MNbE9VH8V.106.woff2",
+        "file": "a21bc08ac29d88378ffef136.woff2",
+        "sha256": "d31c838eb0e43043109bd6ddc23c295c340fc50f9a2f2381076ae8c0fa7f980b",
+        "bytes": 62444,
+        "bundle_path": "assets/mobile-design/fonts/a21bc08ac29d88378ffef136.woff2"
+      },
+      {
+        "url": "https://fonts.gstatic.com/s/notosanssc/v41/k3kXo84MPvpLmixcA63oeALhLOCT-xWNm8Hqd37g1OkDRZe7lR4sg1IzSy-MNbE9VH8V.107.woff2",
+        "file": "a46a13fb68c8d4b44b5c4917.woff2",
+        "sha256": "d8d9b5fd2b266fdf3f6855444e7769e54f39806e48994e7fe5e0c4ace9553c81",
+        "bytes": 60828,
+        "bundle_path": "assets/mobile-design/fonts/a46a13fb68c8d4b44b5c4917.woff2"
+      },
+      {
+        "url": "https://fonts.gstatic.com/s/notosanssc/v41/k3kXo84MPvpLmixcA63oeALhLOCT-xWNm8Hqd37g1OkDRZe7lR4sg1IzSy-MNbE9VH8V.108.woff2",
+        "file": "be61d5db8d165e7ae0956c9d.woff2",
+        "sha256": "12fcc1175cb6370acb056743f4fea7fdde85b6376ada2f15dfbab59f02b45988",
+        "bytes": 64340,
+        "bundle_path": "assets/mobile-design/fonts/be61d5db8d165e7ae0956c9d.woff2"
+      },
+      {
+        "url": "https://fonts.gstatic.com/s/notosanssc/v41/k3kXo84MPvpLmixcA63oeALhLOCT-xWNm8Hqd37g1OkDRZe7lR4sg1IzSy-MNbE9VH8V.109.woff2",
+        "file": "4a681dc68f0568a6bd3fe20b.woff2",
+        "sha256": "85ebc9985c665dd55346ebc78b93f8d8ef6ff972d78afc288b75d697a242d780",
+        "bytes": 60208,
+        "bundle_path": "assets/mobile-design/fonts/4a681dc68f0568a6bd3fe20b.woff2"
+      },
+      {
+        "url": "https://fonts.gstatic.com/s/notosanssc/v41/k3kXo84MPvpLmixcA63oeALhLOCT-xWNm8Hqd37g1OkDRZe7lR4sg1IzSy-MNbE9VH8V.110.woff2",
+        "file": "e995618c90d65b7fde51fc56.woff2",
+        "sha256": "51785f4a4d2a011d877052cab1bc4c36cabcc4e186ed0176214061c174b7f024",
+        "bytes": 61188,
+        "bundle_path": "assets/mobile-design/fonts/e995618c90d65b7fde51fc56.woff2"
+      },
+      {
+        "url": "https://fonts.gstatic.com/s/notosanssc/v41/k3kXo84MPvpLmixcA63oeALhLOCT-xWNm8Hqd37g1OkDRZe7lR4sg1IzSy-MNbE9VH8V.111.woff2",
+        "file": "28ca83def0edbea208c44ce8.woff2",
+        "sha256": "aaa67a70f5e8b351c558e32345093fdfd86f089726b3b86d84b58de6a2475104",
+        "bytes": 62400,
+        "bundle_path": "assets/mobile-design/fonts/28ca83def0edbea208c44ce8.woff2"
+      },
+      {
+        "url": "https://fonts.gstatic.com/s/notosanssc/v41/k3kXo84MPvpLmixcA63oeALhLOCT-xWNm8Hqd37g1OkDRZe7lR4sg1IzSy-MNbE9VH8V.112.woff2",
+        "file": "80012191647981e5c7adc523.woff2",
+        "sha256": "34e76675ceffd89824fb130d7649dc92df9e57843a73b9996d405baa2ff9ecff",
+        "bytes": 57460,
+        "bundle_path": "assets/mobile-design/fonts/80012191647981e5c7adc523.woff2"
+      },
+      {
+        "url": "https://fonts.gstatic.com/s/notosanssc/v41/k3kXo84MPvpLmixcA63oeALhLOCT-xWNm8Hqd37g1OkDRZe7lR4sg1IzSy-MNbE9VH8V.113.woff2",
+        "file": "50fe2c53b85dbcc178bc00c6.woff2",
+        "sha256": "40290d98d5c121bdbb1909e39c9c0242eae3a5a88f1bbe302857e525b90056df",
+        "bytes": 58428,
+        "bundle_path": "assets/mobile-design/fonts/50fe2c53b85dbcc178bc00c6.woff2"
+      },
+      {
+        "url": "https://fonts.gstatic.com/s/notosanssc/v41/k3kXo84MPvpLmixcA63oeALhLOCT-xWNm8Hqd37g1OkDRZe7lR4sg1IzSy-MNbE9VH8V.114.woff2",
+        "file": "6e915a118300bd64967b6e49.woff2",
+        "sha256": "c49b2eb658a0c2d76de9a279945de30bf32acd8fdd6d56cf84aea9c6b14aacae",
+        "bytes": 57740,
+        "bundle_path": "assets/mobile-design/fonts/6e915a118300bd64967b6e49.woff2"
+      },
+      {
+        "url": "https://fonts.gstatic.com/s/notosanssc/v41/k3kXo84MPvpLmixcA63oeALhLOCT-xWNm8Hqd37g1OkDRZe7lR4sg1IzSy-MNbE9VH8V.115.woff2",
+        "file": "cbb3b5a695a29d5a2882341c.woff2",
+        "sha256": "6c0cda055b31066fb60058ac30ede37f6f9ca02265c2e1a84aee81175f567fa8",
+        "bytes": 56264,
+        "bundle_path": "assets/mobile-design/fonts/cbb3b5a695a29d5a2882341c.woff2"
+      },
+      {
+        "url": "https://fonts.gstatic.com/s/notosanssc/v41/k3kXo84MPvpLmixcA63oeALhLOCT-xWNm8Hqd37g1OkDRZe7lR4sg1IzSy-MNbE9VH8V.116.woff2",
+        "file": "bc60b6ff294d1755367105b2.woff2",
+        "sha256": "002e502515bee8b9efa1b17abf7e52b51d4cfa20538ae2b2bd82ac52e1153f5e",
+        "bytes": 52796,
+        "bundle_path": "assets/mobile-design/fonts/bc60b6ff294d1755367105b2.woff2"
+      },
+      {
+        "url": "https://fonts.gstatic.com/s/notosanssc/v41/k3kXo84MPvpLmixcA63oeALhLOCT-xWNm8Hqd37g1OkDRZe7lR4sg1IzSy-MNbE9VH8V.117.woff2",
+        "file": "020dbfda423c23463b59fd29.woff2",
+        "sha256": "3d7ced7101c03dfa9bf0e60460a1b91fc6f1166fb33f718506e8110bb12e74a7",
+        "bytes": 52228,
+        "bundle_path": "assets/mobile-design/fonts/020dbfda423c23463b59fd29.woff2"
+      },
+      {
+        "url": "https://fonts.gstatic.com/s/notosanssc/v41/k3kXo84MPvpLmixcA63oeALhLOCT-xWNm8Hqd37g1OkDRZe7lR4sg1IzSy-MNbE9VH8V.118.woff2",
+        "file": "70262083686c9472bfff548c.woff2",
+        "sha256": "f26330ce4056382832c0f2a0d7f411e0b4140fc87937e8865d91664410cfb98c",
+        "bytes": 45992,
+        "bundle_path": "assets/mobile-design/fonts/70262083686c9472bfff548c.woff2"
+      },
+      {
+        "url": "https://fonts.gstatic.com/s/notosanssc/v41/k3kXo84MPvpLmixcA63oeALhLOCT-xWNm8Hqd37g1OkDRZe7lR4sg1IzSy-MNbE9VH8V.119.woff2",
+        "file": "2fe7614bbf4e11e566839756.woff2",
+        "sha256": "09b9fa5a9521fbeccb8267a5abe7443c83cbe25b32eb15b00de316d913235525",
+        "bytes": 76324,
+        "bundle_path": "assets/mobile-design/fonts/2fe7614bbf4e11e566839756.woff2"
+      },
+      {
+        "url": "https://fonts.gstatic.com/s/notosanssc/v41/k3kXo84MPvpLmixcA63oeALhLOCT-xWNm8Hqd37g1OkDRZe7lR4sg1IzSy-MNbE9VH8V.21.woff2",
+        "file": "147cccb8afc71a5feb1a011a.woff2",
+        "sha256": "0c5afc8752b151a444ccb3b21d740cc8e429347ea52bd4cf9d22b73937624bbf",
+        "bytes": 11276,
+        "bundle_path": "assets/mobile-design/fonts/147cccb8afc71a5feb1a011a.woff2"
+      },
+      {
+        "url": "https://fonts.gstatic.com/s/notosanssc/v41/k3kXo84MPvpLmixcA63oeALhLOCT-xWNm8Hqd37g1OkDRZe7lR4sg1IzSy-MNbE9VH8V.22.woff2",
+        "file": "795da5a290f75e811695f84b.woff2",
+        "sha256": "b15b23e18f7b765bd08d12d13210c0af8d32bee34712bc3152d0b386d043ec04",
+        "bytes": 65220,
+        "bundle_path": "assets/mobile-design/fonts/795da5a290f75e811695f84b.woff2"
+      },
+      {
+        "url": "https://fonts.gstatic.com/s/notosanssc/v41/k3kXo84MPvpLmixcA63oeALhLOCT-xWNm8Hqd37g1OkDRZe7lR4sg1IzSy-MNbE9VH8V.23.woff2",
+        "file": "77d331ba8ff8f27093ecdf54.woff2",
+        "sha256": "a8f6664d83439cd5d329e9b35a54fb4d9d3786e80d3eaebbaeac24e3acf950fc",
+        "bytes": 56700,
+        "bundle_path": "assets/mobile-design/fonts/77d331ba8ff8f27093ecdf54.woff2"
+      },
+      {
+        "url": "https://fonts.gstatic.com/s/notosanssc/v41/k3kXo84MPvpLmixcA63oeALhLOCT-xWNm8Hqd37g1OkDRZe7lR4sg1IzSy-MNbE9VH8V.24.woff2",
+        "file": "60dd7500d6634bba87c309f8.woff2",
+        "sha256": "fc59757db66129052cd8e4248045f92f8273b37f719be2a058a55859de190a0e",
+        "bytes": 62552,
+        "bundle_path": "assets/mobile-design/fonts/60dd7500d6634bba87c309f8.woff2"
+      },
+      {
+        "url": "https://fonts.gstatic.com/s/notosanssc/v41/k3kXo84MPvpLmixcA63oeALhLOCT-xWNm8Hqd37g1OkDRZe7lR4sg1IzSy-MNbE9VH8V.25.woff2",
+        "file": "3d7487b97580b2d702702cf6.woff2",
+        "sha256": "074e6162a8ba4f9cf25881da25ce522bb949c1e2516142746daf85471bc48a9c",
+        "bytes": 58224,
+        "bundle_path": "assets/mobile-design/fonts/3d7487b97580b2d702702cf6.woff2"
+      },
+      {
+        "url": "https://fonts.gstatic.com/s/notosanssc/v41/k3kXo84MPvpLmixcA63oeALhLOCT-xWNm8Hqd37g1OkDRZe7lR4sg1IzSy-MNbE9VH8V.26.woff2",
+        "file": "8358e55bdb42425effd03297.woff2",
+        "sha256": "68074245ba1ea9745cad9cf3780b69c9def3568891296e44d60e070e45df7b7a",
+        "bytes": 50744,
+        "bundle_path": "assets/mobile-design/fonts/8358e55bdb42425effd03297.woff2"
+      },
+      {
+        "url": "https://fonts.gstatic.com/s/notosanssc/v41/k3kXo84MPvpLmixcA63oeALhLOCT-xWNm8Hqd37g1OkDRZe7lR4sg1IzSy-MNbE9VH8V.27.woff2",
+        "file": "ea952b1b0ca01265bb5ef0e1.woff2",
+        "sha256": "4e0dafaa26d924f5612a138a34a817aa06b8f72bad9798fe64d221fb13001d31",
+        "bytes": 47324,
+        "bundle_path": "assets/mobile-design/fonts/ea952b1b0ca01265bb5ef0e1.woff2"
+      },
+      {
+        "url": "https://fonts.gstatic.com/s/notosanssc/v41/k3kXo84MPvpLmixcA63oeALhLOCT-xWNm8Hqd37g1OkDRZe7lR4sg1IzSy-MNbE9VH8V.28.woff2",
+        "file": "867f0388b58e0d18a7dbbe66.woff2",
+        "sha256": "31bb7facf7a62ee189026f7ff725b9c4639c712762036394c2996db140549746",
+        "bytes": 50016,
+        "bundle_path": "assets/mobile-design/fonts/867f0388b58e0d18a7dbbe66.woff2"
+      },
+      {
+        "url": "https://fonts.gstatic.com/s/notosanssc/v41/k3kXo84MPvpLmixcA63oeALhLOCT-xWNm8Hqd37g1OkDRZe7lR4sg1IzSy-MNbE9VH8V.29.woff2",
+        "file": "8b56d5441e16d249d6787ac5.woff2",
+        "sha256": "67d137f738bc8294a0365f60661e31b33a6e534d56d7e5ed6982d5e6ffa5663c",
+        "bytes": 53848,
+        "bundle_path": "assets/mobile-design/fonts/8b56d5441e16d249d6787ac5.woff2"
+      },
+      {
+        "url": "https://fonts.gstatic.com/s/notosanssc/v41/k3kXo84MPvpLmixcA63oeALhLOCT-xWNm8Hqd37g1OkDRZe7lR4sg1IzSy-MNbE9VH8V.30.woff2",
+        "file": "4cc6d8faf0425f02ded306f4.woff2",
+        "sha256": "12acd771479c93c76f064a81447266c349d6a33d2f1893d5413c6303b1156fef",
+        "bytes": 54416,
+        "bundle_path": "assets/mobile-design/fonts/4cc6d8faf0425f02ded306f4.woff2"
+      },
+      {
+        "url": "https://fonts.gstatic.com/s/notosanssc/v41/k3kXo84MPvpLmixcA63oeALhLOCT-xWNm8Hqd37g1OkDRZe7lR4sg1IzSy-MNbE9VH8V.31.woff2",
+        "file": "3884819a0f36ab505b4548b9.woff2",
+        "sha256": "def5793483c7abc922de654bc16262646c9ae263819e663990b52fd56a3d5d69",
+        "bytes": 47084,
+        "bundle_path": "assets/mobile-design/fonts/3884819a0f36ab505b4548b9.woff2"
+      },
+      {
+        "url": "https://fonts.gstatic.com/s/notosanssc/v41/k3kXo84MPvpLmixcA63oeALhLOCT-xWNm8Hqd37g1OkDRZe7lR4sg1IzSy-MNbE9VH8V.32.woff2",
+        "file": "eaac29c76943ce6609dcdafb.woff2",
+        "sha256": "2d884d1cfd97c6f72518a2d690573e4130b0b707423f25963d7cc975388adf3e",
+        "bytes": 52368,
+        "bundle_path": "assets/mobile-design/fonts/eaac29c76943ce6609dcdafb.woff2"
+      },
+      {
+        "url": "https://fonts.gstatic.com/s/notosanssc/v41/k3kXo84MPvpLmixcA63oeALhLOCT-xWNm8Hqd37g1OkDRZe7lR4sg1IzSy-MNbE9VH8V.33.woff2",
+        "file": "15a0363dca6bfbb81b6265b9.woff2",
+        "sha256": "02fd273486d8e0c876b3b5d2c3c131b9ce85058196ee3ed77c7d38a7a10e139c",
+        "bytes": 47332,
+        "bundle_path": "assets/mobile-design/fonts/15a0363dca6bfbb81b6265b9.woff2"
+      },
+      {
+        "url": "https://fonts.gstatic.com/s/notosanssc/v41/k3kXo84MPvpLmixcA63oeALhLOCT-xWNm8Hqd37g1OkDRZe7lR4sg1IzSy-MNbE9VH8V.34.woff2",
+        "file": "5d251b3f862b803e997238b2.woff2",
+        "sha256": "13a18e443a4bf6557e252a63061914ce19c4be018c9b16eaf5c75842ee88baf5",
+        "bytes": 46748,
+        "bundle_path": "assets/mobile-design/fonts/5d251b3f862b803e997238b2.woff2"
+      },
+      {
+        "url": "https://fonts.gstatic.com/s/notosanssc/v41/k3kXo84MPvpLmixcA63oeALhLOCT-xWNm8Hqd37g1OkDRZe7lR4sg1IzSy-MNbE9VH8V.35.woff2",
+        "file": "6cda5c60dd493ac276a914e8.woff2",
+        "sha256": "68413e3f3e5b912efd25702281aae9acb37c9920bb7bb941404506ab520add49",
+        "bytes": 50464,
+        "bundle_path": "assets/mobile-design/fonts/6cda5c60dd493ac276a914e8.woff2"
+      },
+      {
+        "url": "https://fonts.gstatic.com/s/notosanssc/v41/k3kXo84MPvpLmixcA63oeALhLOCT-xWNm8Hqd37g1OkDRZe7lR4sg1IzSy-MNbE9VH8V.36.woff2",
+        "file": "5434603ddf2cc3bde442dad1.woff2",
+        "sha256": "21b841e271833161fe5f70a2052399e79faac029667abdcdffe81f260f2ce6b5",
+        "bytes": 41692,
+        "bundle_path": "assets/mobile-design/fonts/5434603ddf2cc3bde442dad1.woff2"
+      },
+      {
+        "url": "https://fonts.gstatic.com/s/notosanssc/v41/k3kXo84MPvpLmixcA63oeALhLOCT-xWNm8Hqd37g1OkDRZe7lR4sg1IzSy-MNbE9VH8V.37.woff2",
+        "file": "8be643fedfc3b624ba5be8aa.woff2",
+        "sha256": "bcbdf5fd7899c7ed192a0c89de9c6c92477be74b8c2343e74914359bfd32a10f",
+        "bytes": 53356,
+        "bundle_path": "assets/mobile-design/fonts/8be643fedfc3b624ba5be8aa.woff2"
+      },
+      {
+        "url": "https://fonts.gstatic.com/s/notosanssc/v41/k3kXo84MPvpLmixcA63oeALhLOCT-xWNm8Hqd37g1OkDRZe7lR4sg1IzSy-MNbE9VH8V.38.woff2",
+        "file": "6d632346af863c9e0767bb7c.woff2",
+        "sha256": "ca375e4a6ecc230333656ad11081b26e6b8f3240f4160e22f75150d4fdddcc9f",
+        "bytes": 54424,
+        "bundle_path": "assets/mobile-design/fonts/6d632346af863c9e0767bb7c.woff2"
+      },
+      {
+        "url": "https://fonts.gstatic.com/s/notosanssc/v41/k3kXo84MPvpLmixcA63oeALhLOCT-xWNm8Hqd37g1OkDRZe7lR4sg1IzSy-MNbE9VH8V.39.woff2",
+        "file": "1887b427e17ea4c3c312f2c7.woff2",
+        "sha256": "e73a947fa1fb1a7385e9d654fa0fe7dd8a2241e9b73282f67941c650c94de326",
+        "bytes": 51616,
+        "bundle_path": "assets/mobile-design/fonts/1887b427e17ea4c3c312f2c7.woff2"
+      },
+      {
+        "url": "https://fonts.gstatic.com/s/notosanssc/v41/k3kXo84MPvpLmixcA63oeALhLOCT-xWNm8Hqd37g1OkDRZe7lR4sg1IzSy-MNbE9VH8V.4.woff2",
+        "file": "008dc87bc80851a41dd54375.woff2",
+        "sha256": "29634170d5eb07f460a9eb1b2d0ef126ad0b5ef705e4c25191fd5794dc930d4d",
+        "bytes": 3764,
+        "bundle_path": "assets/mobile-design/fonts/008dc87bc80851a41dd54375.woff2"
+      },
+      {
+        "url": "https://fonts.gstatic.com/s/notosanssc/v41/k3kXo84MPvpLmixcA63oeALhLOCT-xWNm8Hqd37g1OkDRZe7lR4sg1IzSy-MNbE9VH8V.40.woff2",
+        "file": "a3cab7df39593399542eade9.woff2",
+        "sha256": "2f186187cfd9a546d199aac41fbaed1241a47a7d5aad1804f98127506af80340",
+        "bytes": 46432,
+        "bundle_path": "assets/mobile-design/fonts/a3cab7df39593399542eade9.woff2"
+      },
+      {
+        "url": "https://fonts.gstatic.com/s/notosanssc/v41/k3kXo84MPvpLmixcA63oeALhLOCT-xWNm8Hqd37g1OkDRZe7lR4sg1IzSy-MNbE9VH8V.41.woff2",
+        "file": "eb4a098892d88578f8c7d889.woff2",
+        "sha256": "7e2a21f95e969165ff32e2fdab8422b489d2c7b0f899f69bfc83d71872cde2af",
+        "bytes": 36284,
+        "bundle_path": "assets/mobile-design/fonts/eb4a098892d88578f8c7d889.woff2"
+      },
+      {
+        "url": "https://fonts.gstatic.com/s/notosanssc/v41/k3kXo84MPvpLmixcA63oeALhLOCT-xWNm8Hqd37g1OkDRZe7lR4sg1IzSy-MNbE9VH8V.42.woff2",
+        "file": "e07e6786859ddf7f462cb62f.woff2",
+        "sha256": "c53279f786dde3590baf0343d080fad8c7bd976e9dccecd2adea893cfad2f99a",
+        "bytes": 45432,
+        "bundle_path": "assets/mobile-design/fonts/e07e6786859ddf7f462cb62f.woff2"
+      },
+      {
+        "url": "https://fonts.gstatic.com/s/notosanssc/v41/k3kXo84MPvpLmixcA63oeALhLOCT-xWNm8Hqd37g1OkDRZe7lR4sg1IzSy-MNbE9VH8V.43.woff2",
+        "file": "b3bed28dac320d6cee9ab817.woff2",
+        "sha256": "a98ffa0839e353eb7e768084e27892596616f6a3d8bb65c94202898bccb1fd68",
+        "bytes": 46488,
+        "bundle_path": "assets/mobile-design/fonts/b3bed28dac320d6cee9ab817.woff2"
+      },
+      {
+        "url": "https://fonts.gstatic.com/s/notosanssc/v41/k3kXo84MPvpLmixcA63oeALhLOCT-xWNm8Hqd37g1OkDRZe7lR4sg1IzSy-MNbE9VH8V.44.woff2",
+        "file": "daccccdf4a9c91712ab315ca.woff2",
+        "sha256": "aa1a541dfacfcad0c66fb7f9dd4f9c12ce729d98311336c634702d066aabbbc2",
+        "bytes": 54096,
+        "bundle_path": "assets/mobile-design/fonts/daccccdf4a9c91712ab315ca.woff2"
+      },
+      {
+        "url": "https://fonts.gstatic.com/s/notosanssc/v41/k3kXo84MPvpLmixcA63oeALhLOCT-xWNm8Hqd37g1OkDRZe7lR4sg1IzSy-MNbE9VH8V.45.woff2",
+        "file": "260dcaac2795d94cd18560d6.woff2",
+        "sha256": "ea12aaa5635e53eaf7429500be57e9e8a6030e0906f985426412a1303761f77f",
+        "bytes": 67436,
+        "bundle_path": "assets/mobile-design/fonts/260dcaac2795d94cd18560d6.woff2"
+      },
+      {
+        "url": "https://fonts.gstatic.com/s/notosanssc/v41/k3kXo84MPvpLmixcA63oeALhLOCT-xWNm8Hqd37g1OkDRZe7lR4sg1IzSy-MNbE9VH8V.46.woff2",
+        "file": "f3d95cf3200e8e6783aaed44.woff2",
+        "sha256": "d4a75aa10eb4487dcd94ff2009ef0f185d35f0e3264fa87532887c5c1517c816",
+        "bytes": 57520,
+        "bundle_path": "assets/mobile-design/fonts/f3d95cf3200e8e6783aaed44.woff2"
+      },
+      {
+        "url": "https://fonts.gstatic.com/s/notosanssc/v41/k3kXo84MPvpLmixcA63oeALhLOCT-xWNm8Hqd37g1OkDRZe7lR4sg1IzSy-MNbE9VH8V.47.woff2",
+        "file": "76c135d30e8d2cd9c1e5dd92.woff2",
+        "sha256": "d5c48bd3b5502918adf253c96909f27be4eda7653fc0254a6564557b516cb2e1",
+        "bytes": 55972,
+        "bundle_path": "assets/mobile-design/fonts/76c135d30e8d2cd9c1e5dd92.woff2"
+      },
+      {
+        "url": "https://fonts.gstatic.com/s/notosanssc/v41/k3kXo84MPvpLmixcA63oeALhLOCT-xWNm8Hqd37g1OkDRZe7lR4sg1IzSy-MNbE9VH8V.48.woff2",
+        "file": "7a5ff07bb72e8a42727ce2f9.woff2",
+        "sha256": "c4f53f8b05fa6350ac20f8a12b550f9634ed31b084dc50b1263f2080e392b9f7",
+        "bytes": 50616,
+        "bundle_path": "assets/mobile-design/fonts/7a5ff07bb72e8a42727ce2f9.woff2"
+      },
+      {
+        "url": "https://fonts.gstatic.com/s/notosanssc/v41/k3kXo84MPvpLmixcA63oeALhLOCT-xWNm8Hqd37g1OkDRZe7lR4sg1IzSy-MNbE9VH8V.49.woff2",
+        "file": "67e74244c1be1d8f47508295.woff2",
+        "sha256": "2418a76f14f6299b160af41cd283ed529b0030e2448b2ec11895ea5009561e25",
+        "bytes": 52768,
+        "bundle_path": "assets/mobile-design/fonts/67e74244c1be1d8f47508295.woff2"
+      },
+      {
+        "url": "https://fonts.gstatic.com/s/notosanssc/v41/k3kXo84MPvpLmixcA63oeALhLOCT-xWNm8Hqd37g1OkDRZe7lR4sg1IzSy-MNbE9VH8V.5.woff2",
+        "file": "8cf124c9e2ab3a99fe61a74a.woff2",
+        "sha256": "08f7b17fb6a88382277dfa1b6969f1f0b73a1f87819713849bb9e1ff6017088e",
+        "bytes": 20044,
+        "bundle_path": "assets/mobile-design/fonts/8cf124c9e2ab3a99fe61a74a.woff2"
+      },
+      {
+        "url": "https://fonts.gstatic.com/s/notosanssc/v41/k3kXo84MPvpLmixcA63oeALhLOCT-xWNm8Hqd37g1OkDRZe7lR4sg1IzSy-MNbE9VH8V.50.woff2",
+        "file": "96ac774a03a65ee44b047a22.woff2",
+        "sha256": "050cbf869048801588356d05f1145c601ddb9063a9e9fd241bbd0997a5ca263f",
+        "bytes": 45724,
+        "bundle_path": "assets/mobile-design/fonts/96ac774a03a65ee44b047a22.woff2"
+      },
+      {
+        "url": "https://fonts.gstatic.com/s/notosanssc/v41/k3kXo84MPvpLmixcA63oeALhLOCT-xWNm8Hqd37g1OkDRZe7lR4sg1IzSy-MNbE9VH8V.51.woff2",
+        "file": "2cd036d7e3fe376a8c1e71e8.woff2",
+        "sha256": "48810df68807cb9a06052daa52495183575373dc1f3294cce7739a6f37ff25cf",
+        "bytes": 41476,
+        "bundle_path": "assets/mobile-design/fonts/2cd036d7e3fe376a8c1e71e8.woff2"
+      },
+      {
+        "url": "https://fonts.gstatic.com/s/notosanssc/v41/k3kXo84MPvpLmixcA63oeALhLOCT-xWNm8Hqd37g1OkDRZe7lR4sg1IzSy-MNbE9VH8V.52.woff2",
+        "file": "a3dbe2d38e97e0dddf0b27a1.woff2",
+        "sha256": "bf40713c12d0ae841b4cbe9d487724e4ee780fdb84844a96ba8ebae6b79a3191",
+        "bytes": 51772,
+        "bundle_path": "assets/mobile-design/fonts/a3dbe2d38e97e0dddf0b27a1.woff2"
+      },
+      {
+        "url": "https://fonts.gstatic.com/s/notosanssc/v41/k3kXo84MPvpLmixcA63oeALhLOCT-xWNm8Hqd37g1OkDRZe7lR4sg1IzSy-MNbE9VH8V.53.woff2",
+        "file": "0939479293f82b72f2b6df1a.woff2",
+        "sha256": "13b6821eb6534f1ac72a4bab506de7012bec7fe0b9bb0a73733d5c798dd45e29",
+        "bytes": 43284,
+        "bundle_path": "assets/mobile-design/fonts/0939479293f82b72f2b6df1a.woff2"
+      },
+      {
+        "url": "https://fonts.gstatic.com/s/notosanssc/v41/k3kXo84MPvpLmixcA63oeALhLOCT-xWNm8Hqd37g1OkDRZe7lR4sg1IzSy-MNbE9VH8V.54.woff2",
+        "file": "a43dc9aaf6bab8c965dae31d.woff2",
+        "sha256": "db60ee4c755151c036004e39bde39fa9676c6a9d1753d9842ae1a7b2e5899b83",
+        "bytes": 51816,
+        "bundle_path": "assets/mobile-design/fonts/a43dc9aaf6bab8c965dae31d.woff2"
+      },
+      {
+        "url": "https://fonts.gstatic.com/s/notosanssc/v41/k3kXo84MPvpLmixcA63oeALhLOCT-xWNm8Hqd37g1OkDRZe7lR4sg1IzSy-MNbE9VH8V.55.woff2",
+        "file": "d0b10224020a07f998d8b632.woff2",
+        "sha256": "70105493871b782981352a0cf696487afc098a69a4708d87a7931607fe15a128",
+        "bytes": 47948,
+        "bundle_path": "assets/mobile-design/fonts/d0b10224020a07f998d8b632.woff2"
+      },
+      {
+        "url": "https://fonts.gstatic.com/s/notosanssc/v41/k3kXo84MPvpLmixcA63oeALhLOCT-xWNm8Hqd37g1OkDRZe7lR4sg1IzSy-MNbE9VH8V.56.woff2",
+        "file": "992ac969fdc009edca796d49.woff2",
+        "sha256": "cc5fe9a6dedd91e7b95482713b12c84d99a04f90d5124e50db3efa9f2450923f",
+        "bytes": 53332,
+        "bundle_path": "assets/mobile-design/fonts/992ac969fdc009edca796d49.woff2"
+      },
+      {
+        "url": "https://fonts.gstatic.com/s/notosanssc/v41/k3kXo84MPvpLmixcA63oeALhLOCT-xWNm8Hqd37g1OkDRZe7lR4sg1IzSy-MNbE9VH8V.57.woff2",
+        "file": "af2b419b58c743f531a06041.woff2",
+        "sha256": "3a4bddf6442271be898390e29e344183f5f10a97eefa04595c9537f535f34927",
+        "bytes": 55348,
+        "bundle_path": "assets/mobile-design/fonts/af2b419b58c743f531a06041.woff2"
+      },
+      {
+        "url": "https://fonts.gstatic.com/s/notosanssc/v41/k3kXo84MPvpLmixcA63oeALhLOCT-xWNm8Hqd37g1OkDRZe7lR4sg1IzSy-MNbE9VH8V.58.woff2",
+        "file": "5cee4a2a16fc1034679c5d4f.woff2",
+        "sha256": "b4a952b513ca0e1b594a856e5398d1e40d69b0bf220825210955fde747faa8d0",
+        "bytes": 57468,
+        "bundle_path": "assets/mobile-design/fonts/5cee4a2a16fc1034679c5d4f.woff2"
+      },
+      {
+        "url": "https://fonts.gstatic.com/s/notosanssc/v41/k3kXo84MPvpLmixcA63oeALhLOCT-xWNm8Hqd37g1OkDRZe7lR4sg1IzSy-MNbE9VH8V.59.woff2",
+        "file": "a60cebdbd6b51c7b90fbc597.woff2",
+        "sha256": "0557109d55c77ff9c9b5c9732d732c5328bd0b61038cffe611d9d62b26ded420",
+        "bytes": 47504,
+        "bundle_path": "assets/mobile-design/fonts/a60cebdbd6b51c7b90fbc597.woff2"
+      },
+      {
+        "url": "https://fonts.gstatic.com/s/notosanssc/v41/k3kXo84MPvpLmixcA63oeALhLOCT-xWNm8Hqd37g1OkDRZe7lR4sg1IzSy-MNbE9VH8V.6.woff2",
+        "file": "8465bb57d8bbe84f852bb692.woff2",
+        "sha256": "675ff09731b49aeff9031c6d8edb3d54766aec64e4c6c699be5766729e4dad98",
+        "bytes": 11388,
+        "bundle_path": "assets/mobile-design/fonts/8465bb57d8bbe84f852bb692.woff2"
+      },
+      {
+        "url": "https://fonts.gstatic.com/s/notosanssc/v41/k3kXo84MPvpLmixcA63oeALhLOCT-xWNm8Hqd37g1OkDRZe7lR4sg1IzSy-MNbE9VH8V.60.woff2",
+        "file": "e151c760a682b6f54211e559.woff2",
+        "sha256": "105d09095364787b4eef08ecd4faa975d66ad3ce2be43bb968dd37b9285e6667",
+        "bytes": 41300,
+        "bundle_path": "assets/mobile-design/fonts/e151c760a682b6f54211e559.woff2"
+      },
+      {
+        "url": "https://fonts.gstatic.com/s/notosanssc/v41/k3kXo84MPvpLmixcA63oeALhLOCT-xWNm8Hqd37g1OkDRZe7lR4sg1IzSy-MNbE9VH8V.61.woff2",
+        "file": "8cbfab9b1abad17290a68928.woff2",
+        "sha256": "21c21d2375925f742573edc50e3bca85a63350bf1d5d566d2d762f8ce2b259d9",
+        "bytes": 45096,
+        "bundle_path": "assets/mobile-design/fonts/8cbfab9b1abad17290a68928.woff2"
+      },
+      {
+        "url": "https://fonts.gstatic.com/s/notosanssc/v41/k3kXo84MPvpLmixcA63oeALhLOCT-xWNm8Hqd37g1OkDRZe7lR4sg1IzSy-MNbE9VH8V.62.woff2",
+        "file": "346446b4825ba29283857966.woff2",
+        "sha256": "d532c89a0da063c68ce871a7f85fa75448efc3089335e012f107d80618512fd4",
+        "bytes": 58956,
+        "bundle_path": "assets/mobile-design/fonts/346446b4825ba29283857966.woff2"
+      },
+      {
+        "url": "https://fonts.gstatic.com/s/notosanssc/v41/k3kXo84MPvpLmixcA63oeALhLOCT-xWNm8Hqd37g1OkDRZe7lR4sg1IzSy-MNbE9VH8V.63.woff2",
+        "file": "2f4f55ca96846f8e75baa8b5.woff2",
+        "sha256": "0897654d316342cdf37bb3d16fcf1a51fdcc38fcf1fb39880b5d3f17e87bf7de",
+        "bytes": 49052,
+        "bundle_path": "assets/mobile-design/fonts/2f4f55ca96846f8e75baa8b5.woff2"
+      },
+      {
+        "url": "https://fonts.gstatic.com/s/notosanssc/v41/k3kXo84MPvpLmixcA63oeALhLOCT-xWNm8Hqd37g1OkDRZe7lR4sg1IzSy-MNbE9VH8V.64.woff2",
+        "file": "0f7d1a156ebfcad3a1d93de4.woff2",
+        "sha256": "d490960a491521936b84a4be078a9570444960a2dc73c584b802d2c9c8fba1c1",
+        "bytes": 41408,
+        "bundle_path": "assets/mobile-design/fonts/0f7d1a156ebfcad3a1d93de4.woff2"
+      },
+      {
+        "url": "https://fonts.gstatic.com/s/notosanssc/v41/k3kXo84MPvpLmixcA63oeALhLOCT-xWNm8Hqd37g1OkDRZe7lR4sg1IzSy-MNbE9VH8V.65.woff2",
+        "file": "17ac0d8ddd113190236e58ee.woff2",
+        "sha256": "086958b9f441a2ba9fca76e9ac4924bc4acb60559bd5620d348c707ff154ee83",
+        "bytes": 41392,
+        "bundle_path": "assets/mobile-design/fonts/17ac0d8ddd113190236e58ee.woff2"
+      },
+      {
+        "url": "https://fonts.gstatic.com/s/notosanssc/v41/k3kXo84MPvpLmixcA63oeALhLOCT-xWNm8Hqd37g1OkDRZe7lR4sg1IzSy-MNbE9VH8V.66.woff2",
+        "file": "b7c59dce268e6908a98bfdee.woff2",
+        "sha256": "50c8a455f282618211dacd6a0a30c1dee510d6d46eea9be79937b24e69cb0353",
+        "bytes": 52620,
+        "bundle_path": "assets/mobile-design/fonts/b7c59dce268e6908a98bfdee.woff2"
+      },
+      {
+        "url": "https://fonts.gstatic.com/s/notosanssc/v41/k3kXo84MPvpLmixcA63oeALhLOCT-xWNm8Hqd37g1OkDRZe7lR4sg1IzSy-MNbE9VH8V.67.woff2",
+        "file": "c25c383065bf8ad566e52570.woff2",
+        "sha256": "54fc8c9eca1c929480b2c090907dfd9d42875cec49989b0737af2b6a60097f29",
+        "bytes": 52464,
+        "bundle_path": "assets/mobile-design/fonts/c25c383065bf8ad566e52570.woff2"
+      },
+      {
+        "url": "https://fonts.gstatic.com/s/notosanssc/v41/k3kXo84MPvpLmixcA63oeALhLOCT-xWNm8Hqd37g1OkDRZe7lR4sg1IzSy-MNbE9VH8V.68.woff2",
+        "file": "8af3f8d741c06b4485f87a70.woff2",
+        "sha256": "3ed406ceb43b6f73a6a42ad9e8b2a9aab96fd6603bab5b73a908ca53f0d354a8",
+        "bytes": 41380,
+        "bundle_path": "assets/mobile-design/fonts/8af3f8d741c06b4485f87a70.woff2"
+      },
+      {
+        "url": "https://fonts.gstatic.com/s/notosanssc/v41/k3kXo84MPvpLmixcA63oeALhLOCT-xWNm8Hqd37g1OkDRZe7lR4sg1IzSy-MNbE9VH8V.69.woff2",
+        "file": "c5a4cfe2b3b7d8464694cc63.woff2",
+        "sha256": "c7d1f5b0f95f358dee4cf9e76eda5c0465eb9d0f4e21a13ef39d0cf8761e5b9d",
+        "bytes": 55520,
+        "bundle_path": "assets/mobile-design/fonts/c5a4cfe2b3b7d8464694cc63.woff2"
+      },
+      {
+        "url": "https://fonts.gstatic.com/s/notosanssc/v41/k3kXo84MPvpLmixcA63oeALhLOCT-xWNm8Hqd37g1OkDRZe7lR4sg1IzSy-MNbE9VH8V.70.woff2",
+        "file": "760de351e10cb652508b1d2a.woff2",
+        "sha256": "8474823a5264bfdee208fd16e2e5f3fe689e8eb18941446678426dc5f1264d19",
+        "bytes": 42080,
+        "bundle_path": "assets/mobile-design/fonts/760de351e10cb652508b1d2a.woff2"
+      },
+      {
+        "url": "https://fonts.gstatic.com/s/notosanssc/v41/k3kXo84MPvpLmixcA63oeALhLOCT-xWNm8Hqd37g1OkDRZe7lR4sg1IzSy-MNbE9VH8V.71.woff2",
+        "file": "a9cf44a53915717f9e140850.woff2",
+        "sha256": "734da1dcc260ca6cc29c9e42078125ae8e4583fbc1f7cc76d82572a73767f04d",
+        "bytes": 47768,
+        "bundle_path": "assets/mobile-design/fonts/a9cf44a53915717f9e140850.woff2"
+      },
+      {
+        "url": "https://fonts.gstatic.com/s/notosanssc/v41/k3kXo84MPvpLmixcA63oeALhLOCT-xWNm8Hqd37g1OkDRZe7lR4sg1IzSy-MNbE9VH8V.72.woff2",
+        "file": "455df3b0261a81c71b69f55f.woff2",
+        "sha256": "71d3da5b2d0e05b8899e271aaa49982fa73a589168be26a8350ff6f79f20bfd7",
+        "bytes": 46916,
+        "bundle_path": "assets/mobile-design/fonts/455df3b0261a81c71b69f55f.woff2"
+      },
+      {
+        "url": "https://fonts.gstatic.com/s/notosanssc/v41/k3kXo84MPvpLmixcA63oeALhLOCT-xWNm8Hqd37g1OkDRZe7lR4sg1IzSy-MNbE9VH8V.73.woff2",
+        "file": "0804e3e568e4cb23af48c861.woff2",
+        "sha256": "92f8b99dc1a79089d18b1684447e31ef62abf48de736555cf5840b781aeb9d56",
+        "bytes": 39096,
+        "bundle_path": "assets/mobile-design/fonts/0804e3e568e4cb23af48c861.woff2"
+      },
+      {
+        "url": "https://fonts.gstatic.com/s/notosanssc/v41/k3kXo84MPvpLmixcA63oeALhLOCT-xWNm8Hqd37g1OkDRZe7lR4sg1IzSy-MNbE9VH8V.74.woff2",
+        "file": "f02df04df0429189d7ef5b2d.woff2",
+        "sha256": "5c8faf77fe0277b9e59904396fdf3fe24088bcb2decfc5729895b279c53754f6",
+        "bytes": 56260,
+        "bundle_path": "assets/mobile-design/fonts/f02df04df0429189d7ef5b2d.woff2"
+      },
+      {
+        "url": "https://fonts.gstatic.com/s/notosanssc/v41/k3kXo84MPvpLmixcA63oeALhLOCT-xWNm8Hqd37g1OkDRZe7lR4sg1IzSy-MNbE9VH8V.75.woff2",
+        "file": "790e5ca8be74fb3d89971a70.woff2",
+        "sha256": "216c1c94ee016db46f8d1dc5c51f402215dbf9013fbf9f60f3db3901f9a3b035",
+        "bytes": 43824,
+        "bundle_path": "assets/mobile-design/fonts/790e5ca8be74fb3d89971a70.woff2"
+      },
+      {
+        "url": "https://fonts.gstatic.com/s/notosanssc/v41/k3kXo84MPvpLmixcA63oeALhLOCT-xWNm8Hqd37g1OkDRZe7lR4sg1IzSy-MNbE9VH8V.76.woff2",
+        "file": "434573d50e78ce7d942085ce.woff2",
+        "sha256": "8a31272bf31f9340747866ad1a59ff6073bf92fe802e2ba5a531f6a8aac2a42b",
+        "bytes": 48240,
+        "bundle_path": "assets/mobile-design/fonts/434573d50e78ce7d942085ce.woff2"
+      },
+      {
+        "url": "https://fonts.gstatic.com/s/notosanssc/v41/k3kXo84MPvpLmixcA63oeALhLOCT-xWNm8Hqd37g1OkDRZe7lR4sg1IzSy-MNbE9VH8V.77.woff2",
+        "file": "1d785474a91d8ae73ff99d73.woff2",
+        "sha256": "bc249f82f40ec61d6ec096c748603fdb4e946adaf659392b06c6810169e81513",
+        "bytes": 36664,
+        "bundle_path": "assets/mobile-design/fonts/1d785474a91d8ae73ff99d73.woff2"
+      },
+      {
+        "url": "https://fonts.gstatic.com/s/notosanssc/v41/k3kXo84MPvpLmixcA63oeALhLOCT-xWNm8Hqd37g1OkDRZe7lR4sg1IzSy-MNbE9VH8V.78.woff2",
+        "file": "a725b2020a719863f0561d23.woff2",
+        "sha256": "26210c38ccee9b53194481bed1dfc1aa4f74810d5672b2e7ed6a2e44b169835d",
+        "bytes": 48916,
+        "bundle_path": "assets/mobile-design/fonts/a725b2020a719863f0561d23.woff2"
+      },
+      {
+        "url": "https://fonts.gstatic.com/s/notosanssc/v41/k3kXo84MPvpLmixcA63oeALhLOCT-xWNm8Hqd37g1OkDRZe7lR4sg1IzSy-MNbE9VH8V.79.woff2",
+        "file": "0aab735a0f43653a12b713b3.woff2",
+        "sha256": "db79df334235f3d72cc0a7e625bfee1c3d6a76104af15e0814c4926ceee6188e",
+        "bytes": 41064,
+        "bundle_path": "assets/mobile-design/fonts/0aab735a0f43653a12b713b3.woff2"
+      },
+      {
+        "url": "https://fonts.gstatic.com/s/notosanssc/v41/k3kXo84MPvpLmixcA63oeALhLOCT-xWNm8Hqd37g1OkDRZe7lR4sg1IzSy-MNbE9VH8V.80.woff2",
+        "file": "3b1044582b08f38d9b1686cc.woff2",
+        "sha256": "c9ce6e0654379a2dd291a6f29323ff2d7f06156389ffb3e4d087a9d211887a6b",
+        "bytes": 32448,
+        "bundle_path": "assets/mobile-design/fonts/3b1044582b08f38d9b1686cc.woff2"
+      },
+      {
+        "url": "https://fonts.gstatic.com/s/notosanssc/v41/k3kXo84MPvpLmixcA63oeALhLOCT-xWNm8Hqd37g1OkDRZe7lR4sg1IzSy-MNbE9VH8V.81.woff2",
+        "file": "9249df14e7a853a56d460f14.woff2",
+        "sha256": "9958d614924fa54de4f661febd02c1de787ef640d58970e4d928e1ecd7c17990",
+        "bytes": 47504,
+        "bundle_path": "assets/mobile-design/fonts/9249df14e7a853a56d460f14.woff2"
+      },
+      {
+        "url": "https://fonts.gstatic.com/s/notosanssc/v41/k3kXo84MPvpLmixcA63oeALhLOCT-xWNm8Hqd37g1OkDRZe7lR4sg1IzSy-MNbE9VH8V.82.woff2",
+        "file": "e4d4f290cad36cc85217f306.woff2",
+        "sha256": "2129264ef35c203e3a2c2bc16abc437c110c57006d108ff107ad775dc7ea1e39",
+        "bytes": 46008,
+        "bundle_path": "assets/mobile-design/fonts/e4d4f290cad36cc85217f306.woff2"
+      },
+      {
+        "url": "https://fonts.gstatic.com/s/notosanssc/v41/k3kXo84MPvpLmixcA63oeALhLOCT-xWNm8Hqd37g1OkDRZe7lR4sg1IzSy-MNbE9VH8V.83.woff2",
+        "file": "d92f516b9b7ff8e285c51cac.woff2",
+        "sha256": "24a037cbb07cb4de1f92993a9ceda16ba4483f1d63f6f529ea26ae44f01243fd",
+        "bytes": 43356,
+        "bundle_path": "assets/mobile-design/fonts/d92f516b9b7ff8e285c51cac.woff2"
+      },
+      {
+        "url": "https://fonts.gstatic.com/s/notosanssc/v41/k3kXo84MPvpLmixcA63oeALhLOCT-xWNm8Hqd37g1OkDRZe7lR4sg1IzSy-MNbE9VH8V.84.woff2",
+        "file": "1f018b4b3d76d0e81813f800.woff2",
+        "sha256": "e1b9b9aee81a74fc4ec19e1709c64a0042d9d898a2f00f6c3b2012564b6a4783",
+        "bytes": 32516,
+        "bundle_path": "assets/mobile-design/fonts/1f018b4b3d76d0e81813f800.woff2"
+      },
+      {
+        "url": "https://fonts.gstatic.com/s/notosanssc/v41/k3kXo84MPvpLmixcA63oeALhLOCT-xWNm8Hqd37g1OkDRZe7lR4sg1IzSy-MNbE9VH8V.85.woff2",
+        "file": "aa582bc8a3b1815ba69afb2a.woff2",
+        "sha256": "cce97c39b9304c87e55ed84d511d479afd3343b91c04b3ac7bdc5beb9ecf709d",
+        "bytes": 26768,
+        "bundle_path": "assets/mobile-design/fonts/aa582bc8a3b1815ba69afb2a.woff2"
+      },
+      {
+        "url": "https://fonts.gstatic.com/s/notosanssc/v41/k3kXo84MPvpLmixcA63oeALhLOCT-xWNm8Hqd37g1OkDRZe7lR4sg1IzSy-MNbE9VH8V.86.woff2",
+        "file": "49e34e804554f81264775cc8.woff2",
+        "sha256": "55fd1a42ab8ace744691b59c535499ad22b22c7c98b1d69a22fe101a2cd9b0e9",
+        "bytes": 33428,
+        "bundle_path": "assets/mobile-design/fonts/49e34e804554f81264775cc8.woff2"
+      },
+      {
+        "url": "https://fonts.gstatic.com/s/notosanssc/v41/k3kXo84MPvpLmixcA63oeALhLOCT-xWNm8Hqd37g1OkDRZe7lR4sg1IzSy-MNbE9VH8V.87.woff2",
+        "file": "0eecef1c612d4bc59e553a6c.woff2",
+        "sha256": "40292a14f8f52accb05252b7ec7c68e00f35781d2a726223bec1685eee6312b5",
+        "bytes": 7956,
+        "bundle_path": "assets/mobile-design/fonts/0eecef1c612d4bc59e553a6c.woff2"
+      },
+      {
+        "url": "https://fonts.gstatic.com/s/notosanssc/v41/k3kXo84MPvpLmixcA63oeALhLOCT-xWNm8Hqd37g1OkDRZe7lR4sg1IzSy-MNbE9VH8V.88.woff2",
+        "file": "75af5b7267af4a262799fd52.woff2",
+        "sha256": "008f38db74bc1c346ba8f4d6065dd41d0fe33a4ed2f9909cb880b81c5a3f9334",
+        "bytes": 7228,
+        "bundle_path": "assets/mobile-design/fonts/75af5b7267af4a262799fd52.woff2"
+      },
+      {
+        "url": "https://fonts.gstatic.com/s/notosanssc/v41/k3kXo84MPvpLmixcA63oeALhLOCT-xWNm8Hqd37g1OkDRZe7lR4sg1IzSy-MNbE9VH8V.89.woff2",
+        "file": "7ce97238878cac4d1a751778.woff2",
+        "sha256": "74a75243aa93eb61367a28d217ce82b76c6cf9e86d0f23fd96708bfd91b68f46",
+        "bytes": 10792,
+        "bundle_path": "assets/mobile-design/fonts/7ce97238878cac4d1a751778.woff2"
+      },
+      {
+        "url": "https://fonts.gstatic.com/s/notosanssc/v41/k3kXo84MPvpLmixcA63oeALhLOCT-xWNm8Hqd37g1OkDRZe7lR4sg1IzSy-MNbE9VH8V.90.woff2",
+        "file": "d212762c3ad5bff532254f7d.woff2",
+        "sha256": "80d51f95afbebcbed0cc53985fbce43eec3a37c8ec88b08d316c56a32aa77843",
+        "bytes": 9224,
+        "bundle_path": "assets/mobile-design/fonts/d212762c3ad5bff532254f7d.woff2"
+      },
+      {
+        "url": "https://fonts.gstatic.com/s/notosanssc/v41/k3kXo84MPvpLmixcA63oeALhLOCT-xWNm8Hqd37g1OkDRZe7lR4sg1IzSy-MNbE9VH8V.91.woff2",
+        "file": "a9b46007718f9a46e566fa84.woff2",
+        "sha256": "7bf857d9d1285675fe572e64f968ae1f3213da7654ffd335633fb5b39493c057",
+        "bytes": 8616,
+        "bundle_path": "assets/mobile-design/fonts/a9b46007718f9a46e566fa84.woff2"
+      },
+      {
+        "url": "https://fonts.gstatic.com/s/notosanssc/v41/k3kXo84MPvpLmixcA63oeALhLOCT-xWNm8Hqd37g1OkDRZe7lR4sg1IzSy-MNbE9VH8V.97.woff2",
+        "file": "7479da63c88a5f765f413218.woff2",
+        "sha256": "7671f7b32d4c5c11ba72df9e6b9a18a6441f863aade2623ac0562ebd34b82bc7",
+        "bytes": 2072,
+        "bundle_path": "assets/mobile-design/fonts/7479da63c88a5f765f413218.woff2"
+      },
+      {
+        "url": "https://fonts.gstatic.com/s/notosanssc/v41/k3kXo84MPvpLmixcA63oeALhLOCT-xWNm8Hqd37g1OkDRZe7lR4sg1IzSy-MNbE9VH8V.98.woff2",
+        "file": "81516bee61fd879f49c975d4.woff2",
+        "sha256": "94e55b60e87bfb909709592144002c0b10a4214612ea512b38bb719c9ef45c49",
+        "bytes": 3412,
+        "bundle_path": "assets/mobile-design/fonts/81516bee61fd879f49c975d4.woff2"
+      },
+      {
+        "url": "https://fonts.gstatic.com/s/notosanssc/v41/k3kXo84MPvpLmixcA63oeALhLOCT-xWNm8Hqd37g1OkDRZe7lR4sg1IzSy-MNbE9VH8V.99.woff2",
+        "file": "1ae9e94f5afbf145e83d8e6c.woff2",
+        "sha256": "6b2d1065f737c83608088c2e241c605683d94c6160121ca976496507ebc6cc94",
+        "bytes": 9696,
+        "bundle_path": "assets/mobile-design/fonts/1ae9e94f5afbf145e83d8e6c.woff2"
+      },
+      {
+        "url": "https://fonts.gstatic.com/s/plusjakartasans/v12/LDIoaomQNQcsA88c7O9yZ4KMCoOg4Ko20yw.woff2",
+        "file": "d8c30647abfeffe6d17375f9.woff2",
+        "sha256": "153fc85b70298beeb1d61a5f723331649e7f23bb77302a66e61cb3e2fbdb5e79",
+        "bytes": 27348,
+        "bundle_path": "assets/mobile-design/fonts/d8c30647abfeffe6d17375f9.woff2"
+      },
+      {
+        "url": "https://fonts.gstatic.com/s/plusjakartasans/v12/LDIoaomQNQcsA88c7O9yZ4KMCoOg4Ko40yyygA.woff2",
+        "file": "94d65887a83f128236634c6a.woff2",
+        "sha256": "38e3b8fd8045048eb311d90170a4429ed2c8f405852dc3d91b5af8452758703f",
+        "bytes": 21728,
+        "bundle_path": "assets/mobile-design/fonts/94d65887a83f128236634c6a.woff2"
+      },
+      {
+        "url": "https://fonts.gstatic.com/s/plusjakartasans/v12/LDIoaomQNQcsA88c7O9yZ4KMCoOg4Ko50yyygA.woff2",
+        "file": "effc6711249e7349d5e82603.woff2",
+        "sha256": "b275d1258601dda240fc6a1d4a6cad56e691d898f5cdf1b0e4fd6ca0022d8e40",
+        "bytes": 8352,
+        "bundle_path": "assets/mobile-design/fonts/effc6711249e7349d5e82603.woff2"
+      },
+      {
+        "url": "https://fonts.gstatic.com/s/plusjakartasans/v12/LDIoaomQNQcsA88c7O9yZ4KMCoOg4Ko70yyygA.woff2",
+        "file": "22bd9b393960a42cb32d8a70.woff2",
+        "sha256": "c46a510ab43925a55ecfe6c2d5fad0ce1902cd48ab276621d41f7afa42e4daee",
+        "bytes": 1716,
+        "bundle_path": "assets/mobile-design/fonts/22bd9b393960a42cb32d8a70.woff2"
+      }
+    ],
+    "licenses": [
+      {
+        "family": "notosanssc",
+        "url": "https://raw.githubusercontent.com/google/fonts/main/ofl/notosanssc/OFL.txt",
+        "sha256": "1c05c68c34f9708415aada51f17e1b0092d2cea709bf4a94cd38114f9e73d7d9",
+        "file": "notosanssc-OFL.txt"
+      },
+      {
+        "family": "newsreader",
+        "url": "https://raw.githubusercontent.com/google/fonts/main/ofl/newsreader/OFL.txt",
+        "sha256": "fdfad38143ec470553cae82a1e45320bdd1b9ec70415d37bd0171051d8a4ded8",
+        "file": "newsreader-OFL.txt"
+      },
+      {
+        "family": "plusjakartasans",
+        "url": "https://raw.githubusercontent.com/google/fonts/main/ofl/plusjakartasans/OFL.txt",
+        "sha256": "995c7199cab65954f545996326755daee7b63cc6b42b06c13da1f9502ab08a99",
+        "file": "plusjakartasans-OFL.txt"
+      }
+    ],
+    "family_policy": "Preserve original families, weights, styles, unicode ranges and glyph metrics. Only replace external font URLs."
+  },
+  "url_to_bundle_path": {
+    "https://lh3.googleusercontent.com/aida/AEtjO1WB17zH5mHIgHROFxXMQrZHy21lqkcENY4fcb4d1Yv5s3bMAYxbDO__2hP76sm9_M_-eGvgimLkE7IEcPcor_Vj1OYy6Qnht2TTHx2UUbMEvBTOIKa5IPCFxFzJG25xThFwfoU-0SiACkqTHVab8hv7Gmo7ZvsGO10mBXCIWzdFPsXiPbviMArXS4VBhmrBCHMqmM3wquxF8h-ZxLcEbXm1dErIbDqA8RXOg4plTwLPjQ8PTVW0U4Cl8q-_0Fjii-dQM9x2F5rT4m0=s0": "assets/mobile-design/images/rest.png",
+    "https://lh3.googleusercontent.com/aida/AEtjO1WcWIgmqkGPJ0uhnv6hEZYoj1GqtNQPV7pnO2Fe2a7wGD4CQsCOWZfV0Vhv_0U_XWFlH_GqckcTeiD3aXwddobRQ1-llIbWmbtGzuY7OiCjiqNz6kTBFwQpoaPTrcIDoLKXquB8EeJNj7ISb0ANGsk8bD8nKY-5B8M7SYC2Ixvfw8wv4bXQYfveFX-75aVR4QBW5rPT7fd4y-k9x8YfEshrcRU3KkgX0IicSWK8HgCxa6AW00mY17MZIhe6Fcq5eXBBFi4zU1rMJg=s0": "assets/mobile-design/images/journal.png",
+    "https://lh3.googleusercontent.com/aida/AEtjO1XG_J7AOwlXTBXfo5GTmb_Z9AQ2M1X88G0dHJivSuetPd9fO592pK5Knpd6XuKh03rAc1TkVwNCanq7L8ttLCx_ZiPSD0BE1pM_uRP4segK5xm4LyGRp4FjyRptfUcaNHzhrjgBbZNq-gVvVwUwt2B6CmXyuZkJzOS0at1BX3VILTtKJOLfydflzsAsMrtDLGh2fofDhcX0KsEMMdl0VlqBZkz4fnnQqyVg1k-orO4VNqIIvKcgBstjUR7qdBix2-jgqRYsRrVHunQ=s0": "assets/mobile-design/images/meal.png",
+    "https://lh3.googleusercontent.com/aida/AEtjO1X43h1aCb5fnqM3Xsrz7nXPXB3EsXifX79OuYq6uIdm07ZM-CqCI6mbvRtP1R0XFEPD4dQBC7ni-z8Qt4GBKer5gqjHiBjwCGV_ALXXFERIX4-QHxTItE8BOATfIlLcdhOSAL-tEqWEoMnCia_ltBVlTfvBYt8Fym0dslJoo3MIPtUz2Ab-Moq735ajk4ppgg37mYPEeJVDou9Q3uWROGOJrXAjBoUl8znY-qNcElxNr1imBcRDe5vkDKc-mNjy-_X9xJjQ1sfbxaY=s0": "assets/mobile-design/images/voice.png",
+    "https://lh3.googleusercontent.com/aida/AEtjO1Vvr2mBVmN5Em69NpM7rxaBERvKGJIsafNO9NXSjVn6m0ss7cjdT4eghLPFowQ78ppXGTMXGDPiRKc5mNC5CnnDdY1b0PtG0bblOaPrqY_v9Jfa_qF5dulyeq_qyvEtPSzL06AlQo7JEfYBxW15aDbQL80yy89aIixhztqu3Q7SoGirje3--nKKgv7GI_hFMJges5qzYIKK_g_nK4Q2c2l2CAe2YI6qRtmKuhG7e1vX0EKG7CPoMZz9g0_Y0jysBpslb5ZJHC1XtDs=s0": "assets/mobile-design/images/logo.png",
+    "https://lh3.googleusercontent.com/aida-public/AB6AXuBmKBtshxSLzU68QKcnSYylZ7d4151nzJzxn3CzpFvUGk-HbhOt64etfYrYQC3uEQFNQsSKond7CwVh2j6ylbQbrKpW-VHrOb6lLqOlgb3-bBTf7qRgL25dMiFERSEDvnF6UXJYonKIaCHWZKwL4MGgghfLn7AJCP65mAs8P0bSIVfLXopxPrsLoQw-D15F1JjxwVDz9Lmyoqr5a69fNgU2IXwBmRGyFftasNELz9Ke_l4zBJODAzfy7uPg1jU4y_-RAMCN2LGdNOVX": "assets/mobile-design/images/main_4b709543f450.png",
+    "https://lh3.googleusercontent.com/aida-public/AB6AXuBob8AxoKvik1k6s_s0FPVlTYuFWjTuNHo2y6_WR4AciiY0mxTDq1wFJXKjT818ztv32YFkYs-cV5nVi2sYGXTVSAqoHHtD3730VUGBXggVNM5fORSjPFfshImUa0gITsLxdccfT6fITP3O2vw9Ag6h8XUo8OT5WwtJZX_sOZ6gFPj6wPCTFKIeFIXlE79iMsBXayLZJ-ASPZYB34YKEoTpOLtCeRNwiB7nP0mHnCPROjfxwm10NBCGxIW0zCxGDaTRaqE": "assets/mobile-design/images/main_39a8085d6f50.png",
+    "https://lh3.googleusercontent.com/aida-public/AB6AXuAFhAvWXUX8O0DM_1mXVOo-tTvc3BZ4U23pN3WSVx-vfh52xfFH8Bi3NbsImtS2BPExpN1EtxRRQZKuoUQs0Uv96p7jJpks4eWNl75BLPj0wDuf6czGjP6dGrDZTTnCHww-Df41aNAXiaKgB-2oGidaPaxizoa2PcmtOuIZFRc07eK-BFBL4vDQcaoQqhYN5GebiqFTs4xpXe8xo-3uEaa-7X2dGlPo3BCAhIgeIDtC_t7TN7RMGtjFiBqd2DYrR0nZhek": "assets/mobile-design/images/main_a49fc1f8df6b.png",
+    "https://lh3.googleusercontent.com/aida-public/AB6AXuC-p1PuYgp7waFiElmAzqMZ1pjJHs_BuFu8zW40vimcBc4nfqwOq8jwtjmJO_npU5WkMpUZbNcdNEEjnJRtl8rdIV5NqrzJgKCP9fhXRkJoYjoCDF9n5PeOFiaAa3spv7-6CQ_ofyMbKvuHZOtGtdWO_pB6IbWBA_3lCjkrUJep_K1b20k2sJpo2k64BocipRyBIizF2vzP2WLBTJphS6G4FR7e3WNgz7mYR_gD8n1wKkuNisQrzOVkRLYXv8GLhnZt8bg": "assets/mobile-design/images/main_d36ac1c0e261.png",
+    "https://lh3.googleusercontent.com/aida-public/AB6AXuBRWtqLtMKKDNifg_h1JHlLgh6-pGrE6JT7skSSxKVUM8KMztGtpqyG8beEFFzcXbt-SJ-avN3gV07Wj42Qu7gbrNpebM3WkEttimG9YQcKJt4yJseS334VmB1OaEfRBDnVUoU0O6bzL6-ursnLHutiezebi_3i33a24o_2L_LyDXAjpbvrJ7chxSNYxRq8b6o3x3TW5vvs4hcnlNUnTPPdhmdtm2QwXcSj8IwRbtzpCiflpA6S2bJS0g": "assets/mobile-design/images/main_308d09f56727.jpg",
+    "https://lh3.googleusercontent.com/aida/AEtjO1WLZMANBzMd5iouB3tTfK5X1Vts35cNWlxGbsyrI4HfoM6OlP2ltZ57tWDWPUplj_diarAlYZED6nSYYOH5gtbpErTb5b9RIP7KYoL_L2cVsLo8xv519GOnB575MBPXQU_YnwH3rAK3uzT36kJYmt33JTzaHpSeUc1k975l-8t7p00s5otK8wnCIAP2LbPInH-RfxaqV9DOYstACunM1DazcKAPuIfCXdcOBvxZ2QpdJJxj00j-D0VflueoPto8ZDS_LyOFqNJzLZE=s0": "assets/mobile-design/images/today-reading.png",
+    "https://lh3.googleusercontent.com/aida/AEtjO1X57yFlIB7jGmQ1i1Rb8g8jm7irLnzE3AQvZI7Hskr0LvAal210aVh9Eem4JHPxAQln8VG3dmx_fW_GPKk4bCwOdQcxovcPXtxhXw8mumoUaeVc7bVTtk0ghnaKXIdVWVGHCqiKNPPYl96bsMNIwa682PcJhsWlkdYhM6CLiGqV3-r8tn5n3xtf6uLD8gJ6EcK68umlSOI3YPJkjooChcdB4_M2NP3499jbIb1QYK42-ECYUk8fJDhSTa_AJRVJKCHTjHCLZpM-A3Y=s0": "assets/mobile-design/images/today-habits.png",
+    "https://lh3.googleusercontent.com/aida/AEtjO1UFpW8xyUvJFsMD1dHkq4IhXZdGZEW6aJyV8hMRhfzdvzd9aU8HxNcahOJucL56bAH0f-wmKxu-e2-zd_mHdwOX1qyhOkTxkvUv_6L7MoaiF81YnyBJ87xgnTROIUt2pBMW5sEWi5fnh-Vz1iU0mgLGCtBdLdE7ruxmaDy6vWOsJN62VfuM1NmXt06CPKY-QOCDogj3lqZIBWwY0DECApGfM5BkyQm2mGG9Msxzx1zV589jv0VbmDYxMoRlnhV-9hKvXCkndE-e02g=s0": "assets/mobile-design/images/today-reminders.png",
+    "https://lh3.googleusercontent.com/aida/AEtjO1UGST_urw8dq_7oqHyeGKQHMvMHB5PvdDHaNkC1bbIUoE3WlJzrOFovX4F0143AMo3yWiZZ0acehjQtv58aK6vEeTG2yGJRwIxhrd_7Cpt6rIVIb6mX6czP0ntuu57goXpdkv-mwOE0lB8jGUvKYUy3x9W5MSdQj-vgwlyaAc22BedOcCtEFQqFyro38IAhB7GlsfT0Lw4PU62OFeEkL8SQZsfZOIbFhcxpxYrIpnJ-HSRjvIVFN3q9oHE-ZW7AO1dVdq_loL7IG-E=s0": "assets/mobile-design/images/today-services.png",
+    "https://lh3.googleusercontent.com/aida/AEtjO1VcdPCle0Amg4tWczComQVYkQN_DpwJ0y-GpevubwbDpxieZ4jW1P6Mc-i2EBh2LlDIj31dVzGB9FeqZcInJoxVwP_fcZJxbILvjbMYPwXY9C28FkcEoKm2xTJ-ekH94cNgBWb4bV8FMs40hiAhOQJ4LClxOBKn3_-fLdBj4TCWaCkPbcv0JdCmMiLSolHKi-rkcMFd7ws_ao0PjnLzeEF0Y-q9VPXntnuSuFOdj2OFavLBrjcbKREAiU3wo-TspwtSGtblc3ChKw=s0": "assets/mobile-design/images/today-goods.png",
+    "https://lh3.googleusercontent.com/aida/AEtjO1UYG-HefAAfPAeU7wMihOzjyr52cuDwZm93adYiwH9tudPpoO9FG77ETJKNItl_PgdJxAXqu981z12Md8uc2cfC2WAwwv6u0AMHyA3w086Fn2UvFsy_CoPCPme_L2yxW_m_G0vyG6jVtD23eYajiXwncQZYkPGBZZDZz8MDwIEfB_YCQevLvMMIh9bIiNs_DtzvHmqXDI9uI4ax5jgF9IyuoCIWfRGUIJs0vIEq9Clifd-dp52WE6MzsEBsgfiD9xnvfDlRTRezFS8=s0": "assets/mobile-design/images/today-product-bottle.png",
+    "https://lh3.googleusercontent.com/aida/AEtjO1XlYLR0neNQPdVrw3EPRYgf01FRiD_RRtTXuJvtvY8HgZ8xkq_0iixMWSNWom1xuUAjVOJ3KTNAqWKUpMvvE0tZci8nCQORPASREy-5jQAroPZFbwVwVGlCwspBKXYQQxkOuffG_6ltZNTyuXCsqikawpCbUz1Un3TVMwUNm-AME2vTYSgd6vmHtoSJ_KYguDUUt18PcB28TLRBLrbMbbetv7xb6OxQMA_Cjf4Vmrid1WQ-W8pCXygH9ZoZS03JKxNTRT0tJO_tAiQ=s0": "assets/mobile-design/images/today-product-towel.png",
+    "https://lh3.googleusercontent.com/aida/AEtjO1V7qb__aSRo_g12vZ2EYzcUneQ0wJ8mGk86Zp6ETFbDETNFur8ufReCGPaXX9lf8V-VwsiPazPRXCKg7Tq1I9CEmYCo5OWY8XiTBofW0SyyWSi0nKM8YZ0Wces_qrBtQRa9Z_fXizpVhkoQK1NvHi6PSeuqmFZ5JfivttJSMznuc4eksT9xCsKHJ_exAfdPOeTojF6YFuLJP7VxK8J1VunuwJBOyIYYVVX2CMH90bcl_4lf925weeCkra3Owh3FAhNo3QyW15iceB0=s0": "assets/mobile-design/images/today-product-pillow.png",
+    "https://lh3.googleusercontent.com/aida/AEtjO1WwS47icmXPsH1ju6QkvILanES7VZl8G39cCdbxpejSkbavGeQr__vh8Yzxng3ae3PKLoKKj0xZB49PXtBs2EFuIQWsWMUCMiFYRU9vIYCaybpmkK_sTTiEE0WLf1S1rrjPulAj-mmDtmew7ToR9I4qPWpgrpNQiaNWuxLYQijiI252x9wVvtHIHQ0AM_cUgNbwEXzbOV-KUEvbyc1jG_GBe_kKWh8aXZt0vQxdpXKIKT1G0Ex761Y9mKFAqacJR1i7wVbek1KRQf0=s0": "assets/mobile-design/images/today-article-mashi.png",
+    "https://lh3.googleusercontent.com/aida/AEtjO1XSa7fh_-G2-8QONmDD6tdgQtpGvtRmXjy29bJ8Gy7YF97Ny3H-p6EgaUO9aqlUpDPXWacr6BkXG4439C8fUItwCkOZrUHFImFWRYzyVveqFo3CmUnNd2JgEHQmkUlT2zpsHgTVe28KhI0LMqlyd3OfMJ6xrL7rwTx7XL_8BuQovhfTN6qOi0byAbmEjOMm24HNlIKBPwEg_UdD3OFxmpa51e6LkneKbBx8kpLcl-gY-10PyWIMzJ434zTyr45LHxr9kd0SRnglw4c=s0": "assets/mobile-design/images/today-article-pasta.png",
+    "https://lh3.googleusercontent.com/aida/AEtjO1UVDYHBED6YwvOfJolOqRDJa-N7oFjvn4a1wztWKwg1cbM8WGs7eTjxGqmojzNcuK-c9bCgsaVLiWuWedkNZA-KuJ2lXRFebSeN50Ox6f0Gmn4BdaFGonkG2Syq3KjN9NPRmGMo11VTRNPuNr8rEZuqzOFJsRsLtLDRrq__c1i26N-Jm16p0sR8Lrk5Nns5RGOuvujhCdXYYeueOe51_CkS0skBlhjy9gIU5nnknGNLGqs8mwu5Abi21Az_Ltw2Z-hEVZ40yw0B0Wc=s0": "assets/mobile-design/images/member-ai-settings.png",
+    "https://lh3.googleusercontent.com/aida/AEtjO1W6Auc368WgWKM-M6bgkARBF1ujGUfCVX4htmsKu0kNFvxsaPlT9n5Ef4Auz2m1HwTSw1LGcxfJTInvTD425P-U3QNqYn_Azt6vkVhPnFrHdQ8Gfo3sAMU6tywFYOYVCYW3dAlt99fMev18Og6C_RjSl-oPwi7w21mxXARFUSJTSpHAlMZwjgl33-8FfXjL4WkfZeRtv-aqDN-L9y3Ie3RUrxCHsKR2ktDuo_sgfWXjQjJ0qc4YqdOV-TtuS2D-VRZLJV48AT_ypow=s0": "assets/mobile-design/images/member-photo.png",
+    "https://lh3.googleusercontent.com/aida/AEtjO1UwpW85DSckJvxvlX_eZY6O124E8pEMrlJ536-Cx6Jx7GO0kJ39fjZhu8pDxwyQYaeDTcZXLPh4p1mGozpElckHkI17MtblGFZjSDN4Rwthx_6j6IPk9HmPw8gPFdkVayqqU6GlPugjof7yJ6v6aGhswAti85BclP0W0N7dXUC3y0e4jFwj6Pv0H5wCIoL33bc7Vx9piY4sdRMfHXG2xz8HA5HAVIM2xTDp73KYGxItBFpCANCBUMrx7PUgRtsVGGknQKRETmxM5A=s0": "assets/mobile-design/images/member-voice.png",
+    "https://lh3.googleusercontent.com/aida/AEtjO1XDjnBH_B3iepdhtgKTnFISSraeof06QA1a5vmhHm8dl45Gc4WKipOjpLyy9POh8_VaEnhv6USoQfQfjzSZxRZ6IbRv98vfNdJubCWophWS4FCCgpqqeqj0VKgg0emCt4UMOloTsGvmVbu_1yCrR7ejdrQrsjNTVBsDJ4XVnFcjvRFSsS9rj2xjZ_d8NXFY3XCFlXNLZ2yk90zQ79crahN1jqO9NzISoM5E8wrYUJHjNnC_ixRfJvpHsQc-E19xIo7OLr6R8FlvwzQ=s0": "assets/mobile-design/images/member-community.png",
+    "https://lh3.googleusercontent.com/aida/AEtjO1UDaF2BAmTDJnKFjmRQP3xEZS0eR-v4qb-OuXP743SuFOuFoeT9CSks79hnvTU6ZJiJCTuMsLyLuu6zFpSFnVhJBIGxox0xnxgHTd2x4pB2xuSYm9VYxMlJgmm6qer4tWYDyJiHvhfacrVJK_N6iXS42MQxLccUm774wlJGHYkYMVN3TzNLdBnUWZBr_xkkHdTYKXu30qf-eKqc6r3IIRyqQ-n1ts6pzK9bBzHiUMzhxNcfRmgv_PDVUvhEzZSH75FzV6Vk37ZxIRw=s0": "assets/mobile-design/images/member-knowledge.png",
+    "https://lh3.googleusercontent.com/aida/AEtjO1W48mYXiB50ejC-9LO0gg17cBaVOlvF-Efgim7YVK_gzHWF-kfSKNOU44ty-p5K_bkijoLDZ1DRSDHn1fxR68JSqFAFghGrE4caIUUSIZSLkYZmIqv8Eq8cLI-iQso32t-fKDOQSkdBsZwr4f_bCmClKBkmAuaTeZO5mdmsghuy8GLXTx0YLQj4UsZ0o-88uwAcDdRw9as1dL4hSO_ifqL95fox2OX9V54FuGpSlOi19wOPC3qSxwYGCbLMW5n4PitH3edxql5fbHM=s0": "assets/mobile-design/images/member-account.png",
+    "https://lh3.googleusercontent.com/aida/AEtjO1Xh-ie836MQ9lv5Lzmq7RDKLikzJOnPHEYsf2U4vgwX3uDzkf6yYrB1w3-tvmZYiEkRMUiu4CdPLH_2O872joBe0s7ADJ3r7H3-6xQ4GUAeNzQsd5-n9cQAcnGX-oU0iTWTQcUANxZpGgo6sBC7vpxmskGWlmOT78SjzSdsCyrlktOfIbmbGo5DWf-AuHySIK3wq_ZMUblZcWSGe6HLm-T6FDPK4vNo27xgIOe6PnEdP3Rwc2iFixl_Vb3kxksvBPcJzqa2vtybfXg=s0": "assets/mobile-design/images/member-privacy.png",
+    "https://lh3.googleusercontent.com/aida-public/AB6AXuCt3jdH8mYV-50En2ThsMonxWwuIdOfe4kdqrn6TPfwHQDd-J1wV1gCtd2ZMPcr9_eEGEwF_PKIepE80LYsTX-83UlArpRGxLG9LGR2JR-5HgvCE8N4AAbU8KA1Rhvjrghfo7StjoukflRk3w-oIiCYwpGS78_WeE4Z0i2nUlfDI05NrzhuRGyMSpSviwguO1aHyoYLw52Ez_ynnfri2tEayODKmMgM6vELubW8acXLLU76RlPFTFgovA": "assets/mobile-design/images/community-background.jpg",
+    "https://lh3.googleusercontent.com/aida-public/AB6AXuAVJf8GeZQbs26FJECTxfBDOJ5oFJoao9-dTjDY5LfQjYcW_dm9F_YmgQGTM0o_KDvsbfTqoXE-ZDH5WU668KeyyfBAJXS60g5TS4ywM6z4_MmpdOKq8fWeuZDGWC0Dq8KSwvscBTsi4NuxY8dlkEtdTEOnEM88PfBaDfGmzgIApl9UHEQQqYCn-5L5IacRpiRaIeH7937zI5EuBg6XhBLYu-Or4gf7y5jb37MkWgfiV6qkIsMEJR_72YeSYosVUHnaSpRTrQLEbBpg": "assets/mobile-design/images/login-background.png",
+    "https://lh3.googleusercontent.com/aida-public/AB6AXuAHv0G25KCTuKWfzcQuplfbNJwFesasgEGQyATCAMRwCAOIjRUxTMVqwVcwiYDZvVWHDu6RlqdNMbDZjfDWy_bXblOveYDidH4wbGwBPhc0tc1Zqzy7S0TgH0LK6b8TQHRKjd826qqEFUuhsFmQa60MQKKWhOp4XLZplJ5_K7fC0irg_R3RjjZ07yV-DFJqMlfrnKdS_JWavE_RAGOS1ghDtuEtz65tatsSkkck8PQC4ke28Bb_YNkkPeGz55SdxK7HGgMu3aKMgOUG": "assets/mobile-design/images/register-background.png",
+    "https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;600;700&family=Newsreader:ital,wght@0,400;0,600;1,400&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap": "assets/mobile-design/fonts/fonts.css"
+  },
+  "notes": "All available images are copied/downloaded byte-for-byte; no new artwork generated or approved composition changed."
+}

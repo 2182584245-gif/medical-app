@@ -1,0 +1,133 @@
+plugins {
+    id 'com.android.application'
+    id 'com.chaquo.python'
+}
+
+android {
+    namespace 'cn.healthlife.local'
+    compileSdk 36
+    compileSdkExtension 19
+    buildToolsVersion '36.1.0'
+    defaultConfig {
+        applicationId 'com.fawnsee.mobile'
+        minSdk 24
+        targetSdk 36
+        // Guest entry migrates only auto-login. Preserve existing member data.
+        buildConfigField 'boolean', 'ACCOUNT_EPOCH_RESET_REQUIRED', 'false'
+        versionCode 11864
+        versionName '1.6.13-try1.2'
+        ndk { abiFilters 'arm64-v8a', 'x86_64' }
+        testInstrumentationRunner 'androidx.test.runner.AndroidJUnitRunner'
+    }
+    signingConfigs {
+        release {
+            if (System.getenv('HEALTH_SIGNING_STORE')) {
+                storeFile file(System.getenv('HEALTH_SIGNING_STORE'))
+                storePassword System.getenv('HEALTH_SIGNING_PASSWORD')
+                keyAlias 'fawnsee-mobile'
+                keyPassword System.getenv('HEALTH_SIGNING_PASSWORD')
+            }
+            // Some OEM installers still reject v2-only packages; ship v1+v2+v3.
+            enableV1Signing true
+            enableV2Signing true
+            enableV3Signing true
+        }
+    }
+    buildTypes {
+        release {
+            minifyEnabled false
+            debuggable false
+            signingConfig signingConfigs.release
+        }
+        debug { applicationIdSuffix '.debug'; versionNameSuffix '-debug' }
+    }
+    buildFeatures { buildConfig true }
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+    sourceSets.main.assets.srcDir layout.buildDirectory.dir('generated/native-assets')
+    sourceSets.main.assets.srcDir layout.buildDirectory.dir('generated/mobile-assets')
+    packaging {
+        jniLibs { useLegacyPackaging false }
+        resources.excludes += ['META-INF/DEPENDENCIES', 'META-INF/INDEX.LIST']
+    }
+    lint { abortOnError true; checkReleaseBuilds true }
+}
+
+chaquopy {
+    defaultConfig {
+        version '3.13'
+        if (System.getenv('HEALTH_BUILD_PYTHON')) { buildPython System.getenv('HEALTH_BUILD_PYTHON') }
+        pip {
+            install 'argon2-cffi==25.1.0'
+            install 'argon2-cffi-bindings==21.2.0'
+            install 'cffi==1.17.1'
+            install 'httpx==0.28.1'
+            install 'certifi==2026.10.23'
+            install 'pypdf==6.21.4'
+            // Preserve the published transitive runtime while updating only reviewed packages.
+            install 'anyio==4.15.1'
+            install 'h11==0.16.0'
+            install 'httpcore==1.0.9'
+            install 'idna==3.20'
+            install 'pycparser==3.11'
+            install 'typing_extensions==4.16.0'
+            // Android has no system IANA tzdb discoverable by Python zoneinfo.
+            install 'tzdata==2026.5'
+        }
+    }
+    sourceSets {
+        main {
+            srcDir '../../src'
+            exclude 'ollama_chat_app/ui/**'
+            exclude 'ollama_chat_app/main.py'
+            // Desktop-only offline recognizer is unreachable from the mobile API.
+            exclude 'ollama_chat_app/services/voice.py'
+            exclude '**/__pycache__/**'
+        }
+    }
+}
+
+// The native bridge is reachable only from this immutable packaged resource set.
+// Generate after the approved design and runtime adapter have been assembled.
+tasks.register('copyMobileNativeAssets', Copy) {
+    // Keep source art on disk without packing duplicate copies beside approved www resources.
+    from('../../assets') { exclude 'design/**' }
+    into(layout.buildDirectory.dir('generated/native-assets'))
+}
+
+tasks.register('generateMobileResourceManifest') {
+    def source = file('src/main/assets/www')
+    def destination = layout.buildDirectory.file('generated/mobile-assets/mobile-resource-manifest.json')
+    inputs.dir(source)
+    outputs.file(destination)
+    doLast {
+        def entries = []
+        fileTree(source).files.sort { a, b -> a.path <=> b.path }.each { resource ->
+            def relative = source.toPath().relativize(resource.toPath()).toString().replace('\\', '/')
+            if (!relative.matches('[A-Za-z0-9_./-]+') || relative.split('/').any { it == '..' || it == '.' }) {
+                throw new GradleException('Unsafe mobile resource filename: ' + relative)
+            }
+            def digest = java.security.MessageDigest.getInstance('SHA-256').digest(resource.bytes).encodeHex().toString()
+            entries.add([path: relative, sha256: digest, size_bytes: resource.length()])
+        }
+        def target = destination.get().asFile
+        target.parentFile.mkdirs()
+        target.text = groovy.json.JsonOutput.toJson([version: 1, files: entries])
+    }
+}
+tasks.named('preBuild').configure { dependsOn 'generateMobileResourceManifest', 'copyMobileNativeAssets' }
+
+dependencies {
+    implementation 'androidx.work:work-runtime:2.10.5'
+    implementation 'com.squareup.okhttp3:okhttp:4.12.0'
+    testImplementation 'junit:junit:4.13.2'
+    implementation 'androidx.exifinterface:exifinterface:1.4.2'
+    implementation 'androidx.activity:activity:1.10.1'
+    implementation 'androidx.webkit:webkit:1.14.0'
+    implementation 'com.google.mlkit:text-recognition-chinese:16.0.1'
+    androidTestImplementation 'androidx.test:runner:1.6.2'
+    androidTestImplementation 'androidx.test:rules:1.6.1'
+    androidTestImplementation 'androidx.test.ext:junit:1.2.1'
+}

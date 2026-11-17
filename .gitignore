@@ -1,8 +1,37 @@
-# The published Windows ZIP is tracked with Git LFS; this unpacked copy is local.
-/健康生活服务平台-1.7.0-电脑版/
+# Rebuildable output
+.gradle/
+.gradle-user-home/
+build/
+out/
+dist/
+outputs/
+node_modules/
+*.apk
+*.aab
 
-# Contains account/password information; do not publish this local hand-off file.
-/示例账号与使用说明.txt
+# Local Python and tests
+.venv/
+.venv-*/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.coverage
 
-# 本地维护/ and 测试/ contain their own allowlist-style .gitignore files.
-# Only their README.md and .gitignore may be added; raw data stays local.
+# Machine and deployment settings
+local.properties
+key.properties
+.env
+.env.*
+!.env.example
+*.jks
+*.keystore
+*.pfx
+*.p12
+*.pem
+*.key
+*.dpapi
+*.dpapi.xml
+*.db
+*.sqlite
+*.sqlite3
+

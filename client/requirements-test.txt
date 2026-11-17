@@ -1,0 +1,6 @@
+# Python bridge tests use host wheels for the corresponding client dependencies.
+pytest==9.1.1
+httpx==0.28.1
+argon2-cffi==25.1.0
+tzdata==2026.5
+

@@ -1,0 +1,23 @@
+# Supply a separate, verified database. This template does not create or migrate it.
+services:
+  api:
+    platform: linux/amd64
+    build:
+      context: .
+    env_file: "${FAWNSEE_ENV_FILE:-.env}"
+    ports:
+      - "127.0.0.1:8443:8443"
+    read_only: true
+    tmpfs:
+      - /tmp
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    volumes:
+      - "${FAWNSEE_OPERATOR_DIR:-./operator}/tls:/run/fawnsee/tls:ro"
+      - "${FAWNSEE_OPERATOR_DIR:-./operator}/db:/run/fawnsee/db:ro"
+      - "${FAWNSEE_OPERATOR_DIR:-./operator}/ai:/run/fawnsee/ai:ro"
+      - "${FAWNSEE_OPERATOR_DIR:-./operator}/qwen-asr:/run/qwen-asr:ro"
+      - "${FAWNSEE_OPERATOR_DIR:-./operator}/library:/app/library:ro"
+      - "${FAWNSEE_OPERATOR_DIR:-./operator}/reading-presentation:/app/reading-presentation:ro"

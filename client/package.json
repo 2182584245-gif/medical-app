@@ -1,0 +1,12 @@
+{
+  "name": "fawnsee-mobile-test",
+  "version": "1.6.13",
+  "private": true,
+  "scripts": {
+    "test": "node --test mobile/tests/*.test.cjs"
+  },
+  "devDependencies": {
+    "playwright": "1.62.1"
+  }
+}
+
