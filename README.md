@@ -7,6 +7,7 @@
 | [client](client/) | Android、WebView 与嵌入式 Python 源码、打包资源和客户端回归 |
 | [backend](backend/) | 手机配套 API、数据库迁移和记录助手后端回归 |
 | [update-tools](update-tools/) | 安卓静态更新包的生成和校验工具 |
+| [必须要看的辅助参考资料](必须要看的辅助参考资料/) | 项目工作流、UI 设计及资料卡示例 |
 
 Windows 调试构建在 `client/` 下运行，使用 JDK 21、Android SDK 和 Python 3.13。完整准备步骤见 [客户端说明](client/README.md)。
 

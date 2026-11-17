@@ -1,5 +1,6 @@
 """Member expansion; exact 55-table backup support must precede promotion."""
 from alembic import op
+from sqlalchemy import text
 from server.platform_schema import PLATFORM_SCHEMA,PLATFORM_MARKER
 from expansion.schema import TABLE_DDL,INDEX_DDL,policy_ddl,grant_ddl
 from expansion.contracts import NEW_TABLES
@@ -15,11 +16,23 @@ def upgrade():
     for statement in TABLE_DDL: op.execute(statement)
     from pathlib import Path
     from expansion.seed import load_bundled_food_seeds
-    from server.platform_database import compile_sql
     class SeedConnection:
         def execute(self,statement,parameters=()):
-            compiled,bound,_implicit=compile_sql(statement,parameters)
-            return op.get_bind().exec_driver_sql(compiled,bound)
+            # The migration sets search_path to pg_catalog. Qualify the only
+            # target table and let Alembic bind or render the seed values.
+            qualified = statement.replace(
+                "INSERT INTO expansion_foods(",
+                f"INSERT INTO {PLATFORM_SCHEMA}.expansion_foods(",
+                1,
+            )
+            names = [f"seed_{index}" for index in range(len(parameters))]
+            parts = qualified.split("?")
+            if len(parts) != len(names) + 1:
+                raise ValueError("Unexpected food seed parameters")
+            query = parts[0] + "".join(
+                f":{name}{suffix}" for name, suffix in zip(names, parts[1:], strict=True)
+            )
+            op.execute(text(query).bindparams(**dict(zip(names, parameters, strict=True))))
     load_bundled_food_seeds(SeedConnection(),Path(__file__).resolve().parents[3]/"data"/"nutrition-catalog")
     for table in NEW_TABLES: op.execute(f"COMMENT ON TABLE {PLATFORM_SCHEMA}.{table} IS '{PLATFORM_MARKER}'")
     for statement in (*INDEX_DDL,*policy_ddl(),*grant_ddl()): op.execute(statement)
