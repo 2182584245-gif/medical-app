@@ -1,5 +1,8 @@
 import { pasteboard } from '@kit.BasicServicesKit'
-import { actorId, cloud, rpc } from '../services/Cloud'
+import { common } from '@kit.AbilityKit'
+import { shareText } from '../services/TextShare'
+import { safeTarget } from './AssistantAnswerFormat'
+import { actorId, cloud, CloudError, rpc } from '../services/Cloud'
 import { Data, mergeData, array, asDataUri, child, noteError, stringValue, uuid } from './AssistantService'
 
 const ink='#26483C',teal='#317C73',muted='#758479',line='#D9E5DA'
@@ -34,6 +37,10 @@ export struct CommunityKnowledge{
   @State total:number=0
   @State busy:boolean=false
   @State error:string=''
+  @State bodyError:string=''
+  @State socialError:string=''
+  @State commentsError:string=''
+  @State socialReady:boolean=false
   @State form:Data={}
   @State review:Data={}
   @State comment:string=''
@@ -43,6 +50,7 @@ export struct CommunityKnowledge{
   private lastSocialKey:string=''
   private timer:number=0
   private ticket:number=0
+  private sharing:boolean=false
   aboutToAppear(){this.load()}
   private routeChanged():void{this.article={};this.social={};this.comments=[];this.replies=[];this.thread='';this.replying=false;this.rootNext=-1;this.replyNext=-1;this.comment='';this.load(false)}
   aboutToDisappear(){this.ticket++;clearTimeout(this.timer)}
@@ -67,42 +75,121 @@ export struct CommunityKnowledge{
         if(t!==this.ticket)return;const rows=array(packet,'items');this.entries=more?this.entries.concat(rows):rows;this.total=Number(packet['total']??0)
         rows.slice(0,8).forEach((a:Data)=>this.asset(stringValue(a,'cover_asset')))
       }else if(this.food()){const food=await this.expansion('get_food',{'food_id':this.contentId()} as Record<string, Object>);if(t===this.ticket)this.article=food}
-      else{const id=encodeURIComponent(this.contentId());const responses=await Promise.all([cloud<Data>('/v1/member/reading/articles/'+id),cloud<Data>('/v1/member/reading/social/'+id),cloud<Data>('/v1/member/reading/comments?article_id='+id+'&limit=30')]);if(t!==this.ticket)return;this.article=responses[0];this.social=responses[1];this.comments=array(responses[2],'items');this.rootNext=this.pageOffset(responses[2]);if(this.thread)await this.readComments(this.thread);this.asset(stringValue(this.article,'cover_asset'));array(this.article,'blocks').filter((b:Data)=>b['asset_id']!==undefined).slice(0,24).forEach((b:Data)=>this.asset(stringValue(b,'asset_id')))}
+      else{
+        this.article={};this.social={};this.socialReady=false;this.comments=[];this.replies=[];this.rootNext=-1;this.replyNext=-1
+        this.bodyError='';this.socialError='';this.commentsError=''
+        await Promise.all([this.loadArticlePart(false,t),this.loadArticlePart(true,t),this.readComments('')])
+        if(t===this.ticket&&this.thread)await this.readComments(this.thread)
+      }
     }catch(e){if(t===this.ticket)this.error=noteError(e as Error)}finally{if(t===this.ticket)this.busy=false}
   }
-  private async asset(id:string):Promise<void>{if(!id||this.imageCache.has(id))return;const owner=actorId();try{const row=await cloud<Data>('/v1/member/reading/assets/'+id);const uri=stringValue(row,'media_type')==='image/gif'?'data:image/gif;base64,'+row['content']:asDataUri(row);if(owner===actorId()){const map=new Map(this.imageCache);map.set(id,uri);this.imageCache=map}}catch(_){}}
+  private denyArticleAccess(err:Error):void{
+    this.ticket++;this.article={};this.social={};this.socialReady=false;this.comments=[];this.replies=[]
+    this.rootNext=-1;this.replyNext=-1;this.thread='';this.replying=false;this.comment='';this.imageCache=new Map()
+    this.bodyError='';this.socialError='';this.commentsError='';this.busy=false;this.error=noteError(err)
+  }
+  private async loadArticlePart(social:boolean,ticket:number):Promise<void>{
+    const owner=actorId(), id=encodeURIComponent(this.contentId())
+    if(social)this.socialError=''
+    else this.bodyError=''
+    try{
+      const data=await cloud<Data>('/v1/member/reading/'+(social?'social/':'articles/')+id)
+      if(ticket!==this.ticket)return
+      if(owner!==actorId())throw new CloudError(401,'登录状态已改变。')
+      if(social){this.social=data;this.socialReady=true}
+      else{
+        this.article=data
+        this.asset(stringValue(data,'cover_asset'))
+        array(data,'blocks').filter((b:Data)=>b['asset_id']!==undefined).slice(0,24).forEach((b:Data)=>this.asset(stringValue(b,'asset_id')))
+      }
+    }catch(e){
+      if(ticket!==this.ticket)return
+      const err=e as Error
+      if(owner!==actorId()||err instanceof CloudError&&[401,403].includes(err.status)){this.denyArticleAccess(err);return}
+      if(social){this.social={};this.socialReady=false;this.socialError=noteError(err)}
+      else{this.article={};this.bodyError=noteError(err)}
+    }
+  }
+  private async asset(id:string):Promise<void>{if(!id||this.imageCache.has(id))return;const owner=actorId(),ticket=this.ticket;try{const row=await cloud<Data>('/v1/member/reading/assets/'+id);const uri=stringValue(row,'media_type')==='image/gif'?'data:image/gif;base64,'+row['content']:asDataUri(row);if(owner===actorId()&&ticket===this.ticket){const map=new Map(this.imageCache);map.set(id,uri);this.imageCache=map}}catch(_){}}
   private pageOffset(page:Data):number{return typeof page['next_offset']==='number'?Number(page['next_offset']):-1}
   private async readComments(parent:string,more:boolean=false):Promise<void>{
-    const id=this.contentId(),ticket=this.ticket,offset=more?(parent?this.replyNext:this.rootNext):0
+    const id=this.contentId(),ticket=this.ticket,owner=actorId(),offset=more?(parent?this.replyNext:this.rootNext):0
     if(offset<0)return
     if(parent!==this.thread&&parent){this.replies=[];this.replyNext=-1;this.thread=parent}
+    if(!parent)this.commentsError=''
     try{const page=await cloud<Data>('/v1/member/reading/comments?article_id='+encodeURIComponent(id)+(parent?'&parent_id='+encodeURIComponent(parent):'')+'&limit=30&offset='+offset)
       if(ticket!==this.ticket||id!==this.contentId()||parent&&parent!==this.thread)return
+      if(owner!==actorId())throw new CloudError(401,'登录状态已改变。')
       const rows=array(page,'items')
       if(parent){this.replies=more?this.replies.concat(rows):rows;this.replyNext=this.pageOffset(page)}
       else{this.comments=more?this.comments.concat(rows):rows;this.rootNext=this.pageOffset(page)}
-    }catch(e){this.error=noteError(e as Error)}
+    }catch(e){
+      if(ticket!==this.ticket||id!==this.contentId()||parent&&parent!==this.thread)return
+      const err=e as Error
+      if(owner!==actorId()||err instanceof CloudError&&[401,403].includes(err.status)){this.denyArticleAccess(err);return}
+      if(parent)this.error=noteError(err)
+      else this.commentsError=noteError(err)
+    }
   }
   private async socialAction(kind:string,flag:string,row?:Data):Promise<void>{
     if(this.busy)return;this.busy=true
+    const ticket=this.ticket,owner=actorId(),id=this.contentId()
     try{const account=await cloud<Data>('/v1/member/local-sync/account-state')
-      const isComment=kind==='comment';const p:Data={'article_id':this.contentId()} as Record<string, Object>
+      if(ticket!==this.ticket||owner!==actorId())return
+      const isComment=kind==='comment';const p:Data={'article_id':id} as Record<string, Object>
       if(isComment){if(!this.comment.trim())return;p['content']=this.comment.trim();if(this.replying&&this.thread)p['parent_id']=this.thread}
       else if(kind==='commentLike'&&row){p['comment_id']=row['id'];p['desired']=!row['liked']}
-      else if(kind!=='share'){p['desired']=!this.social[flag];p['kind']=kind}
-      if(kind==='share'){await pasteboard.getSystemPasteboard().setData(pasteboard.createData(pasteboard.MIMETYPE_TEXT_PLAIN,stringValue(this.article,'title')+'\n'+blockText(this.article).slice(0,400)))}
+      else{p['desired']=!this.social[flag];p['kind']=kind}
       const socialKey=kind+'|'+JSON.stringify(p)
       if(this.lastSocialKey!==socialKey){this.op='';this.lastSocialKey=socialKey}
-      if(!this.op)this.op=uuid();const packet:Data={'operation_id':this.op,'action':isComment?'reading.comment.add':kind==='commentLike'?'reading.comment.like':kind==='share'?'reading.share':'reading.social.set','payload':p,'data_generation':account['data_generation']} as Record<string, Object>
-      const result=await cloud<Data>('/v1/member/local-sync/operations','POST',packet);if(result['status']!=='applied')throw new Error('阅读状态已变更，请刷新核对。')
+      if(!this.op)this.op=uuid();const packet:Data={'operation_id':this.op,'action':isComment?'reading.comment.add':kind==='commentLike'?'reading.comment.like':'reading.social.set','payload':p,'data_generation':account['data_generation']} as Record<string, Object>
+      const result=await cloud<Data>('/v1/member/local-sync/operations','POST',packet)
+      if(ticket!==this.ticket||owner!==actorId())return
+      if(result['status']!=='applied')throw new Error('阅读状态已变更，请刷新核对。')
       this.op='';if(isComment){this.comment='';this.replying=false}
-      if(kind==='share')this.getUIContext().getPromptAction().showToast({message:'文章内容已复制。'})
       if(kind==='commentLike'||isComment){
         const visibleRoot=Math.max(30,this.comments.length),visibleReplies=Math.max(30,this.replies.length)
         await this.readComments('');while(this.rootNext>=0&&this.comments.length<visibleRoot){const before=this.rootNext;await this.readComments('',true);if(before===this.rootNext)break}
         if(this.thread){await this.readComments(this.thread);while(this.replyNext>=0&&this.replies.length<visibleReplies){const before=this.replyNext;await this.readComments(this.thread,true);if(before===this.replyNext)break}}
       }else await this.load()
-    }catch(e){this.error=noteError(e as Error)}finally{this.busy=false}
+    }catch(e){
+      if(ticket===this.ticket){
+        const err=e as Error
+        if(owner!==actorId()||err instanceof CloudError&&[401,403].includes(err.status))this.denyArticleAccess(err)
+        else this.error=noteError(err)
+      }
+    }finally{if(ticket===this.ticket)this.busy=false}
+  }
+  private async shareArticle(copy:boolean):Promise<void>{
+    const title=stringValue(this.article,'title').trim()
+    if(!title||this.sharing)return
+    const id=this.contentId(), owner=actorId(), ticket=this.ticket
+    this.sharing=true
+    try{
+      if(copy){
+        const excerpt=blockText(this.article).trim().slice(0,400)
+        await pasteboard.getSystemPasteboard().setData(pasteboard.createData(pasteboard.MIMETYPE_TEXT_PLAIN,[title,excerpt].filter((part:string)=>part.length>0).join('\n')))
+        if(ticket===this.ticket)this.getUIContext().getPromptAction().showToast({message:'已复制文章内容'})
+      }else{
+        const source=safeTarget(stringValue(this.article,'source_url'))||stringValue(this.article,'source_title')||'凡思每日一读'
+        const selected=await shareText(this.getUIContext().getHostContext() as common.UIAbilityContext,title,title+'\n'+source)
+        if(!selected)return
+      }
+      if(!owner||owner!==actorId())return
+      try{
+        const account=await cloud<Data>('/v1/member/local-sync/account-state')
+        if(owner!==actorId())return
+        const result=await cloud<Data>('/v1/member/local-sync/operations','POST',{
+          'operation_id':uuid(),'action':'reading.share','payload':{'article_id':id} as Data,
+          'data_generation':account['data_generation']
+        } as Data)
+        if(result['status']!=='applied')throw new Error('未同步')
+      }catch(_){
+        if(owner===actorId()&&ticket===this.ticket)this.getUIContext().getPromptAction().showToast({message:'本次转发操作的统计暂未同步。'})
+      }
+    }catch(_){
+      if(ticket===this.ticket)this.getUIContext().getPromptAction().showToast({message:copy?'暂时无法复制文章内容。':'暂时无法打开系统分享，可以使用复制。'})
+    }finally{this.sharing=false}
   }
   private async saveFood():Promise<void>{if(this.busy)return;this.busy=true
     try{const name=stringValue(this.form,'name').trim();if(!name)throw new Error('请填写食物名称。');const n:Data={};nutrients.forEach((k:string)=>{const s=stringValue(this.form,k);if(s){const v=Number(s);if(!Number.isFinite(v)||v<0)throw new Error('请核对营养数值。');n[k]=v}})
@@ -162,17 +249,21 @@ export struct CommunityKnowledge{
     Text(stringValue(this.article,'title')).fontSize(25).fontWeight(FontWeight.Bold).fontColor(ink)
     Text(stringValue(this.article,'source_title')).fontSize(15).fontColor(muted)
     ForEach(array(this.article,'blocks'),(b:Data)=>{if(b['asset_id']){if(this.imageCache.get(stringValue(b,'asset_id'))){Image(this.imageCache.get(stringValue(b,'asset_id'))).width('100%').objectFit(ImageFit.Contain)}else{this.Btn('查看原文配图',()=>this.asset(stringValue(b,'asset_id')))}}else{Text(blockText(b)).fontSize(/^h\d$/.test(stringValue(b,'tag'))?22:18).lineHeight(30).fontColor(ink)}})
-    Row({space:5}){this.Btn(this.social['liked']?'已点赞':'点赞',()=>this.socialAction('like','liked'));this.Btn(this.social['saved']?'已收藏':'收藏',()=>this.socialAction('bookmark','saved'));this.Btn(this.social['read']?'已读':'标为已读',()=>this.socialAction('read','read'));this.Btn(this.social['following']?'已关注':'关注',()=>this.socialAction('follow','following'))}
-    this.Btn('复制分享',()=>this.socialAction('share',''))
+    if(this.socialReady){Row({space:5}){this.Btn(this.social['liked']?'已点赞':'点赞',()=>this.socialAction('like','liked'));this.Btn(this.social['saved']?'已收藏':'收藏',()=>this.socialAction('bookmark','saved'));this.Btn(this.social['read']?'已读':'标为已读',()=>this.socialAction('read','read'));this.Btn(this.social['following']?'已关注':'关注',()=>this.socialAction('follow','following'))}}
+    else if(this.socialError){Text('互动状态暂时无法加载。'+this.socialError).fontColor(muted);this.Btn('重试互动状态',()=>this.loadArticlePart(true,this.ticket))}
+    if(stringValue(this.article,'title')){Row({space:6}){this.Btn('分享',()=>this.shareArticle(false));this.Btn('复制',()=>this.shareArticle(true))}}
     ForEach(this.comments,(r:Data)=>{this.Comment(r,true);if(this.thread===r['id']){Column({space:6}){ForEach(this.replies,(reply:Data)=>{this.Comment(reply,false)},(v:Data)=>String(v['id'])+v['liked']);if(this.replyNext>=0){this.Btn('更多回复',()=>this.readComments(this.thread,true))}}.width('94%').alignSelf(ItemAlign.End)}},(r:Data)=>String(r['id'])+r['liked']+r['replies'])
-    if(this.rootNext>=0){this.Btn('更多评论',()=>this.readComments('',true))}
+    if(this.commentsError){Text('评论暂时无法加载。'+this.commentsError).fontColor(muted);this.Btn('重试评论',()=>this.readComments('',this.rootNext>=0))}
+    else if(this.rootNext>=0){this.Btn('更多评论',()=>this.readComments('',true))}
     if(this.replying){this.Btn('取消回复',()=>{this.replying=false;this.comment='';this.op=''})}
     TextInput({text:this.comment,placeholder:this.replying?'回复这条评论':'写下你的评论'}).maxLength(4000).onChange((s:string)=>{this.comment=s;this.op=''});this.Btn(this.replying?'发布回复':'发布评论',()=>this.socialAction('comment',''),true)
   }
   build(){Column(){
     Row({space:8}){Text('‹').fontSize(34).fontColor(ink).width(38).onClick(()=>this.onNavigate(this.catalogue()?'community':'community/knowledge'));Text(this.food()?'食物资料':this.education()?'饮食习惯整理':this.catalogue()?'生活知识':'原文阅读').fontSize(20).fontWeight(FontWeight.Bold).fontColor(ink).layoutWeight(1);Image($r('app.media.records_logo')).width(36).height(36)}.height(60).width('100%').padding({left:16,right:16})
     Scroll(){Column({space:12}){if(this.error){Text(this.error).fontColor('#984B3F');this.Btn('重新读取',()=>this.load())}
-      if(this.catalogue()){this.Catalog()}else if(this.education()){this.Education()}else if(this.route.endsWith('/food/new')){this.FoodForm()}else if(this.food()){Text(stringValue(this.article,'name')).fontSize(25).fontColor(ink);Text('每 100 克营养信息').fontWeight(FontWeight.Bold);ForEach(nutrients,(key:string,i:number)=>{Text(nutritionNames[i]+'　'+stringValue(child(this.article,'nutrients'),key,'未知')).fontSize(16)});Text(stringValue(child(this.article,'source'),'name')).fontColor(muted);this.Btn(this.article['favorite']?'已收藏':'收藏食物',()=>this.favorite())}else{this.Article()}
+      if(this.catalogue()){this.Catalog()}else if(this.education()){this.Education()}else if(this.route.endsWith('/food/new')){this.FoodForm()}else if(this.food()){Text(stringValue(this.article,'name')).fontSize(25).fontColor(ink);Text('每 100 克营养信息').fontWeight(FontWeight.Bold);ForEach(nutrients,(key:string,i:number)=>{Text(nutritionNames[i]+'　'+stringValue(child(this.article,'nutrients'),key,'未知')).fontSize(16)});Text(stringValue(child(this.article,'source'),'name')).fontColor(muted);this.Btn(this.article['favorite']?'已收藏':'收藏食物',()=>this.favorite())}
+      else if(stringValue(this.article,'title')){this.Article()}
+      else if(this.bodyError){Text(this.bodyError).fontColor(muted);this.Btn('重试文章正文',()=>this.loadArticlePart(false,this.ticket))}
     }.width('100%').alignItems(HorizontalAlign.Start).padding(16)}.width('100%').layoutWeight(1)
   }.width('100%').height('100%').backgroundColor('#FDFBF7')}
 }

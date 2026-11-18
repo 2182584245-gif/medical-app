@@ -13,7 +13,7 @@ export class AnswerBlock {
   constructor(kind:string,runs:AnswerRun[],marker:string=''){this.kind=kind;this.runs=runs;this.marker=marker}
   key():string{return this.kind+'|'+this.marker+'|'+this.runs.map((r:AnswerRun)=>r.kind+r.text+r.target).join('\n')}
 }
-function safeTarget(value:string):string{
+export function safeTarget(value:string):string{
   // Only URLs with a web origin can be opened. Other markup stays readable text.
   if(!/^https?:\/\/[^\s\\]+$/i.test(value))return ''
   try{const target=new url.URL(value);return target.hostname&&!target.username&&!target.password?target.href:''}

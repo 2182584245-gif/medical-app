@@ -1,5 +1,8 @@
 import { pasteboard } from '@kit.BasicServicesKit'
-import { actorId, cloud, rpc, pickPhotos } from '../services/Cloud'
+import { common } from '@kit.AbilityKit'
+import { LengthMetrics } from '@kit.ArkUI'
+import { shareText } from '../services/TextShare'
+import { actorId, cloud, CloudError, rpc, pickPhotos } from '../services/Cloud'
 import { Data, mergeData, array, asDataUri, noteError, stringValue, uploadPhoto, uuid } from './AssistantService'
 import { RECORD_ICONS } from './RecordIcons'
 import { CommunityKnowledge } from './CommunityKnowledge'
@@ -31,6 +34,8 @@ export struct CommunityPage {
   @State loading:boolean=false
   @State busy:boolean=false
   @State error:string=''
+  @State postError:string=''
+  @State commentError:string=''
   @State postTitle:string=''
   @State body:string=''
   @State pictures:string[]=[]
@@ -41,12 +46,14 @@ export struct CommunityPage {
   private revision:number=0
   private owner:number=0
   private searchTimer:number=0
+  private sharing:boolean=false
   aboutToAppear(){this.owner=actorId();this.changeRoute()}
   aboutToDisappear(){this.revision++;clearTimeout(this.searchTimer)}
   private contentId():number{return Number(this.route.split('/')[2])}
   private open(path:string):void{this.onNavigate(path)}
   private changeRoute(){
     this.revision++;this.error='';this.composeComment=false;this.detail={};this.profile={};this.comments=[];this.commentNext=-1;this.loading=false
+    this.postError='';this.commentError=''
     if(this.route.startsWith('community/knowledge'))return
     this.body='';this.postTitle='';this.pictures=[];this.writeKey='';this.uploadIds.clear();this.uploadOps.clear()
     this.reload()
@@ -80,11 +87,42 @@ export struct CommunityPage {
     finally{if(ticket===this.revision)this.loading=false}
   }
   private loadImages(rows:Data[]){rows.forEach((r:Data)=>array(r,'attachments').forEach((im:Data)=>this.loadImage(fileId(im))))}
-  private async loadImage(id:number):Promise<void>{if(this.images.has(String(id)))return;try{const src=asDataUri(await cloud<Data>('/v1/member/forum/images/'+id));if(this.owner!==actorId())return;const cache=new Map(this.images);cache.set(String(id),src);this.images=cache}catch(_){}}
-  private async loadDetail():Promise<void>{const id=this.contentId(),t=++this.revision;this.loading=true;this.error=''
-    try{const result=await Promise.all([cloud<Data>('/v1/member/forum/detail/'+id),cloud<Data>('/v1/member/forum/detail/'+id+'/comments?limit=30&offset=0')]);if(t!==this.revision)return;this.detail=result[0];this.comments=array(result[1],'items');this.commentNext=nextOffset(result[1]);this.loadImages([this.detail].concat(this.comments))}
-    catch(e){if(t===this.revision)this.error=noteError(e as Error)}finally{if(t===this.revision)this.loading=false}}
-  private async moreComments():Promise<void>{if(this.commentNext<0||this.busy)return;this.busy=true;try{const id=this.contentId();const p=await cloud<Data>('/v1/member/forum/detail/'+id+'/comments?limit=30&offset='+this.commentNext);if(id===this.contentId()){const more=array(p,'items');this.comments=this.comments.concat(more);this.commentNext=nextOffset(p);this.loadImages(more)}}catch(e){this.error=noteError(e as Error)}finally{this.busy=false}}
+  private async loadImage(id:number):Promise<void>{if(this.images.has(String(id)))return;const ticket=this.revision;try{const src=asDataUri(await cloud<Data>('/v1/member/forum/images/'+id));if(this.owner!==actorId()||ticket!==this.revision)return;const cache=new Map(this.images);cache.set(String(id),src);this.images=cache}catch(_){}}
+  private async loadDetail():Promise<void>{
+    const ticket=++this.revision
+    this.detail={};this.comments=[];this.commentNext=-1;this.error=''
+    if(this.route.startsWith('community/image/'))await this.loadPostPart(false,ticket)
+    else await Promise.all([this.loadPostPart(false,ticket),this.loadPostPart(true,ticket)])
+  }
+  private async loadPostPart(comments:boolean,ticket:number,more:boolean=false):Promise<void>{
+    const owner=actorId(), offset=more?this.commentNext:0
+    if(offset<0)return
+    if(comments)this.commentError=''
+    else{this.postError='';this.loading=true}
+    try{
+      const path='/v1/member/forum/detail/'+this.contentId()
+      const page=await cloud<Data>(comments?path+'/comments?limit=30&offset='+offset:path)
+      if(ticket!==this.revision)return
+      if(owner!==actorId())throw new CloudError(401,'登录状态已改变。')
+      if(comments){
+        const rows=array(page,'items')
+        this.comments=more?this.comments.concat(rows):rows;this.commentNext=nextOffset(page);this.loadImages(rows)
+      }else{this.detail=page;this.loadImages([page])}
+    }catch(e){
+      if(ticket!==this.revision)return
+      const err=e as Error
+      if(owner!==actorId()||err instanceof CloudError&&[401,403].includes(err.status)){
+        this.revision++;this.detail={};this.comments=[];this.commentNext=-1;this.images=new Map()
+        this.postError='';this.commentError='';this.loading=false;this.error=noteError(err)
+      }else if(comments){this.commentError=noteError(err)}
+      else{this.detail={};this.postError=noteError(err)}
+    }finally{if(!comments&&ticket===this.revision)this.loading=false}
+  }
+  private async moreComments():Promise<void>{
+    if(this.commentNext<0||this.busy)return
+    this.busy=true
+    try{await this.loadPostPart(true,this.revision,true)}finally{this.busy=false}
+  }
   private async engage(p:Data,kind:string):Promise<void>{
     if(this.busy)return;this.busy=true
     const field=kind==='follow'?'following':kind==='bookmark'?'saved':'liked',id=Number(p['id']),body:Data={}
@@ -121,7 +159,22 @@ export struct CommunityPage {
   }
   private setQuery(v:string){this.query=v;clearTimeout(this.searchTimer);this.searchTimer=setTimeout(()=>this.feed(),250)}
   private tab(f:boolean){if(this.forum===f)return;this.forum=f;this.query='';this.filter='';this.hot=false;this.reload()}
-  private copy():void{pasteboard.getSystemPasteboard().setData(pasteboard.createData(pasteboard.MIMETYPE_TEXT_PLAIN,stringValue(this.detail,'content'))).then(()=>this.getUIContext().getPromptAction().showToast({message:'已复制帖子内容'})).catch((e:Error)=>{this.error=noteError(e)})}
+  private async sharePost(copy:boolean):Promise<void>{
+    const text=stringValue(this.detail,'content').trim()
+    if(!text||this.sharing)return
+    const ticket=this.revision
+    this.sharing=true
+    try{
+      if(copy){
+        await pasteboard.getSystemPasteboard().setData(pasteboard.createData(pasteboard.MIMETYPE_TEXT_PLAIN,text))
+        if(ticket===this.revision)this.getUIContext().getPromptAction().showToast({message:'已复制帖子内容'})
+      }else{
+        await shareText(this.getUIContext().getHostContext() as common.UIAbilityContext,titleOf(this.detail),text)
+      }
+    }catch(_){
+      if(ticket===this.revision)this.getUIContext().getPromptAction().showToast({message:copy?'暂时无法复制帖子内容。':'暂时无法打开系统分享，可以使用复制。'})
+    }finally{this.sharing=false}
+  }
   @Builder Icon(key:string,size:number,color:string=ink){
     Shape(){Path({commands:RECORD_ICONS.get(key)||''}).fill(Color.Transparent).stroke(color).strokeWidth('1.8px').strokeLineCap(LineCapStyle.Round).strokeLineJoin(LineJoinStyle.Round)}.width(size).height(size).viewPort({x:0,y:0,width:'24px',height:'24px'})
   }
@@ -195,22 +248,24 @@ export struct CommunityPage {
       Row({space:10}){Text(stringValue(this.detail,'author','友').slice(0,1)).width(36).height(36).textAlign(TextAlign.Center).backgroundColor('#E5EFDF').borderRadius(18);Text(stringValue(this.detail,'author')).fontColor(ink).fontWeight(FontWeight.Bold).layoutWeight(1).onClick(()=>this.open('community/member/'+this.detail['id']));if(!this.detail['is_self']){this.Btn(this.detail['following']?'已关注':'关注',()=>this.engage(this.detail,'follow'))}}
       ForEach(array(this.detail,'attachments'),(ref:Data,i:number)=>{Image(this.images.get(String(fileId(ref)))).width('100%').height(220).objectFit(ImageFit.Contain).onClick(()=>this.open('community/image/'+this.contentId()+'/'+i))},(ref:Data)=>String(fileId(ref)))
       Text(titleOf(this.detail)).fontSize(24).fontWeight(FontWeight.Bold).fontColor(ink);Text(bodyOf(this.detail)).fontSize(19).lineHeight(30).fontColor(ink);Text(stringValue(this.detail,'created_at').slice(0,16).replace('T',' ')).fontSize(14).fontColor(muted)
-      Row({space:6}){this.Btn((this.detail['liked']?'已赞 ':'赞 ')+stringValue(this.detail,'likes','0'),()=>this.engage(this.detail,'like'));this.Btn(this.detail['saved']?'已收藏':'收藏',()=>this.engage(this.detail,'bookmark'));this.Btn('复制分享',()=>this.copy())}
+      Flex({wrap:FlexWrap.Wrap,space:{main:LengthMetrics.vp(6),cross:LengthMetrics.vp(6)}}){this.Btn((this.detail['liked']?'已赞 ':'赞 ')+stringValue(this.detail,'likes','0'),()=>this.engage(this.detail,'like'));this.Btn(this.detail['saved']?'已收藏':'收藏',()=>this.engage(this.detail,'bookmark'));this.Btn('分享',()=>this.sharePost(false));this.Btn('复制',()=>this.sharePost(true))}
       Text('评论 '+stringValue(this.detail,'comments','0')).fontSize(20).fontColor(ink).fontWeight(FontWeight.Bold)
+      if(this.commentError){Text('评论暂时无法加载。'+this.commentError).fontColor(muted);this.Btn('重试评论',()=>{if(this.commentNext>=0)this.moreComments();else this.loadPostPart(true,this.revision)})}
       ForEach(this.comments,(c:Data)=>{Column({space:7}){Text(stringValue(c,'author')).fontSize(15).fontWeight(FontWeight.Bold);Text(stringValue(c,'content')).fontSize(17);ForEach(array(c,'attachments'),(ref:Data)=>{Image(this.images.get(String(fileId(ref)))).width(88).height(88).objectFit(ImageFit.Cover)});Divider().color(line)}.width('100%').alignItems(HorizontalAlign.Start)},(c:Data)=>String(c['id']))
-      if(this.commentNext>=0){this.Btn('加载更多评论',()=>this.moreComments())}
+      if(this.commentNext>=0&&!this.commentError){this.Btn('加载更多评论',()=>this.moreComments())}
       if(this.composeComment){TextArea({text:this.body,placeholder:'分享您的看法…'}).maxLength(4000).onChange((s:string)=>{this.body=s;this.newWrite()});this.ImageControls();this.Btn('发布评论',()=>this.publish(true),true)}
       else{this.Btn('写评论',()=>{this.composeComment=true})}
-    }else if(this.loading){Text('正在读取这份生活分享…').fontColor(muted)}
+    }else if(this.postError){Text(this.postError).fontColor(muted);this.Btn('重试帖子正文',()=>this.loadPostPart(false,this.revision))}
+    else if(this.loading){Text('正在读取这份生活分享…').fontColor(muted)}
   }
   build(){Column(){
     if(this.route.startsWith('community/knowledge')){CommunityKnowledge({route:this.route,onNavigate:this.onNavigate})}
     else{this.Header();Stack({alignContent:Alignment.Top}){Image($r('app.media.community_ambient')).width('100%').height('100%').objectFit(ImageFit.Cover).opacity(.14)
       Scroll(){Column({space:12}){
-        if(this.error){Column({space:8}){Text('暂时没有连接上').fontColor(ink).fontSize(20);Text(this.error).fontColor(muted);this.Btn('重新加载',()=>this.reload(),true)}.width('100%').padding(16).backgroundColor('#FFFDF9').borderRadius(16)}
+        if(this.error){Column({space:8}){Text('暂时无法完成操作').fontColor(ink).fontSize(20);Text(this.error).fontColor(muted);this.Btn('重新加载',()=>this.reload(),true)}.width('100%').padding(16).backgroundColor('#FFFDF9').borderRadius(16)}
         if(this.route==='community/post/new'){this.Form()}
         else if(this.route.startsWith('community/posts/')){this.Detail()}
-        else if(this.route.startsWith('community/image/')){if(array(this.detail,'attachments').length){Image(this.images.get(String(fileId(array(this.detail,'attachments')[Number(this.route.split('/')[3])]||{})))).width('100%').height(410).objectFit(ImageFit.Contain)}}
+        else if(this.route.startsWith('community/image/')){if(this.postError){Text(this.postError).fontColor(muted);this.Btn('重试帖子正文',()=>this.loadPostPart(false,this.revision))}else if(array(this.detail,'attachments').length){Image(this.images.get(String(fileId(array(this.detail,'attachments')[Number(this.route.split('/')[3])]||{})))).width('100%').height(410).objectFit(ImageFit.Contain)}}
         else{this.Feed()}
       }.width('100%').padding(16).alignItems(HorizontalAlign.Start)}.width('100%').height('100%').scrollBar(BarState.Off)
     }.layoutWeight(1).width('100%')}

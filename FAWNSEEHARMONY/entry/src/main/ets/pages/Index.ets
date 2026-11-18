@@ -27,6 +27,7 @@ function tabFor(route:string):string {
 struct Index {
   @State route:string='boot'
   @State startupError:string=''
+  @StorageProp('keyboardVisible') keyboardVisible:boolean=false
   @StorageLink('sessionExpired') @Watch('expired') expiredFlag:boolean=false
   history:string[]=[]
   aboutToAppear(){this.boot()}
@@ -79,9 +80,9 @@ struct Index {
         Column({space:3}){
           this.Mark(t.id,tabFor(this.route)===t.id)
           Text(t.label).fontSize(16).lineHeight(21.6).fontColor(tabFor(this.route)===t.id?'#436653':'#768878').fontWeight(tabFor(this.route)===t.id?FontWeight.Bold:FontWeight.Regular)
-        }.id('tab-'+t.id).height(60).layoutWeight(1).justifyContent(FlexAlign.Center).onClick(()=>this.navigate(t.id))
+        }.id('tab-'+t.id).height('100%').layoutWeight(1).justifyContent(FlexAlign.Center).onClick(()=>this.navigate(t.id))
       },(t:TabEntry)=>t.id)
-    }.height(79).width('100%').padding({top:8,bottom:10,left:7,right:7}).backgroundColor('#FDFBF7').border({width:{top:1},color:'#F1EFE8'})
+    }.height(60).width('100%').padding({left:7,right:7}).backgroundColor('#FDFBF7').border({width:{top:1},color:'#F1EFE8'})
   }
   build(){
     Stack(){
@@ -97,7 +98,7 @@ struct Index {
           else if(tabFor(this.route)==='mine'){MinePage({route:this.route,onNavigate:(v:string):void=>this.navigate(v)})}
           else if(tabFor(this.route)==='ai'){AssistantPage({route:this.route,onNavigate:(v:string):void=>this.navigate(v)})}
         }.width('100%').layoutWeight(1)
-        if(tabs.some((t:TabEntry)=>t.id===this.route)||this.route.startsWith('records/day/')){this.Bottom()}
+        if((tabs.some((t:TabEntry)=>t.id===this.route)||this.route.startsWith('records/day/'))&&!(this.route==='ai'&&this.keyboardVisible)){this.Bottom()}
       }.width('100%').constraintSize({maxWidth:430}).height('100%')
     }.width('100%').height('100%').backgroundColor('#FDFBF7')
   }

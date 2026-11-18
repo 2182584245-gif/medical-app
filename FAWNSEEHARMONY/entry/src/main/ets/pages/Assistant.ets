@@ -1,6 +1,7 @@
 import { AssistantAnswer } from './AssistantAnswer'
 import { AppUpdatePanel } from './AppUpdatePanel'
 import { common } from '@kit.AbilityKit'
+import { KeyboardAvoidMode } from '@kit.ArkUI'
 import { syncDeviceReminders } from '../services/DeviceReminders'
 import { pasteboard } from '@kit.BasicServicesKit'
 import { AssistantFile,chooseAssistantFile,prepareAssistantFile } from './AssistantDocument'
@@ -44,6 +45,10 @@ export struct AssistantPage {
   @State pending:boolean=false
   @State recoveryId:string=''
   @State loading:boolean=false
+  @State preferencesReady:boolean=false
+  @State preferencesError:string=''
+  @State historyError:string=''
+  @StorageProp('keyboardVisible') keyboardVisible:boolean=false
   @State extra:boolean=false
   @State listening:boolean=false
   @State taskCount:number=0
@@ -65,44 +70,78 @@ export struct AssistantPage {
   private owner:number=0
   private sessionLoad:number=0
   private inputQuery:number=0
+  private historyRead:number=0
+  private preferencesRead:number=0
+  private historyPagingFailed:boolean=false
+  private previousAvoidMode:KeyboardAvoidMode=KeyboardAvoidMode.OFFSET
   private scroller:Scroller=new Scroller()
   private ctx():common.UIAbilityContext{return this.getUIContext().getHostContext() as common.UIAbilityContext}
-  aboutToAppear(){this.owner=actorId();this.init()}
-  aboutToDisappear(){this.serial++;this.sessionLoad++;this.inputQuery++;if(this.listening){this.listening=false;cancelVoice().catch(()=>{})}}
+  aboutToAppear(){
+    this.owner=actorId()
+    this.previousAvoidMode=this.getUIContext().getKeyboardAvoidMode()
+    this.getUIContext().setKeyboardAvoidMode(KeyboardAvoidMode.RESIZE)
+    this.init()
+  }
+  aboutToDisappear(){
+    this.serial++;this.sessionLoad++;this.inputQuery++;this.preferencesRead++
+    this.getUIContext().setKeyboardAvoidMode(this.previousAvoidMode)
+    if(this.listening){this.listening=false;cancelVoice().catch(()=>{})}
+  }
+  private async loadPreferences():Promise<void>{
+    const request=++this.preferencesRead
+    try {
+      const settings=await rpc<Data>('preferences','get_preferences',[this.owner])
+      if(request!==this.preferencesRead||this.owner!==actorId())return
+      if(!this.owner){const aliases:Record<string,string>={'library_enabled':'context_consent','personal_enabled':'personal_context_consent','thinking_enabled':'thinking_enabled','reasoning_effort':'reasoning_effort','web_enabled':'web_enabled','tools_enabled':'tools_enabled'};for (const key of Object.keys(aliases)) settings['mobile_ai_'+key]=settings['ai_'+aliases[key]]}
+      this.settings=settings;this.preferencesReady=true;this.preferencesError=''
+    }catch(e){
+      if(request===this.preferencesRead&&this.owner===actorId()){
+        this.preferencesReady=false;this.preferencesError='助手设置未加载。可以先输入，重试成功后再发送。'
+      }
+    }
+  }
   private async init():Promise<void>{
     const ticket=++this.serial
+    const activeSession=this.sessionLoad
     this.loading=true
+    this.loadPreferences()
     try{
-      this.settings=await rpc<Data>('preferences','get_preferences',[this.owner]);
-      if(!this.owner){const aliases:Record<string,string>={'library_enabled':'context_consent','personal_enabled':'personal_context_consent','thinking_enabled':'thinking_enabled','reasoning_effort':'reasoning_effort','web_enabled':'web_enabled','tools_enabled':'tools_enabled'};for (const key of Object.keys(aliases)) this.settings['mobile_ai_'+key]=this.settings['ai_'+aliases[key]]}
-      this.sessions=await rpc<Data[]>('chat','list_conversations',[this.owner])
-      if(ticket!==this.serial || this.owner!==actorId())return
+      const sessions=await rpc<Data[]>('chat','list_conversations',[this.owner])
+      if(ticket!==this.serial || this.owner!==actorId() || activeSession!==this.sessionLoad)return
+      this.sessions=sessions
       const preferred=this.owner?Number(decisionStore(this.ctx()).getSync('lastConversation',0)):0
       let session=this.sessions.find((r:Data)=>r['id']===preferred)||this.sessions[0]
       if(!session)session=await rpc<Data>('chat','create_conversation',[this.owner,'新对话'])
-      if(ticket!==this.serial)return
+      if(ticket!==this.serial || this.owner!==actorId() || activeSession!==this.sessionLoad)return
       await this.openChat(Number(session['id']),false)
       if(this.owner&&this.route==='ai/tasks')await this.loadTasks()
-    }catch(e){if(ticket===this.serial)this.error=noteError(e as Error)}
+    }catch(e){if(ticket===this.serial && activeSession===this.sessionLoad && this.owner===actorId())this.error=noteError(e as Error)}
     finally{if(ticket===this.serial)this.loading=false}
   }
   private async openChat(id:number,go:boolean=true):Promise<void>{
     const ticket=++this.sessionLoad
-    if(this.conversation&&this.conversation!==id){this.saveInput()}
-    this.conversation=id;this.taskId='';this.taskName='';this.focusDraft={};this.photo='';this.file=undefined;this.op=undefined;this.error=''
+    const firstInput=this.conversation===0&&!!(this.input||this.photo||this.file)
+    const same=this.conversation===id, switching=this.conversation>0&&!same
+    if(switching){this.saveInput();this.photo='';this.file=undefined}
+    this.conversation=id;this.error='';this.historyError=''
     const store=decisionStore(this.ctx())
     if(this.owner){store.putSync('lastConversation',id);store.flush().catch(()=>{})}
-    this.input=this.owner?String(store.getSync('draft_'+id,'')):''
-    this.recoveryId=this.owner?String(store.getSync('pending_'+id,'')):''
-    this.messages=[];this.images=new Map();this.receipts=new Map()
-    await rpc<Object>('chat','ensure_greeting',[this.owner],{'conversation_id':id,'local_hour':new Date().getHours()} as Record<string, Object>)
-    if(ticket!==this.sessionLoad)return
-    if(this.recoveryId)await this.restorePending(false)
-    await this.read(false)
-    if(ticket===this.sessionLoad && go)this.onNavigate('ai')
+    if(!same){
+      this.taskId='';this.taskName='';this.focusDraft={};this.op=undefined;this.older=0;this.taskCount=0
+      if(switching||!this.input)this.input=this.owner?String(store.getSync('draft_'+id,'')):''
+      else this.saveInput()
+      this.recoveryId=this.owner?String(store.getSync('pending_'+id,'')):''
+      this.messages=[];this.images=new Map();this.receipts=new Map()
+    }
+    if(go)this.onNavigate('ai')
+    try {await rpc<Object>('chat','ensure_greeting',[this.owner],{'conversation_id':id,'local_hour':new Date().getHours()} as Record<string, Object>)}
+    catch(e){if(ticket!==this.sessionLoad||this.owner!==actorId())return}
+    if(ticket!==this.sessionLoad||this.owner!==actorId())return
+    if(this.recoveryId)await this.restorePending(false,firstInput)
+    if(ticket===this.sessionLoad&&this.owner===actorId())await this.read(false)
   }
   private saveInput(){if(this.owner&&this.conversation&&this.owner===actorId()){const s=decisionStore(this.ctx());s.putSync('draft_'+this.conversation,this.input);s.flush().catch(()=>{})}}
-  private async restorePending(stop:boolean):Promise<void>{
+  private async restorePending(stop:boolean,preserveInput:boolean=false):Promise<void>{
     const id=this.recoveryId, conv=this.conversation, ticket=this.sessionLoad
     if(!id || !this.owner)return
     try {
@@ -110,9 +149,14 @@ export struct AssistantPage {
       if(ticket!==this.sessionLoad)return
       if(state==='running'){this.error='上一条回答正在处理，请稍后查看。';return}
       if(stop&&state==='complete')await checkAnswer(id,conv)
-      this.op=undefined;this.recoveryId='';this.error=''
+      if(ticket!==this.sessionLoad||this.owner!==actorId())return
       const store=decisionStore(this.ctx());store.deleteSync('pending_'+conv)
-      if(state==='complete'){this.input='';this.photo='';this.file=undefined;store.deleteSync('draft_'+conv)}
+      const original=store.getSync('pendingText_'+conv,false)
+      const originalMedia=this.op?this.photo===this.op.image&&this.file===this.op.file:!this.photo&&!this.file
+      if(state==='complete'&&!preserveInput&&typeof original==='string'&&this.input===original&&originalMedia){
+        this.input='';this.photo='';this.file=undefined;store.deleteSync('draft_'+conv)
+      }
+      store.deleteSync('pendingText_'+conv);this.op=undefined;this.recoveryId='';this.error=''
       await store.flush();await this.read(false)
     }catch(e){if(ticket===this.sessionLoad)this.error=noteError(e as Error)}
   }
@@ -127,9 +171,18 @@ export struct AssistantPage {
   private async listFiles():Promise<void>{try{this.cloudFiles=await rpc<Data[]>('files','list_files',[this.owner])}catch(e){this.error=noteError(e as Error)}}
   private async taskSummary():Promise<void>{if(!this.owner)return;const id=this.conversation;try{const res=await cloud<Data>('/v1/ai/record-tasks?conversation_id='+id+'&limit=1');if(id===this.conversation)this.taskCount=Number(res['total'])}catch(_){}}
   private async read(append:boolean):Promise<void>{
-    const id=this.conversation, ticket=this.sessionLoad
-    const packet=await loadMessages(id,append?this.older:0)
-    if(id!==this.conversation || ticket!==this.sessionLoad)return
+    const id=this.conversation, ticket=this.sessionLoad, request=++this.historyRead
+    let packet:Data
+    try { packet=await loadMessages(id,append?this.older:0) }
+    catch(e){
+      if(request===this.historyRead&&ticket===this.sessionLoad&&this.owner===actorId()){
+        this.historyError=append?'更早的消息暂未加载。':'聊天记录暂未加载，可以继续输入。'
+        this.historyPagingFailed=append
+      }
+      return
+    }
+    if(id!==this.conversation || ticket!==this.sessionLoad || request!==this.historyRead || this.owner!==actorId())return
+    this.historyError=''
     this.older=packet['has_more']===true?Number(packet['next_cursor']):0
     const rows=array(packet,'messages')
     this.messages=append?rows.concat(this.messages):rows
@@ -146,7 +199,7 @@ export struct AssistantPage {
     }
     this.receipts=result;this.taskSummary()
     rows.filter((r:Data)=>r['role']==='user').slice(-20).forEach((r:Data)=>this.loadMessagePhoto(Number(r['id']),ticket))
-    if(!append && this.messages.length>1)setTimeout(():void=>{this.scroller.scrollEdge(Edge.Bottom)},100)
+    if(!append && this.messages.length>1)setTimeout(():void=>{if(ticket===this.sessionLoad&&this.owner===actorId())this.scroller.scrollEdge(Edge.Bottom)},100)
   }
   private async loadMessagePhoto(id:number, ticket:number):Promise<void>{
     if(this.images.has('u'+id))return
@@ -176,6 +229,9 @@ export struct AssistantPage {
   }
   private async send(recognize:boolean=false):Promise<void>{
     if(this.pending||!this.conversation||!this.input.trim()&&!this.photo&&!this.file)return
+    const sendSession=this.sessionLoad
+    if(!this.preferencesReady){await this.loadPreferences();if(!this.preferencesReady)return}
+    if(this.pending||sendSession!==this.sessionLoad||this.owner!==actorId())return
     if(this.recoveryId){await this.restorePending(false);return}
     const content=recognize?(this.file&&!this.photo?'请阅读附件中实际可提取的文字，概括主要内容。若为报告，请列出实际项目、结果、单位与参考范围；不可读取的内容明确说明，不编造、不诊断。':'请识别这张图片实际可见的内容。若为餐饮，请描述食物和可判断的份量；若为体检报告，请列出实际文字、项目、结果、单位与参考范围。看不清或不能可靠确定的内容明确写未确认，不诊断、不编造数值。'):this.input.trim()||(this.file&&!this.photo?'请阅读这个文件并概括主要内容。':'请帮我看看这张照片。')
     if(!this.owner && /记录|保存|记一下/.test(content))this.getUIContext().getPromptAction().showToast({message:'可在体验对话中咨询，保存正式生活记录需要登录。'})
@@ -183,7 +239,7 @@ export struct AssistantPage {
     this.pending=true;this.error='';this.extra=false;this.liveText='';this.liveStep='正在处理…';this.cancellable=false
     try{
       const ticket=this.sessionLoad,attempt=this.op,store=decisionStore(this.ctx())
-      if(this.owner){store.putSync('pending_'+attempt.conversation,attempt.id);await store.flush()}
+      if(this.owner){store.putSync('pending_'+attempt.conversation,attempt.id);store.putSync('pendingText_'+attempt.conversation,this.input);await store.flush()}
       let preview='',lastPaint=0
       try{await sendChat(attempt,this.settings,this.owner?store.getSync('recent',[]) as string[]:[],(event:Data):void=>{
         if(ticket!==this.sessionLoad||this.owner!==actorId())return
@@ -194,8 +250,8 @@ export struct AssistantPage {
         else if(event['type']==='tool_start')this.liveStep='✧  '+stringValue(event,'label','正在使用工具')
         else if(event['type']==='record_drafts')this.liveStep='✧  记录助手 · 整理生活记录'
       })}
-      catch(e){if(this.owner){if(attempt.attempted && ticket===this.sessionLoad)this.recoveryId=attempt.id;else if(!attempt.attempted){store.deleteSync('pending_'+attempt.conversation);await store.flush()}}throw e as Error}
-      if(this.owner){store.deleteSync('pending_'+attempt.conversation);await store.flush()}
+      catch(e){if(this.owner){if(attempt.attempted && ticket===this.sessionLoad)this.recoveryId=attempt.id;else if(!attempt.attempted){store.deleteSync('pending_'+attempt.conversation);store.deleteSync('pendingText_'+attempt.conversation);await store.flush()}}throw e as Error}
+      if(this.owner){store.deleteSync('pending_'+attempt.conversation);store.deleteSync('pendingText_'+attempt.conversation);await store.flush()}
       if(ticket!==this.sessionLoad)return
       this.op=undefined
       if(!recognize){this.input='';this.photo='';this.file=undefined;this.taskId='';this.taskName='';this.focusDraft={};this.saveInput()}
@@ -312,10 +368,27 @@ export struct AssistantPage {
       if(row['role']==='assistant'&&row['provider']!=='fawnsee-welcome'){Row({space:8}){this.Btn('查看生活记录',()=>this.onNavigate('records'));this.Btn('查看趋势',()=>this.onNavigate('trends'));this.Btn('复制',()=>{pasteboard.getSystemPasteboard().setData(pasteboard.createData(pasteboard.MIMETYPE_TEXT_PLAIN,stringValue(row,'content'))).catch(()=>{})})}}
     }.width('100%').alignItems(row['role']==='assistant'?HorizontalAlign.Start:HorizontalAlign.End)
   }
+  private retryPage():void{
+    this.error=''
+    if(this.op){this.send();return}
+    if(this.route==='ai/history'){this.refreshSessions();return}
+    if(this.route==='ai/tasks'){this.loadTasks();return}
+    if(this.route==='ai/files'){this.listFiles();return}
+    if(this.route==='ai/settings'){this.loadPreferences();return}
+    if(this.conversation){this.read(false);return}
+    this.init()
+  }
+  @Builder LoadNotice(message:string,retry:()=>void,identifier:string){
+    Row({space:8}){
+      Text(message).fontSize(14).fontColor('#795342').layoutWeight(1)
+      Button('重试',{type:ButtonType.Normal}).id(identifier).fontSize(15).fontColor(action).backgroundColor(Color.Transparent).onClick(retry)
+    }.width('100%').padding({left:12,right:6,top:2,bottom:2}).backgroundColor('#FFF3EA')
+  }
   @Builder Chat(){
     Stack({alignContent:Alignment.Top}){
       Image($r('app.media.records_petal')).width('100%').height('100%').objectFit(ImageFit.Cover).opacity(.16)
       Column(){
+        if(this.historyError){this.LoadNotice(this.historyError,()=>this.read(this.historyPagingFailed),'ai-retry-messages')}
         Scroll(this.scroller){Column({space:9}){
           if(this.older){this.Btn('加载更早对话',()=>this.read(true).catch((e:Error)=>{this.error=noteError(e)}))}
           ForEach(this.messages,(row:Data)=>{this.Message(row)},(row:Data)=>String(row['id'])+row['status']+JSON.stringify(row['record_drafts'])+JSON.stringify(row['proposals']))
@@ -326,11 +399,13 @@ export struct AssistantPage {
         if(this.photo){Row({space:8}){Image(this.photo).width(54).height(54).objectFit(ImageFit.Cover).borderRadius(8);this.Btn('移除照片',()=>{this.photo='';this.file=undefined})}}
         if(this.recoveryId){Row({space:8}){this.Btn('查看回答进度',()=>this.restorePending(false));this.Btn('停止等待',()=>this.restorePending(true))}}
         if(this.owner&&(this.taskCount||this.taskId)){Text('☷  待完成记录 '+this.taskCount+(this.taskId?'　正在补 '+this.taskName:'')).fontSize(14).fontColor(muted).onClick(()=>this.onNavigate('ai/tasks'))}
-        Row({space:8}){this.Icon('mic','#FFFFFF');Text(this.listening?'松开结束':'按住说话').fontColor('#FFFFFF').fontSize(18).fontWeight(FontWeight.Bold)}.width(176).height(52).justifyContent(FlexAlign.Center).borderRadius(26).backgroundColor('#926CB0').shadow({radius:1,offsetY:4,color:'#68438A'}).margin({top:8,bottom:15}).onTouch((e:TouchEvent)=>{if(e.type===TouchType.Down)this.startMic();if(e.type===TouchType.Up)this.stopMic();if(e.type===TouchType.Cancel){this.listening=false;cancelVoice().catch(()=>{})}})
+        if(!this.keyboardVisible){
+          Row({space:8}){this.Icon('mic','#FFFFFF');Text(this.listening?'松开结束':'按住说话').fontColor('#FFFFFF').fontSize(18).fontWeight(FontWeight.Bold)}.width(176).height(52).justifyContent(FlexAlign.Center).borderRadius(26).backgroundColor('#926CB0').shadow({radius:1,offsetY:4,color:'#68438A'}).margin({top:8,bottom:15}).onTouch((e:TouchEvent)=>{if(e.type===TouchType.Down)this.startMic();if(e.type===TouchType.Up)this.stopMic();if(e.type===TouchType.Cancel){this.listening=false;cancelVoice().catch(()=>{})}})
+        }
         if(this.extra){Column({space:5}){Row({space:8}){this.Btn('文件',()=>this.onNavigate('ai/files'));this.Btn('智慧云功能',()=>this.onNavigate('ai/cloud'));this.Btn('照片识别',()=>this.onNavigate('ai/photo'))}
           Row({space:8}){this.Btn('拍照',async()=>{try{const r=await capturePhoto(this.ctx());if(r.length){this.file=undefined;this.photo=r[0]}this.extra=false}catch(e){this.error=noteError(e as Error)}});if(this.owner){this.Btn('待完成记录',()=>this.onNavigate('ai/tasks'))}}}}
         Row({space:6}){this.IconButton('plus','更多功能',()=>{this.extra=!this.extra},true);this.IconButton('photo','上传照片',()=>this.pick(),true)
-          TextInput({text:this.input}).id('ai-input').accessibilityText('输入消息').onChange((v:string)=>{this.input=v;this.saveInput()}).onSubmit(()=>this.send()).maxLength(4000).fontSize(20).backgroundColor(Color.Transparent).padding(2).layoutWeight(1).enabled(!this.pending)
+          TextInput({text:this.input,placeholder:'输入消息'}).id('ai-input').accessibilityText('输入消息').enterKeyType(EnterKeyType.Send).onChange((v:string)=>{this.input=v;this.saveInput()}).onSubmit(()=>this.send()).maxLength(4000).fontSize(20).backgroundColor(Color.Transparent).padding(2).layoutWeight(1).enabled(!this.pending)
           this.IconButton('send','发送消息',()=>this.send(),true)
         }.width('91%').height(58).padding({left:7,right:7}).borderRadius(21).backgroundColor('#FFFDF9').border({color:line,width:1}).margin({bottom:8})
       }.height('100%')
@@ -348,7 +423,7 @@ export struct AssistantPage {
           else if(this.renameId===Number(r['id'])){TextInput({text:this.renameText}).onChange((v:string)=>this.renameText=v);this.Btn('保存名称',()=>this.editSession(Number(r['id']),false))}
           else{Row({space:7}){this.Btn('打开',()=>this.openChat(Number(r['id'])).catch((e:Error)=>{this.error=noteError(e)}),false,'ai-open-chat-'+r['id']);this.Btn('重命名',()=>{this.renameId=Number(r['id']);this.renameText=String(r['title'])});this.Btn('删除',()=>this.getUIContext().showAlertDialog({title:'删除这段对话？',message:'删除后将无法恢复。',primaryButton:{value:'取消',action:()=>{}},secondaryButton:{value:'删除',action:()=>this.editSession(Number(r['id']),true)}}))}}
         }.width('100%').alignItems(HorizontalAlign.Start).padding(12).backgroundColor('#FFFDF9').borderRadius(14)},(r:Data)=>String(r['id'])+r['title'])
-      }else if(this.route==='ai/settings'){
+      }else if(this.route==='ai/settings'&&this.preferencesReady){
         this.Setting('ai_complexity','模型生成复杂度',['简洁','标准','详细'],['simple','standard','detailed'])
         this.Setting('ai_tone','对话语气',['温和陪伴','简洁直接','清楚正式'],['warm','concise','formal'])
         this.Setting('mobile_ai_thinking_enabled','深度思考',['开启','关闭'],['true','false'])
@@ -357,6 +432,8 @@ export struct AssistantPage {
         this.Setting('mobile_ai_library_enabled','使用资料卡',['开启','关闭'],['true','false'])
         this.Setting('mobile_ai_personal_enabled','使用我的生活资料',['开启','关闭'],['true','false'])
         this.Btn('保存设置',()=>this.saveSettings(),true)
+      }else if(this.route==='ai/settings'){
+        if(!this.preferencesError){LoadingProgress().width(24).height(24)}
       }else if(this.route==='ai/tasks'){
         if(this.focusDraft['id']){this.Draft(this.focusDraft,this.focusMessage);this.Btn('返回对话',()=>this.onNavigate('ai'),true)}
         else{TextInput({text:this.search,placeholder:'搜索日期、时间或内容'}).onChange((v:string)=>{this.search=v;this.loadTasks()})
@@ -376,5 +453,10 @@ export struct AssistantPage {
       }
     }.width('100%').alignItems(HorizontalAlign.Start).padding(16)}.width('100%').layoutWeight(1)
   }
-  build(){Column(){this.Header();if(this.route==='ai/update'){AppUpdatePanel()}else{if(this.error){Row(){Text(this.error).fontSize(14).fontColor('#8A483F').layoutWeight(1);Text('重试').fontColor(action).onClick(()=>{if(this.op)this.send();else this.init()})}.width('100%').padding(8).backgroundColor('#FFF1EA')}if(this.loading){LoadingProgress().width('100%').height(3)}if(this.route==='ai'){this.Chat()}else{this.Secondary()}}}.width('100%').height('100%').backgroundColor(paper)}
+  build(){Column(){this.Header();if(this.route==='ai/update'){AppUpdatePanel()}else{
+    if(this.error){this.LoadNotice(this.error,()=>this.retryPage(),'ai-retry-page')}
+    if(this.preferencesError&&(this.route==='ai'||this.route==='ai/settings')){this.LoadNotice(this.preferencesError,()=>this.loadPreferences(),'ai-retry-settings')}
+    if(this.loading){LoadingProgress().width('100%').height(3)}
+    if(this.route==='ai'){this.Chat()}else{this.Secondary()}
+  }}.width('100%').height('100%').backgroundColor(paper)}
 }

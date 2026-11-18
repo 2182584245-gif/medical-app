@@ -6,6 +6,10 @@ import { attachPrivateStorage } from '../services/PrivateData';
 const DOMAIN = 0x0000;
 
 export default class EntryAbility extends UIAbility {
+  private mainWindow?: window.Window;
+  private onKeyboardHeight = (height: number): void => {
+    AppStorage.setOrCreate('keyboardVisible', height > 0);
+  }
   onCreate(want: Want, launchParam: AbilityConstant.LaunchParam): void {
     attachPrivateStorage(this.context);
     hilog.info(DOMAIN, 'testTag', '%{public}s', 'Ability onCreate');
@@ -16,6 +20,13 @@ export default class EntryAbility extends UIAbility {
   }
 
   onWindowStageCreate(windowStage: window.WindowStage): void {
+    try {
+      this.mainWindow = windowStage.getMainWindowSync();
+      this.mainWindow.on('keyboardHeightChange', this.onKeyboardHeight);
+      this.onKeyboardHeight(this.mainWindow.getWindowAvoidArea(window.AvoidAreaType.TYPE_KEYBOARD).bottomRect.height);
+    } catch (_) {
+      this.onKeyboardHeight(0);
+    }
     // Main window is created, set main page for this ability
     hilog.info(DOMAIN, 'testTag', '%{public}s', 'Ability onWindowStageCreate');
 
@@ -35,6 +46,9 @@ export default class EntryAbility extends UIAbility {
   }
 
   onWindowStageDestroy(): void {
+    try { this.mainWindow?.off('keyboardHeightChange', this.onKeyboardHeight); } catch (_) {}
+    this.mainWindow = undefined;
+    AppStorage.setOrCreate('keyboardVisible', false);
     // Main window is destroyed, release UI related resources
     hilog.info(DOMAIN, 'testTag', '%{public}s', 'Ability onWindowStageDestroy');
   }

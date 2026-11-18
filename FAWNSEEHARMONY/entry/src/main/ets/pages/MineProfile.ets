@@ -1,6 +1,7 @@
 import {image} from '@kit.ImageKit';
 import {util} from '@kit.ArkTS';
 import {rpc,actorId,pickPhotos} from '../services/Cloud';
+import {MineReads} from './MineReads';
 import {INK,PAPER,MUTED,WHITE,TEAL,Choice,TMField,TMLabel,TMPills,TMNote,TMButton,TMBanner,operationId} from './TodayShared';
 export interface MemberProfile {
   user_id:number;display_name:string;ai_preferred_name?:string;gender?:string;age?:number|null;birth_date?:string|null;
@@ -30,39 +31,49 @@ export struct MineProfile {
   @State birthday:string='';@State phone:string='';@State heightValue:string='';@State weight:string='';
   @State intro:string='';@State emergency:string='';@State emergencyPhone:string='';@State avatar:string='';
   @State error:string='';@State busy:boolean=false;@State ready:boolean=false;
+  @State avatarReady:boolean=false;@State profileError:string='';@State avatarError:string='';
+  private reads:MineReads=new MineReads();
   private serial:number=0;
-  aboutToAppear(){this.load();}
-  aboutToDisappear(){this.serial++;}
-  private async load():Promise<void>{
-    const t=++this.serial;this.error='';this.ready=false;
-    try{
-      const group=await Promise.all([rpc<MemberProfile>('health','get_profile',[actorId()]),rpc<AccountPrefs>('preferences','get_preferences',[actorId()])]);const p=group[0];const prefs=group[1];if(t!==this.serial)return;
+  aboutToAppear(){
+    this.serial++;this.reads.begin();this.error='';this.ready=false;this.avatarReady=false;this.avatar='';this.busy=false;
+    this.loadProfile();this.loadAvatar();
+  }
+  aboutToDisappear(){this.serial++;this.reads.stop();}
+  private async loadProfile():Promise<void>{
+    return this.reads.read('profile',()=>rpc<MemberProfile>('health','get_profile',[actorId()]),(p:MemberProfile)=>{
       this.nameValue=p.display_name||'';this.nickname=p.ai_preferred_name||'';this.gender=p.gender||'unspecified';this.age=p.age==null?'':String(p.age);
       this.birthday=p.birth_date||'';this.phone=p.phone||'';this.heightValue=p.height_cm==null?'':String(p.height_cm);this.weight=p.weight_kg==null?'':String(p.weight_kg);
-      this.intro=p.personal_introduction||'';this.emergency=p.emergency_contact_name||'';this.emergencyPhone=p.emergency_contact_phone||'';this.avatar=prefs.avatar_data||'';this.ready=true;
-    }catch(e){if(t===this.serial)this.error=(e as Error).message;}
+      this.intro=p.personal_introduction||'';this.emergency=p.emergency_contact_name||'';this.emergencyPhone=p.emergency_contact_phone||'';this.ready=true;
+    },(message:string)=>{this.profileError=message;});
   }
-  private async changeAvatar():Promise<void>{if(this.busy)return;const t=this.serial;this.busy=true;try{
-    const uri=await photoAvatar();if(!uri||t!==this.serial)return;
+  private async loadAvatar():Promise<void>{
+    return this.reads.read('avatar',()=>rpc<AccountPrefs>('preferences','get_preferences',[actorId()]),(pref:AccountPrefs)=>{
+      this.avatar=pref.avatar_data||'';this.avatarReady=true;
+    },(message:string)=>{this.avatarError=message;});
+  }
+  private async changeAvatar():Promise<void>{if(this.busy||!this.avatarReady||!this.reads.active())return;const t=this.serial;this.busy=true;try{
+    const uri=await photoAvatar();if(!uri||t!==this.serial||!this.reads.active())return;
     const result=await rpc<AccountPrefs>('preferences','update_preferences',[actorId(),{'avatar_data':uri} as Record<string, Object|null>],undefined,operationId());
-    if(t!==this.serial)return;if(result.avatar_data!==uri)throw Error('头像同步结果尚未确认。');this.avatar=uri;
-  }catch(e){if(t===this.serial)this.error=(e as Error).message;}finally{this.busy=false;}}
+    if(t!==this.serial||!this.reads.active())return;if(result.avatar_data!==uri)throw Error('头像同步结果尚未确认。');this.avatar=uri;
+  }catch(e){if(t===this.serial&&this.reads.active())this.error=(e as Error).message;}finally{if(t===this.serial)this.busy=false;}}
   private async save():Promise<void>{
-    if(this.busy||!this.ready)return;
+    if(this.busy||!this.ready||!this.reads.active())return;
     if(!this.nameValue.trim()){this.error='请填写姓名。';return;}
     if(this.age&&(!Number.isInteger(Number(this.age))||Number(this.age)<1||Number(this.age)>120)){this.error='年龄应为1至120岁的整数。';return;}
     const t=this.serial;this.error='';this.busy=true;
     try{
       await rpc<Object>('health','save_profile',[actorId(),{'display_name':this.nameValue.trim(),'ai_preferred_name':this.nickname.trim(),'gender':this.gender,'age':this.age?Number(this.age):null,'birth_date':this.birthday||null,'phone':this.phone.trim(),'height_cm':this.heightValue?Number(this.heightValue):null,'weight_kg':this.weight?Number(this.weight):null,'personal_introduction':this.intro.trim(),'emergency_contact_name':this.emergency.trim(),'emergency_contact_phone':this.emergencyPhone.trim()} as Record<string, Object|null>],undefined,operationId());
-      if(t===this.serial)this.onNavigate('mine');
-    }catch(e){if(t===this.serial)this.error=(e as Error).message;}finally{this.busy=false;}
+      if(t===this.serial&&this.reads.active())this.onNavigate('mine');
+    }catch(e){if(t===this.serial&&this.reads.active())this.error=(e as Error).message;}finally{if(t===this.serial)this.busy=false;}
   }
   build(){Column({space:12}){
     TMBanner({title:'完善个人信息',art:$r('app.media.tm_habit_journal_try1')})
     Row({space:14}){
       Image(this.avatar||$r('app.media.records_logo')).objectFit(ImageFit.Cover).width(72).height(72).borderRadius(17)
-      Column({space:5}){TMLabel({label:'个人头像'});TMNote({label:'点击头像更换照片'})}.layoutWeight(1)
-    }.padding(15).width('100%').backgroundColor(WHITE).borderRadius(20).onClick(()=>this.changeAvatar())
+      Column({space:5}){TMLabel({label:'个人头像'});if(this.avatarReady){TMNote({label:'点击头像更换照片'})}}.layoutWeight(1)
+    }.padding(15).width('100%').backgroundColor(WHITE).borderRadius(20).enabled(this.avatarReady&&!this.busy).onClick(()=>this.changeAvatar())
+    if(this.avatarError){TMNote({label:'头像读取失败。'+this.avatarError});TMButton({label:'重试头像',action:()=>this.loadAvatar()})}
+    if(this.ready){
     TMLabel({label:'基础信息'});TMNote({label:'* 为必填项'})
     TMField({label:'姓名 *',value:this.nameValue,change:(v:string)=>this.nameValue=v})
     TMField({label:'AI 称呼',value:this.nickname,change:(v:string)=>this.nickname=v})
@@ -75,7 +86,9 @@ export struct MineProfile {
     TMLabel({label:'生活与偏好'});TMField({label:'个人情况与生活习惯简介',value:this.intro,multiline:true,change:(v:string)=>this.intro=v})
     TMLabel({label:'安全联络'});TMField({label:'紧急联系人姓名',value:this.emergency,change:(v:string)=>this.emergency=v});TMField({label:'紧急联系人电话',value:this.emergencyPhone,change:(v:string)=>this.emergencyPhone=v})
     TMButton({label:'保存资料',primary:true,blocked:this.busy||!this.ready,action:()=>this.save()})
+    }else if(this.profileError){TMNote({label:'个人资料读取失败。'+this.profileError});TMButton({label:'重试个人资料',action:()=>this.loadProfile()})}
+    else{TMNote({label:'正在读取个人资料…'})}
     TMButton({label:'取消修改',action:()=>this.onNavigate('mine')})
-    if(this.error){TMNote({label:this.error});if(!this.ready){TMButton({label:'重新读取',action:()=>this.load()})}}
+    if(this.error){TMNote({label:this.error})}
   }.width('100%').alignItems(HorizontalAlign.Start)}
 }
