@@ -206,6 +206,12 @@ def existing_photo_draft(conversation_id, expected_digest):
     printed('草稿核对、确认保存、重开同一条饮食记录及全屏照片')
 
 if __name__=='__main__':
+    manifest = Path(__file__).resolve().parents[1] / 'AppScope' / 'app.json5'
+    bundle = json.loads(manifest.read_text(encoding='utf-8-sig'))['app']['bundleName']
+    launch = shell('aa', 'start', '-a', 'EntryAbility', '-b', bundle)
+    if 'start ability successfully' not in launch.lower():
+        raise SystemExit(f'Could not start {bundle}: {launch}')
+    locate('tab-ai', 'id')
     login=http('/v1/auth/login', {'username':env['USERNAME'],'password':env['PASSWORD']})
     token=login['access_token']
     owner=login['user']['id']
