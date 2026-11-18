@@ -1,0 +1,20 @@
+# 凡思鸿蒙手机版
+
+版本为 1.6.14-try1.2（11865），最低系统为 HarmonyOS 6.1.1（API 24）。今日、记录、助手、社区和我的均从原生 ArkUI 页面进入。[安卓客户端](../client/)和鸿蒙客户端共用同一个阿里云服务。同一会员登录后，可查看已同步的记录和原图。本机离线草稿只保存在创建它的设备上。
+
+## 构建和安装
+
+1. 使用 DevEco Studio 26.0.0 Release 打开本目录，并安装项目指定的 SDK。运行 `ohpm install` 或使用 IDE 的项目同步功能。测试用的两个 HAR 包在 `libs/test/` 中，版本由锁文件固定。
+2. 在兼容的手机模拟器上运行 `entry`。使用真机调试时，在 DevEco 的 Signing Configs 为自己的已登记设备配置开发签名。
+3. 使用 DevEco 附带的 Hvigor 在本目录运行 `hvigorw assembleApp -p product=default -p buildMode=release`。默认生成未签名的 APP 和 HAP。APP 位于 `build/outputs/default/`，HAP 位于 `entry/build/default/outputs/default/`。
+4. 面向普通客户分发时，通过 DevEco 的发布流程完成华为发布签名，然后选择适合的邀请测试或应用市场渠道。[华为发布说明](https://developer.huawei.com/consumer/cn/doc/harmonyos-guides/ide-publish-app/)
+
+## 验证
+
+原生页面在 `entry/src/main/ets/pages/`，设备和云服务接口在 `entry/src/main/ets/services/`。使用 Node.js 24 运行离线缓存、提醒、系统日历和更新检测测试。
+
+```sh
+node --test tests/records-cache.mjs tests/reminders.mjs tests/reminder-calendar.mjs tests/app-update.mjs
+```
+
+七类记录、账号隔离与设备操作的复测方法见[记录测试说明](tests/records.md)。此前的[11865 验收结果](验收/11865.md)列出了模拟器、安卓真机各自覆盖的操作。

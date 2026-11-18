@@ -1,0 +1,24 @@
+{
+  "string": [
+    {
+      "name": "module_desc",
+      "value": "凡思健康生活"
+    },
+    {
+      "name": "EntryAbility_desc",
+      "value": "凡思日常"
+    },
+    {
+      "name": "EntryAbility_label",
+      "value": "凡思"
+    },
+    {
+      "name": "calendar_reminder_reason",
+      "value": "用于同步凡思专属日历中的生活提醒，并在约定时间通知您。"
+    },
+    {
+      "name": "microphone_reason",
+      "value": "用于用户按住说话时识别生活记录和助手消息。"
+    }
+  ]
+}

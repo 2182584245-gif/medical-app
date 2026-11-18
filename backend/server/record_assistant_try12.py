@@ -152,6 +152,9 @@ record_date（当地 YYYY-MM-DD）或 record_time（HH:MM）。可以结合上�
 「一杯」没有已知容量时不能自己换算，可以把「喝了一杯水」原意保留在其他说明；
 「吃了半碗」也可以保留为说明。不要自行推算热量、药量或指标读数。
 日期时间、餐次、吃了什么、热量（千卡）、其他说明是饮食表单。其他类别按表单字段提取，
+餐照可用于识别食物。仅凭外观、当前时钟或上传时间无法判断餐次，用户未交代时留空。
+「按刚才的草稿」「照刚才说的」引用的是前文，保留原来的发生时间。「热量不填」只指热量。
+请求追加原图、保留原图属于附件操作，不是健康备注。用来定位旧记录的原备注也不是新备注。
 不要自行记录糖量、重量、能量消耗、睡眠评分或通风时长。
 previous_incomplete_drafts 可包含可确认的草稿。回复时只提取这次主动补充的字段，即使对应字段已有值；
 例如「用清水煮的」可以是说明，「实际喝了四百毫升」可与上一轮的饮水量核对。不要直接覆盖或重抄已知字段。
@@ -211,7 +214,7 @@ _LABELED_CLOCK_REPLY = re.compile(
 )
 _CLOCK_RANGE = re.compile(rf'[0-9{_CLOCK_DIGITS}](?:点|时)?\s*(?:到|至|或(?:者)?|[-~～—])\s*[0-9{_CLOCK_DIGITS}]+(?:点|时)')
 _TIME_CORRECTION = re.compile(r'不是[^，,。！？!?]{1,24}(?:而是|[，,]\s*(?:应该是|是|改[成为到]))|(?:日期|时间|时刻)\s*(?:改[成为到]|调(?:整)?[为到]|应该是|更正为)')
-_NOW = re.compile(r'(?:刚刚|刚才|方才|现在)(?=\s*(?:我\s*)?(?:的|量|测|喝|吃|散|运|跑|做|睡|醒|看|用|[。！!，, ]*$))')
+_NOW = re.compile(r'(?:刚刚|刚才|方才|现在)(?=\s*(?:我\s*)?(?:量|测|喝|吃|散|运|跑|做|睡|醒|看|用|的(?:饮水|进餐|跑步|运动|测量|用药)|的?[。！!，, ]*$))')
 _EXPLICIT_VOLUME = re.compile(rf'(?:\d+(?:\.\d+)?|[半几百千{_CLOCK_DIGITS}]+)\s*(?:毫升|公升|升|ml\b|mL\b|ML\b)')
 _VESSEL_VOLUME = re.compile(rf'(?:[0-9]+|[半几多{_CLOCK_DIGITS}]+)\s*(?:个)?[杯瓶碗壶]')
 _HALF_LITRE = re.compile(r'(?:喝(?:了)?|饮用(?:了)?|饮水(?:量)?\s*(?:是|为)?)\s*半(?:公)?升(?:水|温水|矿泉水|白开水)?(?=[。！？!，,；;\s]|$)')
@@ -328,6 +331,9 @@ def project_record_photo_drafts(drafts, *, photo_enabled, dialogue_enabled=False
         item.pop('_record_locator', None)
         item.pop('_record_origin_message_id', None)
         item.pop('_draft_conflicts', None)
+        declined = item.pop('_declined_optional', ())
+        if declined:
+            item['missing_optional'] = [field for field in item.get('missing_optional', []) if field['field'] not in declined]
         # A downgraded client cannot confirm an attachment-bearing draft as text-only.
         if ('photo_file_ids' in item and not (photo_enabled and (extended_photos or (
                 item.get('category') == 'diet' and item.get('operation') == 'create' and len(item['photo_file_ids']) <= 2)))):
@@ -472,6 +478,9 @@ def extraction_context(latest, prior, *, dialogue_enabled=False, recent=None):
             row.update(details=draft['details'], occurred_at=draft['occurred_at'], content=draft['content'])
         if dialogue_enabled:
             row.update({key: draft[key] for key in ('record_date','record_time','record_time_hint','missing_optional') if key in draft})
+            if draft.get('_declined_optional'):
+                row['declined_optional'] = draft['_declined_optional']
+                row['missing_optional'] = [field for field in row['missing_optional'] if field['field'] not in row['declined_optional']]
             if draft.get('_draft_conflicts'):
                 row['unresolved_conflicts'] = draft['_draft_conflicts']
         snapshot.append(row)
@@ -669,6 +678,7 @@ def _form_fields(category, fields):
 
 
 _FACT_ALIASES = {'meal_type': 'meal', 'activity_type': 'activity'}
+_MEAL_CODES = {label: code for code, label in MEAL_LABELS.items()}
 _TEMPORAL_FACTS = {'record_date', 'record_time'}
 _FOOD_SEP = re.compile(r'[、，,、+]|以及|还有|和|与')
 
@@ -715,6 +725,64 @@ def _different_fact(field, a, b):
         if b in _HOURS_BY_PERIOD and ':' in a:
             return int(a.split(':', 1)[0]) not in _HOURS_BY_PERIOD[b]
     return _normalized_fact(field, a) != _normalized_fact(field, b)
+
+
+def _merge_record_details(base, patch, *, supplement=False):
+    """Apply a single logical field across both representations used by clients."""
+    result = dict(base)
+    selected = dict(patch)
+    for alias, field in _FACT_ALIASES.items():
+        if field not in patch and alias not in patch:
+            continue
+        if supplement and (base.get(field) or base.get(alias)):
+            selected.pop(field, None)
+            selected.pop(alias, None)
+            continue
+        if (field in base or field in patch) and (alias in base or alias in patch):
+            value = patch.get(field) or patch[alias]
+            if field == 'meal':
+                label = MEAL_LABELS.get(value, value).replace('饭', '餐')
+                selected.update(meal=label, meal_type=_MEAL_CODES.get(label, label))
+            else:
+                selected.update(activity=value, activity_type=value)
+    if supplement:
+        selected = {key: value for key, value in selected.items() if base.get(key) in (None, '')}
+    result.update(selected)
+    return result
+
+
+def _reconcile_alias_input(row, text, previous):
+    details = dict(row['details'])
+    conflicts = []
+    for alias, field in _FACT_ALIASES.items():
+        if field == 'meal' and row['category'] == 'diet' and (previous or row['operation'] == 'update'):
+            # An explicit answer can correct an extraction that repeats the old meal.
+            wording = text.replace('饭', '餐')
+            meals = set(re.findall(r'[早午晚]餐|加餐', wording))
+            directives = re.findall(r'(?:以([早午晚]餐|加餐)为准|餐次(?:改[成为]|更正为)([早午晚]餐|加餐))', wording)
+            choices = {first or second for first, second in directives}
+            meal = None
+            if len(choices) == 1 and not re.search(r'[?？]|不要|别改|不以', wording):
+                meal = choices.pop()
+            elif len(meals) == 1 and not re.search(r'[?？]|不(?:是|确定|记得)|还是|可能|也许|好像', wording):
+                meal = next(iter(meals))
+                if not re.search(r'(?:[，,。；;！!\s]|^)(?:餐次(?:确定)?是|是|以|按)?' + meal +
+                                 r'(?:为准)?(?:[。！!，,；;\s]|$)', wording):
+                    meal = None
+            if meal:
+                details[field] = meal
+                details.pop(alias, None)
+        if field not in details or alias not in details or not _different_fact(field, details[field], details[alias]):
+            continue
+        choices = {'field': field, 'before': details[alias], 'after': details[field]}
+        side = _resolve_fact_conflict(choices, text, {})
+        details.pop(alias)
+        if side:
+            details[field] = choices[side]
+        else:
+            details.pop(field)
+            conflicts.append(choices)
+    return {**row, 'details': details}, conflicts
 
 
 def _han_number(value):
@@ -867,6 +935,10 @@ def _reconcile_draft_facts(row, previous, spoken_time, value, *, locator_only=Fa
     known = {field: val for field, val in active.items()
              if field not in baseline or _different_fact(field, val, baseline[field])}
     row = {**row, 'details': dict(row['details'])}
+    if row['operation'] == 'create' and previous.get('occurred_at') and not spoken_time:
+        # A reply about a different field must not replace an established timestamp
+        # with the extraction model's context clock. Explicit corrections reconcile below.
+        row.update(occurred_at=previous['occurred_at'], record_date=None, record_time=None, record_time_hint=None)
     if row['operation'] == 'create' and row.get('occurred_at') and spoken_time:
         for field, val in _temporal_facts(row).items():
             _set_temporal_fact(row, field, val)
@@ -972,7 +1044,22 @@ def _explicit_time_parts(content, *, reference=None, prior_period=None):
         return {'record_date': reference.date().isoformat(), 'record_time': reference.strftime('%H:%M')}
     if period:
         parts['record_time_hint'] = period
-    if len(clocks) != 1 or len(periods) > 1 or _CLOCK_RANGE.search(value):
+    if len(periods) > 1 or _CLOCK_RANGE.search(value):
+        return parts
+    if len(clocks) > 1:
+        # A user may repeat the same clock in a second, 24-hour expression.
+        # Parse each clause independently so an evening qualifier cannot turn a
+        # separate, contradictory 08:00 into 20:00.
+        clauses = [clause for clause in re.split(r'[，,。；;！？!?\n]|也就是', value)
+                   if _EXPLICIT_CLOCK.search(clause) or _SPOKEN_CLOCK.search(clause)]
+        if len(clauses) == len(clocks):
+            readings = {_explicit_time_parts(clause, reference=reference, prior_period=prior_period).get('record_time')
+                        for clause in clauses}
+            if len(readings) == 1 and None not in readings:
+                parts.pop('record_time_hint', None)
+                parts['record_time'] = readings.pop()
+        return parts
+    if not clocks:
         return parts
     clock, spoken = clocks[0]
     prefix = value[:clock.start()].strip(' ，,。！!')
@@ -1186,13 +1273,17 @@ def _refused(latest, missing):
     value = user_text(latest)
     if not missing or not _REFUSAL.search(value):
         return False
-    specific = {'occurred_at': ('几点', '时间', '日期'), 'record_date': ('日期', '哪天'),
+    specific = {'notes': ('备注', '其他说明'), 'calories_kcal': ('热量', '卡路里', '千卡'),
+                'occurred_at': ('几点', '时间', '日期'), 'record_date': ('日期', '哪天'),
                 'record_time': ('几点', '时间', '钟点'), 'amount_ml': ('喝了多少', '喝水量', '毫升', '多少水'),
                 'food': ('食物', '菜名', '吃了什么'), 'target': ('哪条', '这条', '原记录'),
                 'unit': ('单位',), 'value': ('数值', '读数'), 'duration_hours': ('时长', '多久'),
                 'activity': ('运动方式', '运动项目'), 'name': ('名称',), 'diastolic': ('舒张压', '低压')}
     alone = re.fullmatch(r'(?:那就|我|先|暂时)?(?:' + _REFUSAL.pattern + r')[啦了吧。！!，, ]*', value)
-    return bool(alone or any(word in value for key in missing for word in specific.get(key, (LABELS[key],))))
+    refused_clauses = [clause for clause in re.split(r'[，,。；;！？!?\n]|但是|不过|而且', value)
+                       if _REFUSAL.search(clause)]
+    return bool(alone or any(word in clause for clause in refused_clauses for key in missing
+                             for word in specific.get(key, (LABELS.get(key, key),))))
 
 
 def compose(row, *, previous=None, target_row=None, target_message='', latest='', permanently_blocked=False,
@@ -1207,16 +1298,16 @@ def compose(row, *, previous=None, target_row=None, target_message='', latest=''
                        if value != baseline.get('details', {}).get(key)}
         if previous['occurred_at'] != baseline.get('occurred_at'):
             prior_time = previous['occurred_at']
-    patch = {**prior_patch, **row['details']}
+    patch = _merge_record_details(prior_patch, row['details'])
     old, old_time, old_content = _snapshot(category, target_row)
+    if target_row and re.search(r'原(?:来(?:的)?)?备注(?:保持)?不(?:动|变|改)|(?:保留|沿用)原(?:来(?:的)?)?备注', user_text(latest)):
+        patch.pop('notes', None)
     if category == 'activity' and not patch.get('activity') and patch.get('activity_type'):
         patch['activity'] = patch['activity_type']
-    if operation == 'supplement':
-        patch = {key: val for key, val in patch.items() if old.get(key) in (None, '')}
     if category == 'metric' and target_row:
         # Observation kind is fixed by its underlying API. It is an identity, not a patchable value.
         patch.pop('kind', None)
-    details = {**old, **patch}
+    details = _merge_record_details(old, patch, supplement=(operation == 'supplement'))
     if category == 'metric' and details.get('kind') in FIXED_UNIT:
         details.setdefault('unit', FIXED_UNIT[details['kind']])
     elif category == 'metric' and details.get('kind') == 'custom':
@@ -1286,6 +1377,13 @@ def compose(row, *, previous=None, target_row=None, target_message='', latest=''
         draft.update(partial_time)
         draft['missing_required'] = _form_fields(category, missing)
         draft['missing_optional'] = _form_fields(category, _visible_optional(category, details))
+        declined = set((previous or {}).get('_declined_optional', ()))
+        remaining = {item['field'] for item in draft['missing_optional']}
+        for field in remaining:
+            if _refused(latest, [field]):
+                declined.add(field)
+        if declined.intersection(remaining):
+            draft['_declined_optional'] = sorted(declined.intersection(remaining))
         if previous:
             draft['supersedes_draft_id'] = previous['id']
     if linked and meal_edit is None:
@@ -1307,23 +1405,29 @@ def compose(row, *, previous=None, target_row=None, target_message='', latest=''
     elif dialogue_enabled:
         guidance = ('谢谢补充。请核对更新后的草稿，信息无误后点确认保存。' if previous
                     else '请核对这份草稿，信息无误后点确认保存。')
-        if draft['missing_optional'] and not optional_followup:
-            names = '、'.join(field['label'] for field in draft['missing_optional'])
+        offer = [field for field in draft['missing_optional'] if field['field'] not in draft.get('_declined_optional', ())]
+        if offer and not optional_followup:
+            names = '、'.join(field['label'] for field in offer)
             guidance += f'如果愿意，也可以直接告诉我{names}，这些都可以留空。'
     else:
         guidance = f'已整理{CATEGORIES[category]}记录，请核对卡片后确认。'
     return draft, guidance
 
 
-def prepare_linked_meal(tools, principal, row, target):
+def prepare_linked_meal(tools, principal, row, target, previous=None):
     """Use the existing meal projection so the card matches the atomic CAS write."""
     meal = target['_assistant_meal']
     old, _, _ = _snapshot('diet', target)
-    picked = {k: v for k, v in row['details'].items()
-              if (old.get(k) in (None, '') if row['operation'] == 'supplement' else v != old.get(k))}
+    prior_target = (previous or {}).get('target') or {}
+    prior_meal = prior_target.get('linked_meal') or {}
+    same_target = (prior_target.get('id') == target['id'] and prior_meal.get('id') == meal['id']
+                   and prior_meal.get('version') == meal['version'])
+    updates = dict(prior_meal.get('changes', {})) if same_target else {}
+    comparison = previous['details'] if same_target else old
+    picked = {k: v for k, v in row['details'].items() if (old.get(k) in (None, '') if row['operation'] == 'supplement'
+              else _different_fact(_FACT_ALIASES.get(k, k), v, comparison.get(k)))}
     if set(picked) - {'meal', 'meal_type', 'food', 'amount_g', 'notes'}:
         return None, '这条餐食的总热量等数据由食物明细计算。请通过原餐食编辑入口调整食物明细。'
-    updates = {}
     meal_type = picked.get('meal_type') or picked.get('meal')
     if meal_type:
         by_label = {label: code for code, label in MEAL_LABELS.items()}
@@ -1338,7 +1442,7 @@ def prepare_linked_meal(tools, principal, row, target):
     if {'food', 'amount_g'} & picked.keys():
         if len(meal['items']) != 1:
             return None, '这条餐食有多项食物。请在原餐食编辑入口选择要修改的食物。'
-        original = meal['items'][0]
+        original = updates.get('items', meal['items'])[0]
         name = picked.get('food', original['name'])
         # A renamed food must not inherit another food's nutrient catalogue ID.
         updates['items'] = [{'food_id': original.get('food_id') if name == original['name'] else None,
@@ -1353,6 +1457,29 @@ def prepare_linked_meal(tools, principal, row, target):
         details['notes'] = data['notes']
     return {'target': {'id': meal['id'], 'version': meal['version'], 'changes': updates},
             'occurred_at': occurred, 'content': content, 'details': details}, ''
+
+
+_ADD_TO_EXISTING = re.compile(r'补充|补上|补全|追加|补进去')
+_REPLACE_EXISTING = re.compile(r'修改|更正|纠正|覆盖|替换|改成|改为|改到|改一下|换成')
+_PHOTO_NOTE = re.compile(r'(?:追加|附上|放入|存入|保留|保存|上传|一起存|加入)[^，。；;、]{0,14}(?:照片|餐照|原图|图片|附件)|(?:原图|照片|餐照)[^，。；;、]{0,8}(?:保留|保存|追加|存入|保存在)')
+_ASSIGN_NOTE = re.compile(r'(?:在备注里|备注|其他说明)(?:里|栏)?\s*(?:写|填|改为|改成|设为|补上|记下|[：:])')
+
+
+def _respect_photo_request(row, text):
+    # Storing the file and editing a record are separate actions, even when the
+    # extraction model repeats the attachment instructions in the notes field.
+    operation = row['operation']
+    if operation == 'update' and _ADD_TO_EXISTING.search(text) and not _REPLACE_EXISTING.search(text):
+        operation = 'supplement'
+    details = dict(row['details'])
+    notes = details.get('notes')
+    if isinstance(notes, str) and _PHOTO_NOTE.search(notes) and not _ASSIGN_NOTE.search(text):
+        clauses = [part for part in re.split('[，,；;。]', notes) if part.strip() and not _PHOTO_NOTE.search(part)]
+        if clauses:
+            details['notes'] = '；'.join(clauses)
+        else:
+            details.pop('notes', None)
+    return {**row, 'operation': operation, 'details': details}
 
 
 def _plan_record_photos(tools, principal, row, target, previous, latest, current, *,
@@ -1476,6 +1603,8 @@ def make_drafts(changes_list, *, tools, principal, personal, prior, latest, diet
                          'occurred_at': None, 'content': '', 'selector': {}}]
     replaced = set()
     for row in changes_list:
+        if extended_photos and len(changes_list) == 1 and explicit_photo_retention(latest):
+            row = _respect_photo_request(row, value)
         operation, category = row['operation'], row['category']
         conflicts = []
         handled_facts = set()
@@ -1522,10 +1651,12 @@ def make_drafts(changes_list, *, tools, principal, personal, prior, latest, diet
         previous = candidates[0] if len(candidates) == 1 else None
         if dialogue_enabled and previous and previous['id'] in replaced:
             continue
+        row, alias_conflicts = _reconcile_alias_input(row, value, previous)
         if dialogue_enabled and previous:
             row, conflicts, handled_facts = _reconcile_draft_facts(row, previous, spoken_time, value,
                 locator_only=operation != 'create' and not (waiting_for_new_time or row.get('occurred_at')),
                 named_field=named_measure[0] if named_measure else None)
+        conflicts.extend(item for item in alias_conflicts if item['field'] not in handled_facts)
         if optional_followup:
             if not previous:
                 continue
@@ -1555,7 +1686,7 @@ def make_drafts(changes_list, *, tools, principal, personal, prior, latest, diet
                         guidance.append('这条旧记录的描述较长，请在记录页编辑以保留完整原文。')
                         continue
                     if target and target.get('_assistant_meal'):
-                        meal_edit, target_message = prepare_linked_meal(tools, principal, row, target)
+                        meal_edit, target_message = prepare_linked_meal(tools, principal, row, target, previous)
                 except ToolError as error:
                     if error.code not in {'personal_context_changed', 'record_assistant_target_changed'}:
                         raise

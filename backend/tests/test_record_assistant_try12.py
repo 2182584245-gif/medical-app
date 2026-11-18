@@ -727,6 +727,13 @@ def test_local_time_fallback_recovers_only_clear_user_values(message, expected):
     ('今晚七到八点', None, {'record_date': '2026-01-05', 'record_time_hint': 'evening'}),
     ('不是今天，是昨天', None, {'record_date': '2026-01-04'}),
     ('我刚才喝了半升水', None, {'record_date': '2026-01-05', 'record_time': '02:43'}),
+    ('刚才的饮水量了三百毫升', None, {'record_date': '2026-01-05', 'record_time': '02:43'}),
+    ('以晚餐为准。热量先不填，其他都按刚才的草稿。', None, {}),
+    ('照刚才的说法，餐次是晚餐', None, {}),
+    ('发生时间确定是今晚八点，晚餐，今天20:00。以这个时间为准。热量不填。', None,
+     {'record_date': '2026-01-05', 'record_time': '20:00'}),
+    ('今晚八点，也就是20:00', None, {'record_date': '2026-01-05', 'record_time': '20:00'}),
+    ('今晚八点，今天08:00', None, {'record_date': '2026-01-05', 'record_time_hint': 'evening'}),
     ('现在帮我记录喝了一点水', None, {}),
     ('下午锻炼了两个小时', None, {'record_time_hint': 'afternoon'}),
 ])
@@ -844,6 +851,125 @@ def test_future_time_is_not_accepted_as_unanchored_or_tomorrow(beijing_afternoon
 
 def fields_for_draft(draft):
     return {item['field'] for item in draft['missing_required']}
+
+
+def test_resolving_meal_conflict_keeps_time_and_original_photo(beijing_afternoon):
+    tools = Tools()
+    tools.add_photo_file(32)
+    options = {'capability': record.DIALOGUE_TIME_HINTS_CAPABILITY}
+    initial, _, _ = run_turn(tools, meal_photo('请记录今天午饭吃面，把这张照片原图也存到饮食记录。'),
+                             [change('diet', {'meal': '午餐', 'food': '面'}, stamp=None)], model=VISION, **options)
+    conflict, _, _ = run_turn(tools, '今晚八点吃的，是晚餐。',
+                              [change('diet', {'meal': '晚餐'}, stamp=None)], **options)
+    assert [item['field'] for item in conflict[0]['_draft_conflicts']] == ['meal']
+    resolved, _, _ = run_turn(tools, '以晚餐为准。热量先不填，其他都按刚才的草稿。',
+                              [change('diet', {'meal': '晚餐'}, stamp=beijing_afternoon+'T14:00:00+08:00')], **options)
+    assert resolved[0]['occurred_at'] == beijing_afternoon+'T20:00:00+08:00'
+    assert resolved[0]['details']['meal'] == '晚餐'
+    assert resolved[0]['photo_file_ids'] == initial[0]['photo_file_ids'] == [32]
+    assert not resolved[0]['blocked'] and not resolved[0]['missing_required']
+
+
+def test_refusal_applies_to_the_named_field_only():
+    assert not record._refused('发生时间确定是今晚八点，晚餐，今天20:00。以这个时间为准。热量不填。', ['record_time'])
+    assert record._refused('热量不填。发生时间也不记得。', ['record_time'])
+    assert record._refused('我不想说。', ['record_time'])
+
+
+@pytest.mark.parametrize('model_fields', [
+    {'meal': '晚餐'}, {'meal_type': 'dinner', 'meal': '午餐'},
+    {'meal': '午餐', 'meal_type': 'lunch'}, {},
+])
+def test_real_meal_aliases_follow_owner_choice_through_photo_draft(beijing_afternoon, model_fields):
+    tools = Tools()
+    tools.add_photo_file(32)
+    options = {'capability': record.DIALOGUE_PHOTOS_CAPABILITY}
+    initial, _, _ = run_turn(tools, meal_photo('请记录今天午饭吃番茄意面，保存原图。'),
+        [change('diet', {'food': '番茄意面', 'meal': '午餐', 'meal_type': 'lunch', 'notes': '云验收'}, stamp=None)],
+        model=VISION, **options)
+    conflict, ask, _ = run_turn(tools, '今晚八点吃的，是晚餐。',
+                                [change('diet', model_fields, stamp=None)], **options)
+    assert fields_for_draft(conflict[0]) == {'meal'} and '以哪个为准' in ask
+    ready, _, _ = run_turn(tools, '以晚餐为准。热量先不填，请保留原照片，其他都按刚才的草稿。',
+                           [change('diet', model_fields, stamp=None)], **options)
+    draft, = ready
+    assert draft['details'] == {'meal': '晚餐', 'meal_type': 'dinner', 'food': '番茄意面', 'notes': '云验收'}
+    assert draft['content'] == '晚餐 · 番茄意面'
+    assert draft['photo_file_ids'] == initial[0]['photo_file_ids'] == [32]
+    assert draft['occurred_at'] == beijing_afternoon+'T20:00:00+08:00'
+    assert not draft['missing_required'] and not draft['blocked']
+
+
+@pytest.mark.parametrize('category, original, patch, words, expected', [
+    ('diet', {'meal_type': 'lunch', 'food': '面'}, {'meal': '晚餐'}, '晚餐',
+     {'meal_type': 'dinner', 'meal': '晚餐'}),
+    ('activity', {'activity': '散步', 'activity_type': '散步'}, {'activity_type': '跑步'}, '跑步',
+     {'activity': '跑步', 'activity_type': '跑步'}),
+])
+def test_semantic_aliases_in_old_record_update_and_supplement(category, original, patch, words, expected):
+    for operation in ('update', 'supplement'):
+        tools = Tools()
+        tools.add_old(52, category, original)
+        changes = {**patch, 'notes': '体感良好'}
+        name = '修改' if operation == 'update' else '补充'
+        output, _, _ = run_turn(tools, f'请{name}2026年1月3日的{record.CATEGORIES[category]}记录，{words}，备注体感良好。',
+            [change(category, changes, operation=operation, stamp=None, selector={'date': DATE})],
+            personal=True, capability=record.DIALOGUE_PHOTOS_CAPABILITY)
+        result = output[0]['details']
+        assert result['notes'] == '体感良好'
+        if operation == 'update':
+            assert {key: result.get(key) for key in expected} == expected
+        else:
+            assert result == {**original, 'notes': '体感良好'}
+        assert output[0]['target']['before']['details'] == original
+
+
+def test_disagreeing_model_aliases_require_user_choice():
+    tools = Tools()
+    options = {'capability': record.DIALOGUE_PHOTOS_CAPABILITY}
+    drafts, ask, _ = run_turn(tools, '请记录昨天晚上八点吃了面，我不确定是午餐还是晚餐。',
+        [change('diet', {'meal_type': 'lunch', 'meal': '晚餐', 'food': '面'}, stamp=None)], **options)
+    assert fields_for_draft(drafts[0]) == {'meal'} and '以哪个为准' in ask
+    final, _, _ = run_turn(tools, '以晚餐为准。', [], **options)
+    assert record._normalized_fact('meal', final[0]['details'].get('meal_type') or final[0]['details']['meal']) == '晚餐'
+    assert not final[0]['missing_required']
+
+
+def test_linked_meal_save_payload_and_card_keep_confirmed_meal_through_later_edit():
+    tools = Tools()
+    tools.add_old(100, 'diet', {'amount_g': 100}, content='苹果')
+    old = {'items': [{'food_id': None, 'name': '苹果', 'amount_g': 100,
+                      'nutrients': {key: None for key in NUTRIENTS}}], 'notes': '', 'photo_file_id': None}
+    tools.db.conn.execute('INSERT INTO expansion_meals VALUES(?,?,?,?,?,?)',
+                          (200, 7, 100, STAMP, 'lunch', json.dumps(old, ensure_ascii=False)))
+    options = {'capability': record.DIALOGUE_PHOTOS_CAPABILITY, 'personal': True}
+    first, _, _ = run_turn(tools, '请把2026年1月3日的午餐记录的餐次改为晚餐。',
+        [change('diet', {'meal_type': 'lunch', 'meal': '晚餐'}, operation='update', stamp=None,
+                selector={'date': DATE})], **options)
+    assert first[0]['target']['linked_meal']['changes'] == {'meal_type': 'dinner'}
+    final, _, _ = run_turn(tools, '给这条原记录补充备注，饭后散步。', [
+        change('diet', {'notes': '饭后散步'}, operation='update', stamp=None)], **options)
+    draft, = final
+    assert draft['target']['linked_meal']['changes'] == {'meal_type': 'dinner', 'notes': '饭后散步'}
+    assert draft['details']['meal_type'] == 'dinner' and draft['details']['meal'] == '晚餐'
+    assert draft['target']['before']['details']['meal_type'] == 'lunch'
+
+
+def test_repeated_clock_resolves_existing_conflict_with_optional_refusal_and_photo(beijing_afternoon):
+    tools = Tools()
+    tools.add_photo_file(32)
+    options = {'capability': record.DIALOGUE_PHOTOS_CAPABILITY}
+    original, _, _ = run_turn(tools, meal_photo('请记录今天中午十二点吃的意面，原图也存入饮食记录。'),
+                              [change('diet', {'food': '意面'}, stamp=None)], model=VISION, **options)
+    conflict, _, _ = run_turn(tools, '发生时间是今晚八点。', [change('diet', {}, stamp=None)], **options)
+    assert conflict[0]['_draft_conflicts'][0]['field'] == 'record_time'
+    confirmed, guidance, _ = run_turn(tools, '发生时间确定是今晚八点，晚餐，今天20:00。以这个时间为准。热量不填。',
+                                      [change('diet', {'meal': '晚餐'}, stamp=None)], **options)
+    draft, = confirmed
+    assert draft['supersedes_draft_id'] == conflict[0]['id']
+    assert draft['occurred_at'] == beijing_afternoon + 'T20:00:00+08:00'
+    assert draft['photo_file_ids'] == original[0]['photo_file_ids'] == [32]
+    assert not draft['missing_required'] and not draft['blocked'] and '确认' in guidance
 
 
 def test_explicit_time_estimation_permission_with_known_past_daypart(beijing_afternoon):
@@ -1286,3 +1412,37 @@ def test_exact_clock_path_does_not_use_unrelated_chat_as_a_record_reply():
     assert not record.explicit_clock_draft_reply(unrelated, {'drafts': original})
     none, _, calls = run_turn(tools, unrelated, [], capability=cap, expect_record=False)
     assert none == [] and len(calls) == 1
+
+def test_explicit_supplement_with_label_preserves_old_notes_even_if_model_asks_to_update():
+    tools = Tools()
+    tools.add_photo_file(32)
+    tools.add_photo_file(33, payload=different_photo())
+    tools.add_old(100, 'diet', {'food': '番茄意面', 'notes': 'QA餐照', 'photo_file_ids': [32]})
+    latest = [{'type': 'text', 'text': '帮我补充那条饮食记录。把标签原图追加到同一条旧记录，保留原来的餐照，补上热量。'},
+              {'type': 'image_url', 'image_url': {'url': different_photo()}}]
+    extracted = change('diet', {'calories_kcal': 420, 'notes': 'QA餐照；追加营养标签原图，保留已有餐照'},
+                       operation='update', stamp=None, selector={'date': DATE})
+    drafts, _, _ = run_turn(tools, latest, [extracted], model=VISION, personal=True,
+                             capability=record.DIALOGUE_PHOTOS_CAPABILITY)
+    draft, = drafts
+    assert draft['operation'] == 'supplement'
+    assert draft['details']['notes'] == 'QA餐照' and draft['details']['calories_kcal'] == 420
+    assert draft['photo_file_ids'] == [32, 33]
+
+
+def test_health_note_explicitly_written_by_user_can_mention_a_photo():
+    data = change('diet', {'notes': '请保留原图作为下次复诊参考'}, operation='update')
+    assert record._respect_photo_request(data, '请修改旧记录，备注写成请保留原图作为下次复诊参考') == data
+
+
+def test_declined_optional_stays_visible_as_empty_field_without_repeat_invitation():
+    options = dict(dialogue_enabled=True, allow_same_day_future=True)
+    row = change('diet', {'food':'米饭','meal':'晚餐','notes':'QA'}, stamp=STAMP)
+    draft, answer = record.compose(row, latest='热量先不填。', **options)
+    assert '热量' not in answer
+    projected, = record.project_record_photo_drafts([draft], photo_enabled=True, dialogue_enabled=True)
+    assert not projected['missing_optional'] and '_declined_optional' not in projected
+    carry, answer = record.compose(change('diet', {}, stamp=None), previous=draft, latest='其他按之前的草稿。', **options)
+    assert '热量' not in answer and carry['_declined_optional'] == ['calories_kcal']
+    restored, _ = record.compose(change('diet', {'calories_kcal':420}, stamp=None), previous=carry, latest='现在知道了，热量420千卡。', **options)
+    assert restored['details']['calories_kcal'] == 420 and '_declined_optional' not in restored

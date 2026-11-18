@@ -1,0 +1,10 @@
+{
+  "modelVersion": "26.0.0",
+  "description": "Please describe the basic information.",
+  "dependencies": {},
+  "devDependencies": {
+    "@ohos/hypium": "file:libs/test/hypium-1.0.25.har",
+    "@ohos/hamock": "file:libs/test/hamock-1.0.0.har"
+  },
+  "dynamicDependencies": {}
+}

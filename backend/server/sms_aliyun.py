@@ -28,6 +28,9 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 ENDPOINT = 'dysmsapi.aliyuncs.com'
 PNVS_ENDPOINT = 'dypnsapi.aliyuncs.com'
 METADATA = 'http://100.100.100.200'
+COMPANY_SIGN = '青岛慢糖创新科技咨询'
+COMPANY_TEMPLATE = 'SMS_339017727'
+COMPANY_TEMPLATE_TEXT = '您的验证码为：${code}，请勿泄露于他人！'
 
 
 class SmsUnavailable(RuntimeError):
@@ -68,9 +71,14 @@ class SmsSettings(BaseSettings):
         # The approval flag is supplied only after the coordinator verifies the
         # actual console/API approval and exact template text. No other brand
         # or hosted default signature is ever an automatic fallback.
-        return (provider == 'dysms' and self.enabled and self.template_approved and self.sign_name == '凡思'
+        approved_pair = (
+            self.sign_name == '凡思' and '凡思' in self.template_text
+            or (self.sign_name, self.template_code, self.template_text)
+            == (COMPANY_SIGN, COMPANY_TEMPLATE, COMPANY_TEMPLATE_TEXT)
+        )
+        return (provider == 'dysms' and self.enabled and self.template_approved and approved_pair
                 and bool(re.fullmatch(r'SMS_[A-Za-z0-9]{3,64}', self.template_code))
-                and '凡思' in self.template_text and '${code}' in self.template_text
+                and '${code}' in self.template_text
                 and set(re.findall(r'\$\{([^}]+)\}', self.template_text)) == {'code'})
 
 
@@ -272,7 +280,7 @@ class AliyunSmsSender:
             raise SmsUnavailable('短信请求参数无效。')
         if purpose not in {'register', 'login', 'bind', 'change'}:
             raise SmsUnavailable('短信请求用途无效。')
-        parameters = {'PhoneNumbers': phone[3:], 'SignName': '凡思',
+        parameters = {'PhoneNumbers': phone[3:], 'SignName': self.settings.sign_name,
                       'TemplateCode': self.settings.template_code,
                       'TemplateParam': json.dumps({'code': code}, separators=(',', ':')),
                       'OutId': challenge_id}
