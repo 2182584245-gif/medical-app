@@ -33,9 +33,9 @@
       <img class="wallpaper" src="assets/mobile-design/images/auth-watercolor1612.webp" alt="" aria-hidden="true"><main>
       <img class="brand" src="assets/harmony/records-logo.png" alt="凡思"><div class="badge">●  会员端${registration ? '注册' : '登录'}</div>
       <h1>${registration ? '创建会员账号' : '欢迎回来'}</h1><form data-entry-mode="${mode}" novalidate>${fields}
-      <div class="options"><span class="option-group"><label class="check-label"><input type="checkbox" id="auth-terms">我已阅读并同意</label>
+      <div class="options"><span class="option-group"><label class="check-label"><input type="checkbox" id="auth-terms" checked>我已阅读并同意</label>
       <button type="button" data-entry-native="privacy.document">《隐私政策》</button></span>
-      <label class="check-label"><input type="checkbox" data-auth-auto-login id="auth-auto-login">自动登录</label></div>
+      <label class="check-label"><input type="checkbox" data-auth-auto-login id="auth-auto-login" checked>自动登录</label></div>
       <button class="submit" type="submit" data-parent-action="auth-enter" data-purpose="primary-submit-button">${submit}  →</button>
       <div class="route-links">${alternatives}</div></form>
       <footer><button type="button" data-entry-route="#ai">继续体验</button><button type="button" data-entry-native="privacy.settings">管理本机隐私选择</button></footer>

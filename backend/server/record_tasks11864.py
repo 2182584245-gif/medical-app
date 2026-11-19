@@ -191,7 +191,7 @@ class RecordTasks:
         if postgres:
             mobile, linked, replaced = (f'CAST({item} AS uuid)' for item in (mobile, linked, replaced))
         return (
-            f" AND {self._json('status')} <> 'closed' AND NOT EXISTS ("
+            f" AND {self._json('status')} NOT IN ('closed','cancelled') AND NOT EXISTS ("
             "SELECT 1 FROM rpc_requests saved WHERE saved.user_id=? "
             f"AND saved.request_id={mobile} AND {status}='applied') AND NOT EXISTS ("
             "SELECT 1 FROM rpc_requests saved WHERE saved.user_id=? "
@@ -280,6 +280,50 @@ class RecordTasks:
             return next((draft for draft in run.get('record_drafts', [])
                          if draft['id'] == row['draft_id'] and not draft.get('blocked')), None)
         return None
+
+    def cancel_draft(self, principal, message_id, draft_id):
+        """Close only this owned card revision and fence a later stale confirmation."""
+        from .record_assistant_try12 import _has_saved_draft, draft_replacement_marker
+
+        actor = self.tools._member(principal)
+        if type(message_id) is not int or not 0 < message_id < 2**63 or not canonical_id(draft_id):
+            raise ToolError('invalid_record_draft', 422)
+        receipt = {'id': draft_id, 'status': 'cancelled'}
+        # Uses the same database write transaction lock as confirmations and revisions.
+        with self.tools.auth.identity(principal), self.db.transaction() as conn:
+            msg = conn.execute("SELECT m.conversation_id FROM messages m JOIN conversations c ON c.id=m.conversation_id "
+                               "WHERE m.id=? AND m.role='assistant' AND c.user_id=?", (message_id, actor)).fetchone()
+            if not msg:
+                raise ToolError('record_task_unavailable', 404)
+            run = self.tools._read(conn, actor, message_id)
+            draft = next((d for d in (run or {}).get('record_drafts', []) if d.get('id') == draft_id), None)
+            if not draft:
+                raise ToolError('record_task_unavailable', 404)
+            if run.get('status') != 'complete':
+                raise ToolError('record_draft_changed', 409)
+            if receipt in run.get('record_receipts', []):
+                return receipt
+            marker = draft_replacement_marker(actor, draft_id)
+            if (draft.get('superseded') or _has_saved_draft(conn, actor, draft_id)
+                    or conn.execute('SELECT 1 FROM rpc_requests WHERE user_id=? AND request_id=?',
+                                    (actor, marker)).fetchone()):
+                raise ToolError('record_draft_changed', 409)
+            # This per-revision fence is already honored by both local-sync and
+            # linked-meal confirmations. Existing client versions cannot reopen it.
+            timestamp = timestamp_to_db(datetime.fromtimestamp(self.tools.clock(), timezone.utc))
+            digest = hashlib.sha256(f'cancel-record-draft:{actor}:{message_id}:{draft_id}'.encode()).hexdigest()
+            conn.execute('INSERT INTO rpc_requests(user_id,request_id,request_digest,response_json,created_at) '
+                         'VALUES(?,?,?,?,?)', (actor, marker, digest, canonical({'cancelled_record_draft':draft_id}), timestamp))
+            draft['blocked'] = True
+            run.setdefault('record_receipts', []).append(receipt)
+            self.tools._save(conn, actor, run)
+            conversation = msg['conversation_id']
+            where, args = self._query(actor, conversation, opened=False)
+            row = conn.execute('SELECT payload' + where + f" AND {self._json('draft_id')}=?",
+                               (*args, draft_id)).fetchone()
+            if row:
+                self._scope(conn, actor, conversation, 'tasks', {**json.loads(row['payload']), 'status':'cancelled'})
+        return receipt
 
     def focus(self, principal, conversation, task_id):
         from .record_assistant_try12 import project_record_photo_drafts

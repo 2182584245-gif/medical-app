@@ -486,6 +486,7 @@ class MobileMemberAPI(_MemberAPI):
             'chat.tools.cancel': self.mobile_tool_cancel,
             'chat.record_tasks.capability': self.mobile_record_task_capability,
             'chat.record_tasks.list': self.mobile_record_tasks,
+            'chat.records.cancel': self.mobile_cancel_record_draft,
             'chat.record_tasks.focus': self.mobile_focus_record_task,
             'voice.records.propose': self.propose_records,
             'voice.smart-record': self.propose_records,
@@ -589,6 +590,12 @@ class MobileMemberAPI(_MemberAPI):
                 or task.get('draft_id') != drafts[0]['id']):
             raise BridgeRequestError('这份待完成记录暂时无法核对。', 'protocol')
         return {'task': task, 'draft': drafts[0]}
+
+    def mobile_cancel_record_draft(self, body):
+        self._only(body, {'assistant_message_id', 'draft_id'})
+        message = self._take_id(body, 'assistant_message_id')
+        draft = self._record_task_id(body.get('draft_id'))
+        return self._client.request('POST', f'/v1/ai/messages/{message}/record-drafts/{draft}/cancel')
 
     @staticmethod
     def _record_task_id(value):
@@ -1225,7 +1232,7 @@ class MobileMemberBridge(MemberBridge):
             except Exception as error:return self._api._failure(error)
 
     def request(self, action, payload=None):
-        if action in ACCOUNT_ACTIONS11841 or action in ONBOARDING_ACTIONS11830 or action=='chat.greeting.ensure' or action in MEMORY_ROUTES or action in READING_ACTIONS or action in RECORD_TASK_ACTIONS11864 or action.startswith('forum.detail.') or action in {'chat.files.list', 'chat.tools.proposals','chat.tools.confirm','chat.tools.cancel', 'voice.records.propose', 'voice.records.confirm', 'forum.image.get', 'chat.message.attachments', 'chat.image.get', 'mobile.image.analyze', 'mobile.weather.current', 'forum.member.profile', 'forum.discovery.search'}:
+        if action in ACCOUNT_ACTIONS11841 or action in ONBOARDING_ACTIONS11830 or action=='chat.greeting.ensure' or action in MEMORY_ROUTES or action in READING_ACTIONS or action in RECORD_TASK_ACTIONS11864 or action=='chat.records.cancel' or action.startswith('forum.detail.') or action in {'chat.files.list', 'chat.tools.proposals','chat.tools.confirm','chat.tools.cancel', 'voice.records.propose', 'voice.records.confirm', 'forum.image.get', 'chat.message.attachments', 'chat.image.get', 'mobile.image.analyze', 'mobile.weather.current', 'forum.member.profile', 'forum.discovery.search'}:
             with self._lock:
                 try:
                     body = self._scoped_payload(payload, self._generation)

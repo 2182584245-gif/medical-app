@@ -266,6 +266,8 @@ class AI139Tools:
             if proposal['status']=='pending' and proposal['expires_at']<=self.clock():proposal['status']='expired'
             proposals.append(proposal)
         public={'assistant_message_id':run['assistant_message_id'],'sources':run['sources'],'proposals':proposals}
+        if run.get('record_receipts'):
+            public['record_receipts'] = run['record_receipts']
         if 'record_drafts' in run:
             from .record_assistant_try12 import project_record_photo_drafts
             public['record_drafts']=project_record_photo_drafts(run['record_drafts'], photo_enabled=photo_enabled,

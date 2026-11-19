@@ -982,7 +982,11 @@
     }
     button.removeAttribute('data-guest-update');button.setAttribute('data-shared-ai-update','true');
     button.setAttribute('data-font-size-fixed','true');
-    if(button.parentElement!==actions||button!==actions.firstElementChild)actions.insertBefore(button,actions.firstChild);
+    const taskEntry=actions.querySelector('[data-record-task-bar]');
+    if(taskEntry){
+      if(taskEntry.nextElementSibling!==button)taskEntry.after(button);
+    }else if(button!==actions.firstElementChild)actions.prepend(button);
+    globalThis.FAWNSEE_DRAFT_TASKS?.attachHeader(doc,button);
   }
   function install(doc){
     if(!doc||installed.has(doc)||!doc.documentElement||!doc.body||doc.documentElement.hasAttribute('data-harmony-auth'))return;

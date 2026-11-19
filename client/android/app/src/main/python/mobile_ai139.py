@@ -172,6 +172,13 @@ def metadata_view(value, *, expected_message=None, expanded_photos=True):
         if clean:proposals.append(clean)
     result={'sources':_sources(value.get('sources')),'proposals':proposals[:8],
             'record_drafts':_record_drafts(value.get('record_drafts'),expanded_photos=expanded_photos)}
+    receipts = value.get('record_receipts')
+    if isinstance(receipts, list):
+        ids = {row.get('id') for row in receipts if isinstance(row, dict)
+               and isinstance(row.get('id'), str) and row.get('status') == 'cancelled'}
+        verified = [{'id':draft['id'], 'status':'cancelled'} for draft in result['record_drafts'] if draft['id'] in ids]
+        if verified:
+            result['record_receipts'] = verified
     if value.get('record_drafts_ready') is True:
         result['record_drafts_ready']=True
     return result

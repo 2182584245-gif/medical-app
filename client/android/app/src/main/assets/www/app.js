@@ -981,7 +981,11 @@
     }
     button.removeAttribute('data-guest-update');button.setAttribute('data-shared-ai-update','true');
     button.setAttribute('data-font-size-fixed','true');
-    if(button.parentElement!==actions||button!==actions.firstElementChild)actions.insertBefore(button,actions.firstChild);
+    const taskEntry=actions.querySelector('[data-record-task-bar]');
+    if(taskEntry){
+      if(taskEntry.nextElementSibling!==button)taskEntry.after(button);
+    }else if(button!==actions.firstElementChild)actions.prepend(button);
+    globalThis.FAWNSEE_DRAFT_TASKS?.attachHeader(doc,button);
   }
   function install(doc){
     if(!doc||installed.has(doc)||!doc.documentElement||!doc.body)return;
@@ -1597,10 +1601,13 @@
   patchChildren(node,next);
  }
  function patchChildren(parent,next){
-  const old=[...parent.childNodes],used=new Set();let cursor=parent.firstChild;
+  // The record task switcher owns these live nodes; they do not occur in the renderer's static template.
+  const taskWidget=node=>node.nodeType===1&&(node.hasAttribute('data-record-task-bar')||node.hasAttribute('data-record-task-dialog'));
+  const old=[...parent.childNodes].filter(node=>!taskWidget(node)),used=new Set();let cursor=parent.firstChild;
   const compatible=(a,b)=>a.nodeType===b.nodeType&&(a.nodeType!==1||a.localName===b.localName&&a.namespaceURI===b.namespaceURI);
   for(const target of [...next.childNodes]){
    if(target.nodeType===1&&target.localName==='script')continue;
+   while(cursor&&taskWidget(cursor))cursor=cursor.nextSibling;
    const key=nodeKey(target);
    let node=old.find(item=>!used.has(item)&&compatible(item,target)&&(key?nodeKey(item)===key:!nodeKey(item)));
    // Renderers attach submit handlers after inserting forms. A fresh form keeps
@@ -2031,7 +2038,20 @@
   active.promise=(async()=>{const manifest=await revisionFor(active.generation);if(active.generation!==sessionGeneration||!user)return false;const revision=manifest?.revision;if(revision===undefined||revision===null)throw Error('同步版本无法读取，请稍后再试。');if(revision===appliedRevision||dirty())return false;return hydrate({revision})})();
   try{return await active.promise}catch(e){return false}finally{if(syncRun===active)syncRun=null}
  }
- function installSync(){if(syncTimer!==null)return;syncTimer=root.setInterval(()=>{poll()},30000);events.add(event=>{if(event.event==='localSync149')poll()});document.addEventListener('visibilitychange',()=>{if(!document.hidden)poll()});}
+ function installSync(){
+  if(syncTimer!==null)return;
+  const syncViews=()=>{
+   poll();
+   // Android may acknowledge a queued record before the cloud accepts it.
+   // Re-read the pending count on native sync and on the existing foreground poll.
+   if(!document.hidden && document.querySelector('#main-frame')?.contentDocument?.querySelector('[data-record-task-bar]:not([hidden])')){
+    root.FAWNSEE_DRAFT_TASKS?.refresh();
+   }
+  };
+  syncTimer=root.setInterval(syncViews,30000);
+  events.add(event=>{if(event.event==='localSync149')syncViews()});
+  document.addEventListener('visibilitychange',()=>{if(!document.hidden)syncViews()});
+ }
  function fault(e){if(e?.code==='login_required'){requireLogin();return;}ctx.toast(e.message||'操作未完成，请保留输入后重试。')}
  function installController(){const c=ctx.controller;
   const run=async(key,work,after,domains=()=>[],identity='')=>{

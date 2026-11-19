@@ -29,7 +29,10 @@ function key(use: OptionalUse, owner: number): string {
 }
 
 export function optionalAllowed(use: OptionalUse, owner: number): boolean {
-  return accepted && store !== undefined && store.getSync(key(use, owner), false) === true
+  if (!accepted || !store) return false
+  // AI and records are built-in features. Legacy per-purpose choices no longer gate them.
+  if (use === 'ai' || use === 'health') return true
+  return store.getSync(key(use, owner), false) === true
 }
 
 export async function setOptional(use: OptionalUse, owner: number, enabled: boolean): Promise<void> {

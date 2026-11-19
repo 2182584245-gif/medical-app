@@ -10,7 +10,7 @@ import { requestHybridConsent } from './HybridConsent'
 import { optionalAllowed, OptionalUse } from './PrivacyChoices'
 import { syncDeviceReminders, clearDeviceReminders } from './DeviceReminders'
 import { todayWeather } from '../pages/TodayWeather'
-import { ChatOperation, Data, sendChat, loadMessages, decisionStore, decideRecord, guardedRecordCards, array, stringValue } from '../pages/AssistantService'
+import { ChatOperation, Data, sendChat, loadMessages, decisionStore, decideRecord, guardedRecordCards, reconcileCancelledRecordTasks, array, stringValue } from '../pages/AssistantService'
 import { refersToConfirmed, receiptCandidate, confirmedLocator } from './HybridRecordContext.js'
 import { AssistantFile, prepareAssistantFile } from '../pages/AssistantDocument'
 import { VoiceRecord, proposeVoiceRows } from '../pages/RecordsVoice'
@@ -97,6 +97,9 @@ class NativeApi {
     if(method!=='GET')return work()
     const owner=actorId(),result=await limitedRead(work)
     if(owner!==actorId())throw Error('账号状态已改变。')
+    if(path.split('?')[0]==='/v1/ai/record-tasks'&&owner){
+      return reconcileCancelledRecordTasks(result as Data,path,this.context)
+    }
     if(path.split('?')[0]==='/v1/ai/tools/proposals' && owner){
       const packet=result as Data
       if(packet['assistant_message_id'] && Array.isArray(packet['record_drafts'])){
@@ -209,10 +212,10 @@ class NativeApi {
             if(item[field]!==undefined)row[field]=item[field]
           }
           row['record_drafts']=guardedRecordCards(array(item,'record_drafts'),Number(item['assistant_message_id']),this.context)
-          const receipts:Data[]=[]
+          const receipts:Data[]=array(item,'record_receipts').filter((r:Data)=>r['status']==='cancelled'&&array(item,'record_drafts').some((d:Data)=>d['id']===r['id']))
           for(const draft of array(item,'record_drafts')){
             const id=String(draft['id']),status=store.getSync(id,'') as string
-            if(status)receipts.push(this.receipt(id,status,String(draft['category']||'')))
+            if(status&&!receipts.some((r:Data)=>r['id']===id))receipts.push(this.receipt(id,status,String(draft['category']||'')))
           }
           row['record_receipts']=receipts
         }

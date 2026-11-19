@@ -15,8 +15,6 @@ export function useDetail(use: OptionalUse): string {
 }
 @Component
 export struct PrivacyNotice {
-  @Prop kind: string = 'welcome'
-  @Prop use: OptionalUse = 'ai'
   @Prop busy: boolean = false
   @Prop error: string = ''
   onRead: () => void = () => {}
@@ -27,24 +25,22 @@ export struct PrivacyNotice {
       Scroll() {
         Column({ space: 18 }) {
           Image($r('app.media.records_logo')).width(60).height(60)
-          Text(this.kind === 'welcome' ? '欢迎使用凡思' : useTitle(this.use))
+          Text('欢迎使用凡思')
             .fontSize(29).fontWeight(FontWeight.Bold).fontColor(ink)
-          Text(this.kind === 'welcome' ? '凡思由吴宇峰个人运营。开始使用前，您可以先在本机阅读我们如何处理登录信息、聊天、照片和健康记录。' : useDetail(this.use))
+          Text('凡思由吴宇峰个人运营。开始使用前，您可以先在本机阅读我们如何处理登录信息、聊天、照片和健康记录。')
             .fontSize(17).lineHeight(27).fontColor(ink)
-          if (this.kind === 'welcome') {
-            Text('同意后才会连接凡思服务。健康记录、智能助手及按城市显示天气可分别选择。')
-              .fontSize(16).lineHeight(25).fontColor('#53685A')
-          }
+          Text('同意后才会连接凡思服务。健康记录和智能助手可直接使用；通知、麦克风、日历等权限由系统单独询问。')
+            .fontSize(16).lineHeight(25).fontColor('#53685A')
           Text('阅读《凡思隐私政策》').id('privacy-read').fontColor(teal).fontSize(17)
             .fontWeight(FontWeight.Medium).padding({top:6,bottom:6}).onClick(this.onRead)
           if (this.error) { Text(this.error).fontColor('#944639').fontSize(14) }
         }.width('100%').alignItems(HorizontalAlign.Start).padding({left:24,right:24,top:30,bottom:20})
       }.layoutWeight(1).width('100%').align(Alignment.Top)
       Column({space:10}) {
-        Button(this.kind === 'welcome' ? '同意并继续' : '同意' + useTitle(this.use))
-          .id(this.kind === 'welcome' ? 'privacy-accept' : 'privacy-scope-accept')
+        Button('同意并继续')
+          .id('privacy-accept')
           .width('100%').height(48).backgroundColor(teal).enabled(!this.busy).onClick(this.onAgree)
-        Button(this.kind === 'welcome' ? '不同意，退出应用' : '暂不使用').id('privacy-decline')
+        Button('不同意，退出应用').id('privacy-decline')
           .width('100%').height(44).backgroundColor('#EBF0E9').fontColor(ink).enabled(!this.busy).onClick(this.onDecline)
       }.width('100%').padding({left:24,right:24,top:8,bottom:16})
     }.width('100%').height('100%').backgroundColor(page)

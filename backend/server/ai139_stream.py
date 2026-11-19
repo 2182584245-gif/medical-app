@@ -3,7 +3,8 @@ from __future__ import annotations
 import asyncio,hashlib,json,re,time
 from contextlib import nullcontext
 from .ai139_tools import ToolError,READ_DOMAINS,WRITE_TOOLS,LABELS,tool_schemas,canonical
-from .ai_persistence_truth import PersistenceTextGuard
+from .ai_persistence_truth import (PersistenceTextGuard, conversation_draft_state, declines_draft_nudges,
+                                   formal_record_capacity, immediate_status, last_record_status, share_category, status_query)
 from .ai139_network import DeepSeekSearch
 from .record_offer11862 import (
     OFFER_TEXT, DECLINED_TEXT, accepts_offer, already_offers_record, declines_offer, grounded_draft_reply,
@@ -18,6 +19,11 @@ RECORD_TOOLS = frozenset(('organize_record_drafts', 'prepare_record'))
 RECORD_INTENT_POLICY = (
     '记录工具只在用户明确要求记录、补记或修改，用户刚同意记录，或用户正在补答已有草稿时才可以使用。'
     '用户只是分享健康情况时先自然回应，可以邀请用户选择是否记录。不得声称已经生成或保存记录。'
+    '用户分享的事实可自然复述，例如“你下午三点喝了300毫升水”。聊天收到一条消息，'
+    '不代表正式记录已有这条内容；不要用“我记下了”“已经帮你改好了”等话作收到消息的客套语。'
+    '生成核对草稿只说明待确认；失败、取消或拒绝不说明操作成功。'
+    '用户提到过去的生活时，历史聊天只可称“在聊天里提过”，不要把重复提及算作几次经历或正式记录。'
+    '只有记录页对应的已保存条目才能称为正式记录。平常分享只需回应本次自述，无须主动计算以前的次数。'
 )
 
 
@@ -66,7 +72,7 @@ class AI139Runner:
         self.personal_retrieval_proof=original.get('_personal11842')
         self.personal_tool_proofs=[]
         from .record_assistant_try12 import (
-            CAPABILITY, DIALOGUE_CAPABILITIES, DIALOGUE_PHOTOS_CAPABILITY, DIALOGUE_TIME_CAPABILITIES, PHOTO_CAPABILITY,
+            CAPABILITY, DIALOGUE_CAPABILITIES, DIALOGUE_PHOTOS_CAPABILITY, DIALOGUE_TIME_CAPABILITIES, PHOTO_CAPABILITY, user_text,
         )
         self.record_dialogue = self.meta.get('assistant_team') in DIALOGUE_CAPABILITIES
         self.record_time_hints = self.meta.get('assistant_team') in DIALOGUE_TIME_CAPABILITIES
@@ -86,8 +92,9 @@ class AI139Runner:
         self.required_roles=[];self.completed_required_roles=set()
         self.operation_finished=False
         self.public_parts=[];self.public_sources=[];self.public_proposals=[];self.public_steps=[]
-        self.presentation = (PersistenceTextGuard(lambda:bool(self.public_proposals or self.record_drafts))
-            if self.meta.get('tool_mode')=='confirm' and not self.payload.get('response_format') else None)
+        member_chat = bool(self.meta.get('assistant_message_id') and self.meta.get('conversation_id'))
+        self.presentation = (PersistenceTextGuard(lambda:bool(self.public_proposals or self.record_drafts), user_text(self.latest_user))
+            if (member_chat or self.meta.get('tool_mode')=='confirm') and not self.payload.get('response_format') else None)
 
     def _wire_record_drafts(self, drafts):
         from .record_assistant_try12 import project_record_photo_drafts
@@ -159,8 +166,9 @@ class AI139Runner:
         has_message = bool(self.meta.get('assistant_message_id') and self.meta.get('conversation_id'))
         utterance = user_text(self.latest_user)
         whole_refusal = declines_whole_record(self.latest_user)
+        checking_status = status_query(utterance)
         self.saved_summary = saved_summary_period(self.latest_user)
-        if self.record_assistant and record in names and has_message and not guest and not whole_refusal and not self.saved_summary:
+        if self.record_assistant and record in names and has_message and not guest and not whole_refusal and not self.saved_summary and not checking_status:
             dialogue = {'dialogue_enabled': True} if self.record_dialogue else {}
             prior = await self._route_record_task(tools, utterance)
             if prior is None:
@@ -190,7 +198,7 @@ class AI139Runner:
                     accepts_offer(utterance) or declines_offer(utterance)):
                 self.record_offer = await asyncio.to_thread(lookup, self.principal, self.meta)
             accepted = self.record_offer and self.record_offer.get('accepted') is True
-            declined = whole_refusal or bool(self.saved_summary) or declines_offer(utterance)
+            declined = whole_refusal or checking_status or bool(self.saved_summary) or declines_offer(utterance)
             self.record_allowed = not declined and bool(
                 accepted or self.record_prior or explicit_request(self.latest_user) or photo_route
                 or getattr(self, 'record_task_new', False))
@@ -487,6 +495,15 @@ class AI139Runner:
             has_message=bool(self.meta.get('assistant_message_id') and self.meta.get('conversation_id'))
             if has_message and tools:
                 await asyncio.to_thread(tools.begin,self.principal,self.meta)
+                from .record_assistant_try12 import user_text
+                status_text = user_text(self.latest_user)
+                if (not self.payload.get('response_format') and not callable(getattr(tools,'guest_schemas',None))
+                        and immediate_status(status_text)):
+                    answer = await asyncio.to_thread(last_record_status, tools, self.principal, self.meta, status_text)
+                    self.public_parts.append(answer)
+                    yield {'delta': answer}
+                    yield await self._finalize(tools, has_message)
+                    return
             forbidden=[]
             if tools and self.meta.get('personal_context'):
                 # Never fetch unapproved profile fields merely for search. This context
@@ -522,7 +539,24 @@ class AI139Runner:
                 return
             if not self.record_allowed:
                 schemas = [row for row in schemas if row['function']['name'] not in RECORD_TOOLS]
+                if has_message and self.presentation and tools and not self.required_roles and not callable(getattr(tools,'guest_schemas',None)):
+                    topic = share_category(status_text)
+                    if topic:
+                        self.presentation.share_topic = topic
+                        self.presentation.formal_cap = await asyncio.to_thread(formal_record_capacity, tools, self.principal, self.meta, topic)
             self.messages.insert(1, {'role': 'system', 'content': RECORD_INTENT_POLICY})
+            if (has_message and self.presentation and tools and not self.record_allowed and not self.required_roles
+                    and not callable(getattr(tools,'guest_schemas',None))):
+                from .record_tasks11864 import CAPABILITY as TASK_CAPABILITY
+                self.presentation.no_record_nudge = declines_draft_nudges(status_text)
+                if self.meta.get('record_tasks') == TASK_CAPABILITY:
+                    state = await asyncio.to_thread(conversation_draft_state, tools, self.principal, self.meta)
+                    self.presentation.open_drafts = state['待处理总数']
+                    self.messages.insert(2, {'role':'system', 'content':
+                        '本轮开始时，本账号当前对话的记录草稿状态：' + canonical(state) +
+                        '。以此状态优先于旧聊天里的核对提示。待处理为0时，没有旧草稿需要确认。'
+                        '取消或已经保存的草稿都已结束。只在用户询问或正在处理相关草稿时说明；'
+                        '只分享、明确不用记录时自然回应新话题，不提旧草稿、不邀请稍后处理。新草稿以本轮工具返回为准。'})
             if self.record_offer and self.record_offer.get('accepted') and not self.team:
                 word = canonical({'user_statement': self.record_offer['text'],
                                   'sent_at': self.record_offer['created_at'],
@@ -648,6 +682,12 @@ class AI139Runner:
                     if forced or any(name not in self.completed_required_roles for name in self.required_roles):
                         raise ToolError('required_specialist_not_called',502)
                     if finish == 'stop' or suppressed_record_call:
+                        if (self.presentation and self.presentation.has_removed_nudge and
+                                not ''.join(self.public_parts).strip()):
+                            answer = ('谢谢你和我分享。' if self.presentation.no_record_nudge else
+                                      '当前对话没有需要核对的旧记录草稿。')
+                            self.public_parts.append(answer)
+                            yield {'delta': answer}
                         offer = await self._record_offer_sentence(tools)
                         if offer:
                             self.public_parts.append(offer)

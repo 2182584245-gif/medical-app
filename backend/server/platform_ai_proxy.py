@@ -1174,6 +1174,17 @@ def create_ai_router(proxy):
         except AIProxyError as error: return failed(error)
         except Exception: return failed(AIProxyError(503, 'record_tasks_unavailable'))
 
+    @router.post("/v1/ai/messages/{assistant_message_id}/record-drafts/{draft_id}/cancel")
+    async def cancel_record_draft(assistant_message_id: int, draft_id: str, request: Request):
+        try:
+            principal = await tool_identity(request)
+            from .record_tasks11864 import RecordTasks
+            return await asyncio.to_thread(RecordTasks(proxy.tool_service).cancel_draft, principal,
+                                           assistant_message_id, draft_id)
+        except ToolError as error: return failed(AIProxyError(error.status, error.code))
+        except AIProxyError as error: return failed(error)
+        except Exception: return failed(AIProxyError(503, 'record_tasks_unavailable'))
+
     @router.post("/v1/ai/tools/confirm")
     async def confirm(value: ToolAction,request: Request):
         try:

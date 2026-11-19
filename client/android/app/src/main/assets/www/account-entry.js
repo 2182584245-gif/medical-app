@@ -20,7 +20,7 @@
     secret.maxLength = 1024;
     account.autocomplete = 'username';
     secret.autocomplete = mode === 'register' ? 'new-password' : 'current-password';
-    form.querySelector('input[type=checkbox]').removeAttribute('checked');
+    for (const option of form.querySelectorAll('input[type=checkbox]')) option.defaultChecked = true;
     const primary = form.querySelector('[data-purpose=primary-submit-button]');
     primary.textContent = mode === 'register' ? '注册并登录' : mode === 'phone' ? '验证并继续' : '登录';
     if (mode === 'register') {

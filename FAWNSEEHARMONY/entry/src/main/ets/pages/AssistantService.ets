@@ -6,6 +6,7 @@ import { preferences } from '@kit.ArkData'
 import { common } from '@kit.AbilityKit'
 import { cloud, rpc, actorId, guestAction,assistantStream } from '../services/Cloud'
 import { guardConfirmedDraft } from '../services/HybridRecordContext.js'
+import { cancelRecordDraft, reconcileCancelledTasks } from '../services/HybridRecordCancellation.js'
 
 export type Data = Record<string, Object>
 export function stringValue(row: Data, key: string, fallback: string = ''): string {
@@ -110,6 +111,7 @@ export async function loadMessages(id: number, before: number=0): Promise<Data> 
         row['record_drafts']=array(match,'record_drafts')
         row['proposals']=array(match,'proposals')
         row['record_drafts_ready']=match['record_drafts_ready']===true
+        row['record_receipts']=array(match,'record_receipts')
       }
     })
   }
@@ -123,6 +125,33 @@ export async function messageImage(messageId: number): Promise<string> {
 }
 export function decisionStore(context: common.UIAbilityContext): preferences.Preferences {
   return preferences.getPreferencesSync(context,{name:'assistant_decisions_'+actorId()})
+}
+class RecordCancellationHost {
+  owner:number
+  private store:preferences.Preferences
+  constructor(context:common.UIAbilityContext){this.owner=actorId();this.store=decisionStore(context)}
+  currentOwner():number{return actorId()}
+  status(id:string):string{return this.store.getSync(id,'') as string}
+  pendingSave(id:string):boolean{return this.store.hasSync('wire_'+id)}
+  cancelSynced(id:string):boolean{return this.store.getSync('cancel_synced_'+id,false)===true}
+  localCancelledIds():string[]{
+    const values=this.store.getAllSync() as Record<string,preferences.ValueType>
+    return Object.keys(values).filter((id:string)=>values[id]==='cancelled')
+  }
+  async remoteCancel(message:number,id:string):Promise<Data>{
+    return cloud<Data>('/v1/ai/messages/'+message+'/record-drafts/'+encodeURIComponent(id)+'/cancel','POST',undefined,id)
+  }
+  async commitCancelled(id:string):Promise<void>{
+    this.store.putSync(id,'cancelled');this.store.putSync('cancel_synced_'+id,true)
+    const recent=this.store.getSync('recent',[]) as string[]
+    this.store.putSync('recent',recent.filter((value:string)=>value!==id).concat([id]).slice(-24))
+    await this.store.flush()
+  }
+  async getTasks(path:string):Promise<Data>{return cloud<Data>(path)}
+}
+export async function reconcileCancelledRecordTasks(packet:Data,path:string,context:common.UIAbilityContext):Promise<Data>{
+  const host=new RecordCancellationHost(context)
+  return await reconcileCancelledTasks(packet,host,path,():Promise<Data>=>cloud<Data>(path)) as Data
 }
 export function guardedRecordCards(rows:Data[], message:number, context:common.UIAbilityContext):Data[] {
   const saved=decisionStore(context).getSync('guard_'+message,'') as string
@@ -306,6 +335,7 @@ function storeTarget(store:preferences.Preferences,id:string,receipt:Data,wire:D
 }
 export async function decideRecord(messageId: number, draftId: string, save: boolean, context: common.UIAbilityContext): Promise<void> {
   const user = actorId(), store=decisionStore(context)
+  if(!save){await cancelRecordDraft(new RecordCancellationHost(context),messageId,draftId);return}
   if (store.hasSync(draftId)) return
   if (store.hasSync('wire_'+draftId)) {
     if(!save)throw new Error('有一笔保存尚待核对。请先重试确认。')
@@ -320,6 +350,7 @@ export async function decideRecord(messageId: number, draftId: string, save: boo
   const metadata = await cloud<Data>('/v1/ai/tools/proposals?assistant_message_id='+messageId+'&'+photosQuery)
   const draft=guardedRecordCards(array(metadata,'record_drafts'),messageId,context).find((r:Data)=>r['id']===draftId)
   if (metadata['assistant_message_id']!==messageId || metadata['record_drafts_ready']!==true || !draft || draft['superseded'] || !draft['operation']) throw new Error('草稿已变更，请刷新核对最新草稿。')
+  if(array(metadata,'record_receipts').some((r:Data)=>r['id']===draftId&&r['status']==='cancelled'))throw new Error('这份草稿已取消，请重新整理。')
   if (user!==actorId()) throw new Error('登录状态已变更。')
   if (save) {
     if (draft['blocked'] || array(draft,'missing_required').length || !draft['occurred_at']) throw new Error('必要信息尚未补齐，请继续在对话里补充。')

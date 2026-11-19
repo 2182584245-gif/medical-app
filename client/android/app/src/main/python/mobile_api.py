@@ -364,7 +364,7 @@ class MobileApplication:
         owner=_REQUEST_IDENTITY149.get()
         from mobile_sync149 import READ_ACTIONS
         if action in READ_ACTIONS or action in _ONLINE_READ_ACTIONS11823 or action in ONBOARDING_ACTIONS or action in RECORD_TASK_ACTIONS11864 or action in {
-                'chat.greeting.ensure','files.upload','expansion.meals.update'}:
+                'chat.greeting.ensure','files.upload','expansion.meals.update','chat.records.cancel'}:
             if owner is None:return _error('account_changed','账号已改变，请重新打开当前页面。')
             actor,epoch=owner
             guard=lambda:self._auth_epoch==epoch and (self.bridge._api._user or {}).get('id')==actor
@@ -815,6 +815,9 @@ class MobileApplication:
             if captured_local is None:return _error('local_not_ready','请在新版手机应用登录后核对记录。')
             from mobile_record_assistant import decide
             return decide(self.local,captured_local,self._online,member_action,body,operation)
+        if member_action=='chat.record_tasks.list' and captured_local is not None:
+            from mobile_record_assistant import list_pending_tasks
+            return list_pending_tasks(self.local,captured_local,self._online,body)
         digest = hashlib.sha256(_encode([actor, member_action, body]).encode()).hexdigest()
         intent_key = hashlib.sha256(_encode([actor, operation]).encode()).hexdigest()
         with self._intent_lock:known=dict(self._intents[intent_key]) if intent_key in self._intents else None

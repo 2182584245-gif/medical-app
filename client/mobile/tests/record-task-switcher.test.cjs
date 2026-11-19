@@ -27,7 +27,7 @@ function mockNative({tasks, photo, stamp, supported}) {
   const taskDraft = row => ({id:row.draft_id,kind:'record_draft',operation:'create',
     category:row.category,occurred_at:stamp,content:row.preview,target:null,blocked:false,missing_required:[],missing_optional:[],
     details:{food:row.preview,meal_type:'lunch'},photo_file_ids:[74]});
-  window.recordTest = {calls,history};
+  window.recordTest = {calls,history,tasks,completed};
   const result = (msg,value) => queueMicrotask(() => FAWNSEE_NATIVE.receive({id:msg.id,ok:true,result:value}));
   const fail = (msg,code) => queueMicrotask(() => FAWNSEE_NATIVE.receive({id:msg.id,ok:false,error:{code,message:code}}));
   window.AndroidBridge = {postMessage(raw) {
@@ -62,6 +62,10 @@ function mockNative({tasks, photo, stamp, supported}) {
     if (action === 'chat.records.confirm') {
       const row=tasks.find(item => item.draft_id === p.draft_id && item.assistant_message_id === p.assistant_message_id);
       if (!row || completed.has(row.id)) return fail(msg,'not_found');
+      if (recordTest.holdCloudSync) {
+        recordTest.queuedTask = row.id;
+        return result(msg,{id:row.draft_id,status:'pending_sync',category:row.category,record_id:-88,version:null});
+      }
       completed.add(row.id);
       return result(msg,{id:row.draft_id,status:'saved',category:row.category,record_id:88,version:'1ae2b570f81cbe02'});
     }
@@ -111,7 +115,7 @@ test('139 份同一聊天的待完成草稿可分页搜索，精确选中旧草�
   const f = await open();
   try {
     const entry=f.frame.locator('[data-record-task-open]');
-    await entry.getByText('139',{exact:false}).waitFor({state:'visible'});
+    await f.frame.getByRole('button',{name:/139/}).waitFor({state:'visible'});
     await entry.click();
     const dialog=f.frame.getByRole('dialog',{name:'待完成记录',exact:true});
     await dialog.locator('[data-record-task-id]').first().waitFor();
@@ -141,6 +145,26 @@ test('139 份同一聊天的待完成草稿可分页搜索，精确选中旧草�
   } finally { await f.close(); }
 });
 
+test('刷新正在显示的智能助手页面时保留已打开的待核对列表及顶栏入口', async () => {
+  const f = await open();
+  try {
+    const entry = f.frame.locator('[data-record-task-open]');
+    await entry.click();
+    const dialog = f.frame.getByRole('dialog', {name:'待完成记录', exact:true});
+    await dialog.locator('[data-record-task-id]').first().waitFor();
+    await f.page.evaluate(() => {
+      const next = renderPrimary('ai').replace(/<body\b/i, '<body data-panel-refresh-test="yes"');
+      FAWNSEE_EXPERIENCE.primary('ai', next);
+    });
+    await f.frame.locator('body[data-panel-refresh-test=yes]').waitFor();
+    assert.equal(await dialog.isVisible(), true);
+    assert.equal(await dialog.locator('[data-record-task-id]').count(), 20);
+    await dialog.locator('.f-record-task-dismiss').click();
+    await entry.click();
+    await dialog.locator('[data-record-task-id]').first().waitFor();
+  } finally { await f.close(); }
+});
+
 test('待完成列表能直接确认未加载到聊天历史里的旧草稿，自动更新剩余数量', async () => {
   const f = await open();
   try {
@@ -156,7 +180,7 @@ test('待完成列表能直接确认未加载到聊天历史里的旧草稿，�
     assert.equal(writes[0].draft_id,uuid(1003));
     assert.equal(writes[0].assistant_message_id,2006);
     await details.getByRole('button',{name:'返回对话'}).click();
-    await f.frame.locator('[data-record-task-open]').getByText('138',{exact:false}).waitFor();
+    await f.frame.getByRole('button',{name:/138/}).waitFor();
     assert.deepEqual(f.errors,[]);
   } finally { await f.close(); }
 });
@@ -169,4 +193,148 @@ test('未启用待完成记录的后端仍保留既有聊天入口', async () =>
     assert.equal(await f.frame.locator('[data-primary-chat-input]').isVisible(),true);
     assert.equal(await f.page.evaluate(() => recordTest.calls.filter(row=>row.action==='chat.record_tasks.list').length),0);
   } finally { await f.close(); }
+});
+
+test('草稿入口随最后一条处理而隐藏，新增后回到更新图标左侧', async () => {
+  const f = await open();
+  try {
+    const entry = f.frame.locator('[data-record-task-open]');
+    await entry.waitFor();
+    assert.equal(await entry.evaluate(el => !!el.closest('header')),true);
+    const hint = entry.getByText('有待确定的记录，点击查看',{exact:true});
+    await hint.waitFor();
+    assert.equal(await entry.evaluate(el => el.parentNode.nextElementSibling?.getAttribute('data-parent-action')),'app-update');
+    assert.equal(await f.frame.locator('.ai-composer-panel [data-record-task-open]').count(),0);
+    await f.page.evaluate(() => {
+      for (const item of recordTest.tasks.slice(0,-1)) recordTest.completed.add(item.id);
+      return FAWNSEE_DRAFT_TASKS.refresh();
+    });
+    await f.frame.getByRole('button',{name:/1条/}).click();
+    const list = f.frame.getByRole('dialog',{name:'待完成记录',exact:true});
+    await list.locator('[data-record-task-id]').click();
+    const details = f.frame.getByRole('dialog');
+    await details.getByRole('button',{name:'确认记录',exact:true}).click();
+    await details.getByText('已记录',{exact:true}).waitFor();
+    await details.getByRole('button',{name:'返回对话'}).click();
+    await entry.waitFor({state:'hidden'});
+    await f.page.evaluate(() => {
+      recordTest.tasks.push({...recordTest.tasks.at(-1),id:'c48dbdae-7610-43d8-b086-000000000880'});
+      return FAWNSEE_DRAFT_TASKS.refresh();
+    });
+    await hint.waitFor();
+    assert.equal(await entry.evaluate(el => el.parentNode.nextElementSibling?.getAttribute('data-parent-action')),'app-update');
+    await hint.click();
+    await list.locator('[data-record-task-id="c48dbdae-7610-43d8-b086-000000000880"]').waitFor();
+  } finally { await f.close(); }
+});
+test('窄屏气泡与更新、历史和智能设置各自可点击', async () => {
+  const f = await open();
+  try {
+    const hint = f.frame.locator('[data-record-task-open] .f-record-task-hint');
+    await hint.waitFor();
+    for (const width of [320,375,390,430]) {
+      await f.page.setViewportSize({width,height:844});
+      await f.page.evaluate(() => new Promise(resolve => requestAnimationFrame(()=>requestAnimationFrame(resolve))));
+      const layout = await hint.evaluate(label => {
+        const doc = label.ownerDocument;
+        const update = doc.querySelector('[data-parent-action="app-update"]');
+        const hit = node => {
+          const r = node.getBoundingClientRect();
+          return {x:r.x,y:r.y,w:r.width,h:r.height,
+            hit:node.contains(doc.elementFromPoint(r.x+r.width/2,r.y+r.height/2))};
+        };
+        return {width:doc.documentElement.clientWidth,
+          hint:hit(label), icon:hit(label.parentElement), artTop:label.parentElement.querySelector('svg').getBoundingClientRect().top, update:hit(update),
+          history:hit(doc.querySelector('[data-parent-route="#ai/history"]')),
+          settings:hit(doc.querySelector('[data-parent-route="#ai/settings"]'))};
+      });
+      if (process.env.FAWNSEE_TASK_EVIDENCE) {
+        fs.mkdirSync(process.env.FAWNSEE_TASK_EVIDENCE,{recursive:true});
+        await f.page.screenshot({path:path.join(process.env.FAWNSEE_TASK_EVIDENCE,'web-ai-header-'+width+'.png')});
+        fs.writeFileSync(path.join(process.env.FAWNSEE_TASK_EVIDENCE,'web-ai-header-'+width+'.json'),JSON.stringify(layout,null,2));
+      }
+      for(const [key,box] of Object.entries(layout)){
+        if(key==='width'||key==='artTop')continue;
+        assert.ok(box.x>=0&&box.y>=0&&box.x+box.w<=layout.width+1&&box.hit,JSON.stringify({width,key,box,viewport:layout.width}));
+      }
+      assert.ok(layout.hint.w>100&&layout.hint.h<=30,JSON.stringify({width,hint:layout.hint}));
+      assert.ok(layout.hint.y+layout.hint.h<layout.artTop,JSON.stringify({width,hint:layout.hint,artTop:layout.artTop}));
+    }
+  } finally { await f.close(); }
+});
+
+test('迟到的旧对话计数不会显示到新会话，隐藏时发生的变化在返回后同步', async () => {
+  const page = await browser.newPage();
+  try {
+    await page.setContent('<header class="f-header-actions"><button data-parent-action="app-update">更新</button></header><div class="ai-composer-panel"></div>');
+    await page.addScriptTag({path:path.join(www,'record-task-switcher.js')});
+    await page.evaluate(async () => {
+      let owner='account-one', conversation=41, onAI=true;
+      const pending={41:0,42:0,43:0};
+      let delayNext=false, release=null;
+      function mount() {
+        const user=owner, id=conversation;
+        FAWNSEE_DRAFT_TASKS.mount(document,{
+          owner:user,conversation:id,isCurrent:()=>owner===user&&conversation===id&&onAI,
+          api:async(action,params)=>{
+            if(action==='chat.record_tasks.capability')return {record_tasks:true};
+            if(params.conversation_id!==id)throw Error('wrong conversation');
+            const total=pending[id];
+            if(delayNext){delayNext=false;await new Promise(resolve=>release=resolve);}
+            return {tasks:[],total};
+          }
+        });
+      }
+      window.scopeTest={
+        change:async(id,total)=>{pending[id]=total;await FAWNSEE_DRAFT_TASKS.refresh();},
+        switchTo:(u,c)=>{owner=u;conversation=c;mount();},
+        delay:()=>{delayNext=true;FAWNSEE_DRAFT_TASKS.refresh();},
+        finish:()=>release(),visible:flag=>{onAI=flag;if(flag)mount();}
+      };
+      mount();
+    });
+    const entry=page.locator('[data-record-task-open]');
+    await entry.waitFor({state:'attached'});
+    await page.evaluate(()=>scopeTest.change(41,1));
+    await entry.waitFor({state:'visible'});
+    await page.evaluate(()=>{scopeTest.delay();scopeTest.switchTo('account-one',42);});
+    await entry.waitFor({state:'hidden'});
+    await page.evaluate(()=>scopeTest.finish());
+    assert.equal(await entry.isVisible(),false);
+    await page.evaluate(()=>{scopeTest.visible(false);return scopeTest.change(42,2);});
+    await page.evaluate(()=>scopeTest.visible(true));
+    await page.getByRole('button',{name:/2条/}).waitFor();
+    await page.evaluate(()=>scopeTest.switchTo('account-two',43));
+    await entry.waitFor({state:'hidden'});
+    await page.evaluate(()=>scopeTest.switchTo(null,43));
+    assert.equal(await entry.count(),0);
+  } finally {await page.close();}
+});
+
+test('安卓先存本机，云端完成后在原页面刷新最后一份待办', async () => {
+  const f = await open();
+  try {
+    await f.frame.locator('[data-record-task-open]').waitFor();
+    await f.page.evaluate(() => {
+      recordTest.holdCloudSync = true;
+      recordTest.tasks.slice(0,-1).forEach(item=>recordTest.completed.add(item.id));
+      return FAWNSEE_DRAFT_TASKS.refresh();
+    });
+    const entry=f.frame.getByRole('button',{name:/1条/});
+    await entry.click();
+    const dialog=f.frame.getByRole('dialog');
+    await dialog.locator('[data-record-task-id]').click();
+    await dialog.getByRole('button',{name:'确认记录',exact:true}).click();
+    await dialog.getByText('已存本机',{exact:true}).waitFor();
+    await dialog.getByRole('button',{name:'返回对话'}).click();
+    assert.ok(await entry.isVisible());
+    const before=await f.page.evaluate(()=>recordTest.calls.filter(r=>r.action==='chat.record_tasks.list').length);
+    await f.page.evaluate(()=>{
+      recordTest.completed.add(recordTest.queuedTask);
+      FAWNSEE_NATIVE.receive({event:'localSync149',result:{pending:0}});
+    });
+    await entry.waitFor({state:'hidden',timeout:4500});
+    const after=await f.page.evaluate(()=>recordTest.calls.filter(r=>r.action==='chat.record_tasks.list').length);
+    assert.ok(after>before);
+  } finally {await f.close();}
 });

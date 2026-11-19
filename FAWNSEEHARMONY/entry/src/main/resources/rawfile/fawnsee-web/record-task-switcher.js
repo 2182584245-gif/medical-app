@@ -7,11 +7,13 @@
   const key = /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/;
   const validId = value => typeof value === 'string' && key.test(value);
   const css = `
-    .f-record-task-bar {display:flex;align-items:center;gap:8px;min-width:0;margin:0 0 5px;text-align:left;pointer-events:auto}
+    html[data-primary-page="ai"] .f-app-header:has([data-record-task-bar]:not([hidden])) {padding-block-start:max(29px,env(safe-area-inset-top,0px))!important}
+    .f-record-task-bar {display:flex;position:relative;flex:none;align-items:center;pointer-events:auto}
     .f-record-task-bar[hidden] {display:none!important}
-    .f-record-task-entry {flex:0 0 auto;display:inline-flex;gap:5px;align-items:center;min-height:44px;padding:4px 11px;background:#ebf4ed;border:1px solid #c6dccd;border-radius:12px;color:#285648;font:inherit;font-size:13px;font-weight:700}
-    .f-record-task-entry svg {width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round}
-    .f-record-task-active {min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#536d63;font-size:12px}
+    .f-record-task-entry {position:relative;display:grid;place-items:center;box-sizing:border-box;width:44px;height:44px;padding:0;overflow:visible;background:none;border:0;color:#1c453b;cursor:pointer;font:inherit}
+    .f-record-task-entry svg {width:24px;height:24px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+    [data-record-task-open] .f-record-task-hint {position:absolute;z-index:45;bottom:calc(100% - 2px);right:0;min-width:max-content;max-width:none!important;width:max-content;white-space:nowrap!important;padding:4px 8px;background:#FFF2D9;border:1px solid #EACF9A;border-radius:10px 10px 3px 10px;box-shadow:0 3px 8px #9D631116;color:#785319;font:600 10px/1.5 system-ui,sans-serif;letter-spacing:0}
+    .f-record-task-hint::after {content:"";position:absolute;right:18px;bottom:-4px;width:6px;height:6px;background:#FFF2D9;border-right:1px solid #EACF9A;border-bottom:1px solid #EACF9A;transform:rotate(45deg)}
     .f-record-task-dialog {box-sizing:border-box;margin:auto auto 0;width:min(100%,460px);max-width:100%;max-height:82dvh;padding:0;border:1px solid #cfdfd5;border-radius:24px 24px 0 0;background:#fdfbf7;color:#233f35;box-shadow:0 -5px 28px #1d392527;font:inherit}
     .f-record-task-dialog::backdrop {background:#172e2260}
     .f-record-task-sheet {display:flex;flex-direction:column;max-height:82dvh;gap:12px;padding:16px 15px max(16px,env(safe-area-inset-bottom));box-sizing:border-box}
@@ -50,7 +52,7 @@
   }
 
   function current(v) {
-    return v === view && scope === v.scope && v.config.isCurrent() && v.entry.isConnected;
+    return v === view && scope === v.scope && v.config.isCurrent();
   }
 
   function task(item) {
@@ -70,12 +72,21 @@
 
   function paintBar(v) {
     if (!current(v)) return;
-    v.bar.hidden = capability.value !== true;
+    const visible = capability.value === true && Number.isSafeInteger(v.total) && v.total > 0;
+    v.bar.hidden = !visible;
     v.entry.disabled = !!v.config.disabled;
-    v.entry.title = '查看待完成记录';
-    v.count.textContent = Number.isSafeInteger(v.total) ? ' ' + v.total : '';
-    v.active.textContent = v.scope.selected ? '正在补 ' + title(v.scope.selected.task) : '';
-    v.doc.__fawnseeComposerViewport?.update();
+    if (visible) {
+      const selected = v.scope.selected ? '，正在补' + title(v.scope.selected.task) : '';
+      v.entry.setAttribute('aria-label', '有待确定的记录，点击查看（' + v.total + '条' + selected + '）');
+    }
+  }
+
+  // The shared header and conversation finish mounting independently.
+  function attachHeader(doc, update) {
+    if (view?.doc === doc && update?.isConnected && update.previousElementSibling !== view.bar) {
+      update.before(view.bar);
+      paintBar(view);
+    }
   }
 
   async function ensureCapability(v) {
@@ -100,11 +111,20 @@
 
   async function refresh() {
     const v = view;
-    if (!v || !current(v) || capability.value !== true) return;
+    if (!v || capability.value !== true) return;
+    if (!current(v)) {
+      v.recount = true;
+      return;
+    }
+    v.recount = false;
     const request = ++v.countRequest;
     try {
       const packet = await v.config.api('chat.record_tasks.list', {conversation_id: v.scope.conversation, limit: 1});
-      if (!current(v) || request !== v.countRequest) return;
+      if (view !== v || request !== v.countRequest) return;
+      if (!current(v)) {
+        v.recount = true;
+        return;
+      }
       v.total = packet.total;
       paintBar(v);
     } catch (_) {
@@ -129,8 +149,7 @@
       drafts.clear();
     }
     const ownsBar = view?.bar.hasAttribute('data-record-task-bar') && view.entry.parentElement === view.bar;
-    if (view?.doc === doc && ownsBar && view.bar.parentElement !== composer) composer.prepend(view.bar);
-    if (view?.doc !== doc || !ownsBar || !view.bar.isConnected) {
+    if (view?.doc !== doc || !ownsBar) {
       dropView();
       if (!doc.querySelector('#f-record-task-style')) {
         const style = element(doc, 'style', '', css);
@@ -142,17 +161,19 @@
       bar.hidden = true;
       const entry = button(doc, 'f-record-task-entry', '', () => open(view));
       entry.dataset.recordTaskOpen = '';
-      entry.innerHTML = '<svg viewBox="0 0 20 20" aria-hidden="true"><path d="M6 6h9m-9 4h9m-9 4h6M3 6h0m0 4h0m0 4h0"/></svg>';
-      entry.append(doc.createTextNode('待完成记录'));
-      const count = element(doc, 'span', '');
-      const active = element(doc, 'span', 'f-record-task-active');
-      entry.append(count);
-      bar.append(entry, active);
-      composer.prepend(bar);
-      view = {doc, bar, entry, count, active, scope, config, total: null, countRequest: 0, panel: null};
+      entry.dataset.fontSizeFixed = 'true';
+      entry.setAttribute('aria-haspopup', 'dialog');
+      entry.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8.5"/><path d="M12 7.5v5.5m0 3h.01"/></svg>';
+      const hint = element(doc, 'span', 'f-record-task-hint', '有待确定的记录，点击查看');
+      hint.dataset.fontSizeFixed = 'true';
+      entry.append(hint);
+      bar.append(entry);
+      view = {doc, bar, entry, scope, config, total: null, countRequest: 0, panel: null};
+      attachHeader(doc, doc.querySelector('.f-header-actions [data-parent-action="app-update"]'));
       if (capability.value) refresh();
     }
     view.config = config;
+    if (view.recount && current(view)) refresh();
     paintBar(view);
     ensureCapability(view);
   }
@@ -160,7 +181,6 @@
   function dropView() {
     if (!view) return;
     if (view.panel) tearDownPanel(view);
-    // A renderer predating this widget may have repurposed the old div as genuine composer content.
     if (view.bar.hasAttribute('data-record-task-bar') && view.entry.parentElement === view.bar) view.bar.remove();
     view = null;
   }
@@ -206,7 +226,10 @@
     const p = v.panel = {dialog, name, close, input, content, items: [], cursor: null, query: '', count: null, seq: 0, error: '', loading: false, focusing: false, detail: null};
     dialog.addEventListener('close', () => {
       if (v.panel === p) tearDownPanel(v);
-      if (current(v)) v.entry.focus({preventScroll: true});
+      if (current(v)) {
+        const target = v.bar.hidden ? doc.querySelector('.f-header-actions [data-parent-action="app-update"]') : v.entry;
+        target?.focus({preventScroll: true});
+      }
     });
     input.addEventListener('input', () => {
       root.clearTimeout(p.timer);
@@ -364,5 +387,5 @@
     return {row: item.row, draft: item.draft, receipt: item.row.record_receipts?.find(receipt => receipt.id === id), superseded: false};
   }
 
-  root.FAWNSEE_DRAFT_TASKS = {mount, reset, refresh, selected, release, focused, rowUpdated};
+  root.FAWNSEE_DRAFT_TASKS = {mount, attachHeader, reset, refresh, selected, release, focused, rowUpdated};
 })(globalThis);

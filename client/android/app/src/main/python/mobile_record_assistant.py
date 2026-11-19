@@ -50,7 +50,7 @@ def _decision(body,operation):
 
 def _receipt(store,identity,identifier,marker):
     if marker['cancelled']:
-        return {'id':identifier,'status':'cancelled'}
+        return {'id':identifier,'status':'cancelled'} if marker.get('cloud_cancelled') is True else None
     if 'linked_receipt' in marker:
         return dict(marker['linked_receipt'])
     operation=store.operation(identity,identifier)
@@ -79,7 +79,84 @@ def _verified_draft(online,message,identifier):
         raise LocalDataError('not_found','这份草稿尚未生成完成或已不可用，请回到原对话重新核对。')
     if draft.get('superseded') is True:
         raise LocalDataError('conflict','这份草稿已有更新，请核对最新草稿。')
+    if any(r.get('id') == identifier and r.get('status') == 'cancelled'
+           for r in metadata.get('record_receipts',[]) if isinstance(r,dict)):
+        raise LocalDataError('conflict','这份草稿已取消，请回到原对话。')
     return draft,None
+
+
+def _cloud_cancel(local, identity, online, message, identifier, marker):
+    local._guard(identity)
+    reply = online('chat.records.cancel', {'assistant_message_id':message, 'draft_id':identifier}, None)
+    local._guard(identity)
+    if reply.get('ok') is not True:
+        return reply
+    receipt = {'id':identifier, 'status':'cancelled'}
+    if reply.get('result') != receipt:
+        raise LocalDataError('local_protocol','取消结果还没核对，请重试原草稿。')
+    updated = {**(marker or {}), 'message':message, 'cancelled':True, 'cloud_cancelled':True}
+    local.store.put(identity,'meta',_scope_marker(identifier),updated)
+    return {'ok':True, 'result':receipt}
+
+
+def list_pending_tasks(local, identity, online, body):
+    payload = {k:v for k,v in body.items() if k != '_fawnsee_actor_id'}
+    action = 'chat.record_tasks.list'
+    with local.record_assistant_lock:
+        local._guard(identity)
+        response = online(action,payload,None)
+        local._guard(identity)
+        if not response.get('ok') or not response['result'].get('total'):
+            return response
+        # Older versions kept the cancellation only on this device. Look at
+        # current server tasks before changing anything, including later pages.
+        conversation = payload['conversation_id']
+        scan_key = 'record-task-cancel-migration-v1:' + str(conversation)
+        scanned = local.store.get(identity,'meta',scan_key) is True
+        page = response['result']
+        scan_params = {'conversation_id':conversation,'limit':40}
+        if not scanned and (payload.get('query') or payload.get('cursor') or page.get('next_cursor')):
+            page_reply = online(action,scan_params,None)
+            local._guard(identity)
+            if not page_reply.get('ok'):
+                return response
+            page = page_reply['result']
+        pending = {}
+        seen_cursors = set()
+        while True:
+            for row in page.get('tasks',[]):
+                if not isinstance(row,dict):
+                    continue
+                draft, message = row.get('draft_id'), row.get('assistant_message_id')
+                if not isinstance(draft,str) or type(message) is not int or message <= 0:
+                    continue
+                marker = local.store.get(identity,'meta',_scope_marker(draft))
+                if (marker and marker.get('message') == message and marker.get('cancelled') is True
+                        and marker.get('cloud_cancelled') is not True):
+                    pending[draft] = (message,marker)
+            cursor = page.get('next_cursor')
+            if scanned or not cursor:
+                break
+            if not isinstance(cursor,str) or cursor in seen_cursors:
+                raise LocalDataError('local_protocol','待完成记录分页位置不一致，请稍后重试。')
+            seen_cursors.add(cursor)
+            next_page = online(action,{**scan_params,'cursor':cursor},None)
+            local._guard(identity)
+            if not next_page.get('ok'):
+                return response
+            page = next_page['result']
+        # Do not invalidate a cursor by cancelling its rows while traversing it.
+        complete = True
+        for draft,(message,marker) in pending.items():
+            reply = _cloud_cancel(local,identity,online,message,draft,marker)
+            if not reply.get('ok'):
+                complete = False
+        if not scanned and complete:
+            local.store.put(identity,'meta',scan_key,True)
+        if pending:
+            response = online(action,payload,None)
+            local._guard(identity)
+        return response
 
 
 def _useful(value):
@@ -215,6 +292,8 @@ def decide(local,identity,online,action,body,operation):
         if marker is not None:
             if marker['message']!=message:
                 raise LocalDataError('not_found','这份草稿不属于当前消息，请回到原对话。')
+            if confirm and marker.get('cancelled') is True:
+                raise LocalDataError('conflict','这份草稿已在本机取消，请回到原对话。')
             receipt=_receipt(local.store,identity,identifier,marker)
             if receipt is not None:
                 if (confirm and receipt['status'] in {'cancelled','discarded'}
@@ -224,6 +303,12 @@ def decide(local,identity,online,action,body,operation):
                 return {'ok':True,'result':receipt,'_local149':local.status()}
             if not confirm and marker.get('linked_submitted') is True:
                 raise LocalDataError('conflict','餐食修改已提交，请先重试确认以核对结果。')
+        if not confirm:
+            reply = _cloud_cancel(local,identity,online,message,identifier,marker)
+            if reply.get('ok'):
+                _remember_decision(local,identity,identifier)
+                reply['_local149'] = local.status()
+            return reply
         draft,error=_verified_draft(online,message,identifier)
         local._guard(identity)
         if error:
@@ -258,7 +343,8 @@ def annotate_history(local,identity,response):
     for row in page['messages']:
         if type(row) is not dict or row.get('role')!='assistant':
             continue
-        receipts=[]
+        receipts={r['id']:r for r in row.get('record_receipts',[]) if isinstance(r,dict)
+                  and r.get('status')=='cancelled' and isinstance(r.get('id'),str)}
         for draft in row.get('record_drafts',[]):
             if type(draft) is not dict or 'operation' not in draft:
                 continue
@@ -266,9 +352,9 @@ def annotate_history(local,identity,response):
             if marker is None or marker['message']!=row.get('id'):
                 continue
             receipt=_receipt(local.store,identity,draft['id'],marker)
-            if receipt is not None:
-                receipts.append(receipt)
+            if receipt is not None and draft['id'] not in receipts:
+                receipts[draft['id']]=receipt
         if receipts:
-            row['record_receipts']=receipts
+            row['record_receipts']=list(receipts.values())
     local._guard(identity)
     return {**response,'result':page}

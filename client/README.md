@@ -1,6 +1,6 @@
-# 凡思 Android · try1.2（11870）
+# 凡思 Android · try1.2（11873）
 
-这是凡思 11870 的 Android 客户端工程。原生代码、打包后的 WebView 页面及移动端 Python 桥位于 `android/app/src/main/`，复用的 Python 业务代码位于 `src/`。
+这是凡思 11873 的 Android 客户端工程。原生代码、打包后的 WebView 页面及移动端 Python 桥位于 `android/app/src/main/`，复用的 Python 业务代码位于 `src/`。
 
 ## 构建
 
