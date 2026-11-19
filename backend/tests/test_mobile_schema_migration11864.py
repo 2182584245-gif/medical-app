@@ -24,6 +24,8 @@ def fresh_install_sql():
 
 def test_mobile_migration_can_render_offline(fresh_install_sql):
     assert "platform_0007_mobile_11864" in fresh_install_sql
+    assert "platform_0008_password_signup" in fresh_install_sql
+    assert "CREATE POLICY password_signup_register" in fresh_install_sql
     assert "INSERT INTO medical_app_platform.expansion_foods(" in fresh_install_sql
     for table in (
         "member_memory_controls",
@@ -57,7 +59,7 @@ def test_mobile_schema_on_empty_postgres(fresh_install_sql):
         conn.execute(fresh_install_sql, prepare=False)
         assert conn.execute(
             "SELECT version_num FROM medical_app_private.alembic_version"
-        ).fetchone() == ("platform_0007_mobile_11864",)
+        ).fetchone() == ("platform_0008_password_signup",)
         assert conn.execute(
             "SELECT count(*) FROM medical_app_platform.expansion_foods"
         ).fetchone()[0] > 0

@@ -696,6 +696,14 @@ def supported_categories(raw, selected):
     return output
 
 
+class _CategorySummaryRequest(WorkerAIRequest149):
+    """The worker has already assembled and checked precisely these category sources."""
+    def __init__(self, request, ticket):
+        super().__init__(request)
+        self.actor_id=ticket['actor']
+        self.summary_request_id=ticket['token']
+
+
 class CategoryPreferenceSummarizer:
     def __init__(self, auth, service, proxy):
         self.auth,self.service,self.proxy=auth,service,proxy
@@ -829,7 +837,7 @@ class CategoryPreferenceSummarizer:
         return {**ticket,'selected':selected} if selected else None
 
     async def run_ticket(self, request, identity, ticket):
-        request=WorkerAIRequest149(request)
+        request=_CategorySummaryRequest(request,ticket)
         async def heartbeat():
             while True:
                 await asyncio.sleep(30)

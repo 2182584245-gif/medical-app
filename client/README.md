@@ -1,6 +1,6 @@
-# 凡思 Android · try1.2（11864）
+# 凡思 Android · try1.2（11870）
 
-这是凡思 11864 的 Android 客户端工程。原生代码、打包后的 WebView 页面及移动端 Python 桥位于 `android/app/src/main/`，复用的 Python 业务代码位于 `src/`。
+这是凡思 11870 的 Android 客户端工程。原生代码、打包后的 WebView 页面及移动端 Python 桥位于 `android/app/src/main/`，复用的 Python 业务代码位于 `src/`。
 
 ## 构建
 
@@ -32,7 +32,7 @@ npx playwright install chromium
 npm test
 ```
 
-浏览器测试使用 mock 原生桥和合成记录，不依赖正式账号。也可将 `FAWNSEE_CHROME` 设为本机 Chrome 路径。
+已安装 Google Chrome 的机器上，可运行 `python -m pytest mobile/tests/test_account_entry11868.py` 检查登录注册三页。浏览器测试使用 mock 原生桥和合成记录，不依赖正式账号。也可将 `FAWNSEE_CHROME` 设为本机 Chrome 路径。
 
 `tools/verify_android_apk.py` 检查 APK 版本、签名、打包的页面与 Python 代码。联网的记录助手、照片保存和待完成草稿需要配套的云端 API。
 

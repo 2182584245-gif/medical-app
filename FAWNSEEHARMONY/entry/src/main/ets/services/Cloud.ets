@@ -1,6 +1,7 @@
 import { ChatEventReader, StreamEvent } from '../pages/AssistantStream'
 import http from '@ohos.net.http'
 import { removeMemberDrafts,clearMemberRecordCache } from './PrivateData'
+import { optionalAllowed,requirePrivacy } from './PrivacyChoices'
 import { asset } from '@kit.AssetStoreKit'
 import { util } from '@kit.ArkTS'
 import { fileIo as fs } from '@kit.CoreFileKit'
@@ -183,6 +184,7 @@ function reason(status: number, raw: string): string {
   return '云端暂时无法完成本次请求（' + status + '）。'
 }
 async function transport<T>(path: string, method: string, body?: Object, token: string = '', id: string = ''): Promise<T> {
+  requirePrivacy()
   if (!path.startsWith('/v1/') || path.includes('..') || path.includes('\\') || path.includes('#')) throw new Error('云端地址无效。')
   const httpRequest = http.createHttp()
   const headers: Record<string,string> = { 'Accept': 'application/json', 'Content-Type': 'application/json' }
@@ -206,15 +208,47 @@ async function transport<T>(path: string, method: string, body?: Object, token: 
   } finally { httpRequest.destroy() }
 }
 export async function signIn(path: string, body: Object, auto: boolean): Promise<void> {
-  if (!['/v1/auth/login','/v1/auth/phone/quick-entry','/v1/auth/register/complete'].includes(path)) throw new Error('登录方式无效。')
+  await signInInfo(path,body,auto)
+}
+interface LoginSession extends Session {created?:boolean;credentials_set?:boolean}
+export interface MemberLoginInfo {outcome:string;user:Member;created?:boolean;credentials_set?:boolean}
+export async function signInInfo(path:string,body:Object,auto:boolean,expectedOwner:number=0):Promise<MemberLoginInfo>{
+  if (!['/v1/auth/login','/v1/auth/phone/quick-entry','/v1/auth/register/complete','/v1/auth/register/verified','/v1/auth/phone/login'].includes(path)) throw new Error('登录方式无效。')
   const epoch = ++generation
-  const result = await transport<Session>(path,'POST',body)
+  const result = await transport<LoginSession>(path,'POST',body)
+  return acceptLogin(result,epoch,auto,expectedOwner)
+}
+interface VerifiedPhone extends LoginSession {outcome:string;registration_token?:string;phone_masked?:string;expires_in?:number}
+export async function stagedPhoneEntry(body:Object,auto:boolean):Promise<Object>{
+  const epoch=++generation
+  const result=await transport<VerifiedPhone>('/v1/auth/phone/entry','POST',body)
+  if(epoch!==generation)throw Error('登录状态已改变。')
+  if(result.outcome==='register'){
+    if(!result.registration_token||!/^pr1_[A-Za-z0-9_-]+\.[a-f0-9]{64}$/.test(result.registration_token)||!result.expires_in||result.expires_in<=0)throw Error('手机号验证已失效，请重新获取验证码。')
+    return {'outcome':'register','registration_token':result.registration_token,'phone_masked':result.phone_masked,'expires_in':result.expires_in} as Record<string,Object>
+  }
+  if(result.outcome!=='login')throw Error('手机号验证结果无法核对。')
+  await acceptLogin(result,epoch,auto,0)
+  return {'outcome':'login'} as Record<string,Object>
+}
+async function acceptLogin(result:LoginSession,epoch:number,auto:boolean,expectedOwner:number):Promise<MemberLoginInfo>{
   if (epoch !== generation) throw new Error('登录状态已改变。')
   if (!valid(result)) throw new Error('会员登录信息无效。')
+  if(expectedOwner && result.user.id!==expectedOwner)throw new Error('请验证正在清理的原账号。')
   await persist(auto ? JSON.stringify(resultForStorage(result)) : '')
   if (epoch !== generation) throw new Error('登录状态已改变。')
   session = resultForStorage(result); remember = auto
   await purgeGuest().catch(() => {})
+  return {outcome:'login',user:result.user,created:result.created,credentials_set:result.credentials_set}
+}
+export async function registerAccount(username: string, password: string): Promise<void> {
+  try {
+    await transport<Member>('/v1/auth/register','POST',{'username':username,'password':password} as Record<string,string>)
+  } catch(e) {
+    if(e instanceof CloudError && e.status===409)throw new Error('这个账号名已被使用。可以直接登录，或换一个账号名。')
+    if(e instanceof CloudError && e.status===422)throw new Error('账号名或密码不符合要求，请核对后重试。')
+    throw e as Error
+  }
 }
 export async function completeCredentials(body:Object):Promise<void> {
   const epoch=generation
@@ -227,8 +261,12 @@ function resultForStorage(value: Session): Session {
   return { access_token: value.access_token, refresh_token: value.refresh_token, user: value.user,offline_lease:value.offline_lease,data_generation:value.data_generation }
 }
 export async function sendCode(phone: string, purpose: string): Promise<string> {
-  const result = await transport<Record<string,string>>('/v1/auth/phone/send','POST',{'phone':phone,'purpose':purpose} as Record<string,Object|null>)
-  return result['challenge_id']
+  return (await sendCodeInfo(phone,purpose)).challenge_id
+}
+export interface CodeInfo {challenge_id:string;expires_in:number;retry_after:number;phone_masked:string}
+export async function sendCodeInfo(phone:string,purpose:string):Promise<CodeInfo>{
+  const value=await transport<CodeInfo>('/v1/auth/phone/send','POST',{'phone':phone,'purpose':purpose} as Record<string,Object|null>)
+  return {challenge_id:value.challenge_id,expires_in:value.expires_in,retry_after:value.retry_after,phone_masked:value.phone_masked}
 }
 async function renew(epoch: number): Promise<void> {
   if(epoch!==generation)throw new Error('账号已切换。')
@@ -351,6 +389,8 @@ export async function readPhoto(uri:string):Promise<string> {
 
 // This transport exposes only the two chat stream routes, never the credential.
 export async function assistantStream(body:Object,id:string,emit:(event:StreamEvent)=>void):Promise<StreamEvent>{
+  requirePrivacy()
+  if(!optionalAllowed('ai',actorId()))throw new Error('请先确认使用智能助手。')
   const current=session, epoch=generation, guest=!current
   const token=current?current.access_token:await guestCredential()
   const request=http.createHttp(),decoder=util.TextDecoder.create('utf-8')

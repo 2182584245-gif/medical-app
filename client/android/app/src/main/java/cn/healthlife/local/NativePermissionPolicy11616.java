@@ -31,9 +31,6 @@ final class NativePermissionPolicy11616 {
                 notifications,notificationsAsked,notificationsRationale,notificationEntryAttempted))return "notifications";
         return null;
     }
-    static boolean notificationSettingsAtEntry(boolean runtimePending,boolean alreadyGuided,boolean declinedThisEntry) {
-        return !runtimePending&&!alreadyGuided&&!declinedThisEntry;
-    }
     interface SettingsLauncher {boolean open(String target);}
     static boolean openNotificationSettings(int sdk,boolean notificationsEnabled,SettingsLauncher launcher) {
         String[] targets=sdk>=26?(notificationsEnabled?new String[]{"channel","app","details"}:new String[]{"app","details"}):new String[]{"details"};

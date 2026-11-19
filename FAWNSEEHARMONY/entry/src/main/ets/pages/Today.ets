@@ -1,6 +1,7 @@
 import {preferences} from '@kit.ArkData';
 import {common} from '@kit.AbilityKit';
 import {todayWeather} from './TodayWeather';
+import {optionalAllowed} from '../services/PrivacyChoices';
 import {actorId, currentMember, Member, rpc, cloud} from '../services/Cloud';
 import {TodayHabits, Goal, Reminder} from './TodayHabits';
 import {TodayLibrary} from './TodayLibrary';
@@ -58,12 +59,19 @@ export struct TodayPage {
   @State articleTitle:string=SLIDES[0].title;
   private articleId:string='';
   private carousel:SwiperController=new SwiperController();
-  @State weather:string='位置暂不可用 · 天气暂不可用';
+  @State weather:string='天气未开启';
   private serial:number=0;
   private clock:number=-1;
   aboutToAppear() { this.changed(); this.clock=setInterval(()=>this.now=new Date(),60000); }
   aboutToDisappear() { this.serial++;clearInterval(this.clock); }
-  changed():void { const id=++this.serial; if(this.route==='today'){this.load(id);this.coverIndices=sessionCovers(this.getUIContext().getHostContext() as common.UIAbilityContext);this.loadReading(id);todayWeather().then((v:string)=>{if(this.serial===id)this.weather=v;});} }
+  changed():void {
+    const id=++this.serial;
+    if(this.route!=='today')return;
+    if(optionalAllowed('health',actorId()))this.load(id);
+    this.coverIndices=sessionCovers(this.getUIContext().getHostContext() as common.UIAbilityContext);
+    this.loadReading(id);
+    todayWeather().then((v:string)=>{if(this.serial===id)this.weather=v;});
+  }
   private async recent(method:string):Promise<string[]> {
     let offset=0;
     const dates:string[]=[];
@@ -121,7 +129,8 @@ export struct TodayPage {
       Image($r('app.media.records_logo')).width(40).height(40)
       Column({space:2}){
         Text((this.now.getMonth()+1)+'月'+this.now.getDate()+'日 '+localTime(this.now)).fontSize(19).fontWeight(FontWeight.Bold).fontColor(INK)
-        Text(this.weather).fontSize(14).fontColor(MUTED).maxLines(1).textOverflow({overflow:TextOverflow.Ellipsis}).onClick(()=>this.getUIContext().getPromptAction().showToast({message:'天气数据：挪威气象局（CC BY 4.0）；网络出口位置：ipwho.is'}))
+        Text(this.weather).id('today-weather').fontSize(14).fontColor(MUTED).maxLines(1).textOverflow({overflow:TextOverflow.Ellipsis})
+          .onClick(()=>this.onNavigate(optionalAllowed('weather',actorId())?'privacy/settings':'privacy/weather'))
       }.layoutWeight(1).alignItems(HorizontalAlign.Start)
       Image($r('app.media.tm_icon_basket')).objectFit(ImageFit.Contain).padding(8).width(40).height(44).accessibilityText('生活好物').id('today-open-goods').onClick(()=>this.onNavigate('today/goods'))
       Column(){
@@ -176,6 +185,7 @@ export struct TodayPage {
           Text(this.greetingDetail()).fontSize(18).fontColor(MUTED)
         }.alignItems(HorizontalAlign.Start).width('100%').margin({bottom:18})
         this.cover()
+        if(optionalAllowed('health',actorId())){
         this.week()
         Column({space:9}){
           Row({space:7}){Image($r('app.media.tm_icon_sliders')).width(18).height(18);Text('我的目标与习惯').fontSize(25).fontWeight(FontWeight.Bold).fontColor(INK).layoutWeight(1)}.width('100%')
@@ -186,6 +196,10 @@ export struct TodayPage {
           },(g:Goal)=>String(g.id))
         }.width('100%').padding(16).backgroundColor(WHITE).borderRadius({bottomLeft:24,bottomRight:24}).constraintSize({minHeight:110})
           .id('today-open-goals').onClick(()=>this.onNavigate('today/goals'))
+        }else{
+          Button('查看健康记录与目标').width('100%').height(46).backgroundColor('#E6EFE9').fontColor(TEAL)
+            .margin({top:14}).onClick(()=>this.onNavigate('records'))
+        }
         Row({space:12}){
           Image($r('app.media.tm_today_services')).width(58).height(58).borderRadius(14)
           Column({space:5}){

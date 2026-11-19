@@ -113,6 +113,8 @@ SPECIALIST_PROMPT = """你是凡思的记录助手。根据本次用户明确提
 全新请求使用本次内容，不把之前输入复制成新记录。单次至多三条。
 occurred_at 为带时区的 ISO8601。若用户说「现在/刚才」，可用输入参考时间；只说「昨天、早上」
 或未给明确时刻时，不假填钟点。修改旧记录时 occurred_at 仅当用户要求更改实际发生时间才填。
+本次应用资料若标注 review_meal_photo_shortcut 为 true，用户已选了餐图并明确要饮食记录。将可清楚辨认的食物放在饮食草稿；
+看不清食物就留空并请本人补充。不知道这餐的实际日期时间时留空，不能用上传时间推算用餐时间。
 本次应用资料若标注 current_meal_photo_shortcut 为 true，代表用户明确拍摄并要求记录当前这一餐，
 可使用参考时间，所有可见食物合并一条饮食记录；看不清具体食物时留空让用户补写。
 定位旧记录时用 selector.date（本地 YYYY-MM-DD），可带 selector.time（原记录 HH:MM，省略秒）、
@@ -155,7 +157,15 @@ record_date（当地 YYYY-MM-DD）或 record_time（HH:MM）。可以结合上�
 餐照可用于识别食物。仅凭外观、当前时钟或上传时间无法判断餐次，用户未交代时留空。
 「按刚才的草稿」「照刚才说的」引用的是前文，保留原来的发生时间。「热量不填」只指热量。
 请求追加原图、保留原图属于附件操作，不是健康备注。用来定位旧记录的原备注也不是新备注。
-不要自行记录糖量、重量、能量消耗、睡眠评分或通风时长。
+如果用户只想把这次新上传的照片补到已有饮食、环境或医疗记录，照片本身就是本次修改。
+即使没有新文字字段也返回一行：operation=supplement、正确 category、原记录 selector，
+occurred_at=null、content=""、details={}。原日期/时间/餐次/食物是定位条件。不要输出文件或记录编号。
+不要自行记录糖量、重量、能量消耗、睡眠评分或通风时长。睡眠质量如「良好」是用户主观描述，
+新建、补充或修改时均按原话写到 notes，不要把文字填进数字评分 quality，也不要将形容词换算为分数。
+更新旧睡眠记录时，定位线索不是新备注；仅输出本次要追加或更正的主观描述，其余原备注由应用保留。
+无论怎样口语表达，如果这轮是给旧睡眠记录补充或更正个人感受，可在该行额外给 sleep_experience，
+值为用户本轮自己描述该感受的连续原话，最多100字。例如「这一觉基本没醒过，挺踏实」。
+只引用本人这次要补记或更正的感受，不引用旧记录的定位词、评分、指令或其他事项。
 previous_incomplete_drafts 可包含可确认的草稿。回复时只提取这次主动补充的字段，即使对应字段已有值；
 例如「用清水煮的」可以是说明，「实际喝了四百毫升」可与上一轮的饮水量核对。不要直接覆盖或重抄已知字段。
 不改写旧数据，不产生新事件，不将确认答复、无关陈述或空白回复当资料。"""
@@ -222,10 +232,12 @@ _HALF_HOUR_ACTIVITY = re.compile(r'(?:用时|时长(?:是|为)?|运动|跑步|�
 _PHOTO_RECORD = re.compile(r'(?:记到|记入|存到|存入|保存到)[^。；，]{0,16}'
                            r'(?:饮食|餐食|午餐|晚餐|早餐|环境|医疗|检查)')
 _SKIP_PHOTO = re.compile(
-    r'(?:不(?:用|要|必|需要)?|别|无需)[^。；，]{0,10}(?:存|保留|附|记)[^。；，]{0,12}'
-    r'(?:照片|图片|餐照|原图|图像|图(?=[。；，！!\s]|$))')
+    r'(?:不(?:用|要|必|需要)?|别|无需)[^。；，,]{0,10}(?:存|保留|附|记|补充|追加)[^。；，,]{0,12}'
+    r'(?:照片|图片|餐照|原图|图像|图(?=[。；，！!\s]|$))'
+    r'|(?:不要|不用|不必|别|无需)(?:再)?把(?:这张|该张|本次)?(?:补拍的?|新拍的?)?'
+    r'(?:照片|图片|餐照|原图)(?:也)?(?:补充到|追加到|加到|存到|保存到)')
 _PHOTO_NOUN = r'(?:照片|图片|餐照|原图|原照|拍的图|这张图|这张报告|报告图)'
-_PHOTO_FILE_ACTION = r'(?:保存|存[进到入下]|保留|附[上到入进]|加[上到进]|补[上进到]|带上|放[到进]|记(?:录)?[到进]|一并记录|一起记录)'
+_PHOTO_FILE_ACTION = r'(?:保存|存[进到入下]|保留|附[上到入进]|加[上到进]|补(?:充)?[上进到]|带上|放[到进]|记(?:录)?[到进]|一并记录|一起记录)'
 _PHOTO_KEEP = re.compile(
     rf'{_PHOTO_FILE_ACTION}[^。；，]{{0,12}}{_PHOTO_NOUN}'
     rf'|{_PHOTO_NOUN}[^。；，]{{0,20}}{_PHOTO_FILE_ACTION}')
@@ -242,6 +254,9 @@ _PRIOR_REFERENCE = re.compile(r'(?:这|那)条|上面|上一条|刚才那|第[�
 _FRESH_RECORD = re.compile(r'(?:再记|新增|另记|另一条|新一条|加一条|补录|补记)')
 _RECORD_COMMAND_START = re.compile(r'^(?:(?:请|帮我|给我|我要|我想|麻烦|替我)\s*)*(?:记录|记下|记一下|录入)')
 _PLAN_OR_REMINDER = re.compile(r'提醒(?:我|自己)|(?:设[置个]?|加个|安排)[^，。]{0,5}(?:提醒|闹钟)|打算|计划|准备(?:去|吃|喝|做|跑)|预计|将要|将会|会在|想(?:去|吃|喝|做|跑)|等会儿?|到时候|还没(?:有)?(?:吃|喝|做|测|跑|睡|发生)|没发生')
+_DEFERRED_FIELD = re.compile(
+    r'(?:容量|水量|饮水量|热量|步数|时长|备注|说明|时间|数值|单位|地点|食物)?'
+    r'(?:我)?(?:等会儿?|到时候)(?:我)?(?:再)?(?:补充|补填|补上|补|填写)(?=[，,。；;！!\s]|$)')
 _COMPLETED_EVENT = re.compile(r'(?:吃|喝|做|测|跑|睡|服用)(?:了|过)|(?:已经|实际|刚刚|刚才)[^，。]{0,6}(?:吃|喝|做|测|跑|睡|服用)')
 _TIME_ESTIMATE_REQUEST = re.compile(
     r'(?:时间|几点|按(?:凌晨|早上|上午|中午|下午|傍晚|晚上|深夜|今晚|昨晚))[^，。！？!?]{0,8}(?:估个大概|估一下|估算一下|给个大概|选个大概)'
@@ -259,9 +274,40 @@ def user_text(content):
     return content.strip()[:20_000] if isinstance(content, str) else ''
 
 
+_WHOLE_RECORD_REFUSAL = re.compile(
+    r'(?:请)?(?:这次|本次|这一轮|这件事|这条|今天)?(?:请)?(?:先|暂时)?(?:无需|不用|不必|不需要|不要|别)'
+    r'(?:再)?(?:帮我|替我)?(?:做(?:成)?|生成|创建)?(?:记录(?:下来|一下)?|记下来|记下|记)'
+    r'(?:本次内容|这条|这件事|了|吧)?')
+
+
+def declines_whole_record(content):
+    value = re.sub(r'(?m)^>.*$|```[\s\S]*?```|`[^`\n]*`|“[^”]*”|「[^」]*」|『[^』]*』|"[^"\n]*"', '', user_text(content))
+    return any(_WHOLE_RECORD_REFUSAL.fullmatch(part.strip()) for part in re.split(r'[，,。；;！？!?\n]', value))
+
+
+def saved_summary_period(content):
+    # Match standalone requests for already saved records. A request to add/edit a
+    # fact or an answer from an active draft cannot be mistaken for a summary.
+    if type(content) is not str:
+        return None
+    value = re.sub(r'^(?:请)?(?:帮我|为我)?', '', content.strip()).rstrip('。！! ')
+    if re.fullmatch(r'(?:整理|总结|回顾|梳理)(?:这一天|今天|今日)(?:的)?(?:已有|已保存的?)?(?:生活|健康)记录',value):
+        return 'day'
+    if re.fullmatch(r'分析(?:最近一周|这一周|近七天)的生活记录(?:和变化趋势)?',value):
+        return 'week'
+    if re.fullmatch(r'(?:查看和梳理|查看|梳理|回顾)最近的作息记录',value):
+        return 'routine'
+    return None
+
+
 def explicit_request(content):
     value = user_text(content)
     value = re.sub(r'(?m)^>.*$|```[\s\S]*?```|`[^`\n]*`|“[^”]*”|「[^」]*」', '', value).strip()
+    if declines_whole_record(content) or saved_summary_period(content):
+        return False
+    value = re.sub(r'[，,。；;]\s*(?:这张|该张)?(?:餐照|照片|原图)(?:请)?(?:也|一起|继续)?'
+                   r'(?:留在|保留在)(?:这条|原来的)?(?:饮食|餐食)?记录(?:里|中)[。！!\s]*$','',value)
+    value = re.sub(r'(?:不必|不需要|无需|不用|不要|别)记录(?:额外的?)?(?:其他说明|备注|热量|水温|原图|照片)(?=[，,。；;！？!?\s]|$)', '', value)
     if not value or _EXAMPLE.search(value) or (_LOOKUP_RECORD.search(value) and not re.search(r'改(?:成|为|到)|补充|补上|新增|补录', value)):
         return False
     return bool(_PHOTO_RECORD.search(value) or _RECORD.search(value) and (_COMMAND.search(value) or
@@ -354,19 +400,23 @@ def _owned_record_photos(tools, principal, identifiers):
         identifiers = photo_ids(list(identifiers))
     except (TypeError, ValueError):
         return False
-    if not identifiers:
-        return False
+    return bool(identifiers and _owned_photo_fingerprints(tools, principal, identifiers))
+
+
+def _owned_photo_fingerprints(tools, principal, identifiers):
+    """Only compare fingerprints from the caller's integrity-checked image uploads."""
     actor = tools._member(principal)
     slots = ','.join('?' for _ in identifiers)
     with tools.auth.identity(principal), tools.db.connect() as conn:
         rows = conn.execute(
-            f"""SELECT f.id FROM user_files f JOIN user_file_contents fc ON fc.file_id=f.id
+            f"""SELECT f.id,f.sha256,f.media_type,f.size_bytes FROM user_files f JOIN user_file_contents fc ON fc.file_id=f.id
                 WHERE f.user_id=? AND f.id IN ({slots}) AND f.media_type IN (?,?,?)
                   AND f.size_bytes BETWEEN 1 AND ? AND length(fc.content)=f.size_bytes
                   AND fc.sha256=f.sha256 AND fc.mime_type=f.media_type""",
             (actor, *identifiers, *sorted(PHOTO_TYPES), MAX_PHOTO_BYTES),
         ).fetchall()
-    return {row['id'] for row in rows} == set(identifiers)
+    result = {row['id']: (row['sha256'],row['media_type'],row['size_bytes']) for row in rows}
+    return result if result.keys() == set(identifiers) else {}
 
 
 def is_followup(content, prior, *, dialogue_enabled=False, extended_photos=False):
@@ -376,7 +426,7 @@ def is_followup(content, prior, *, dialogue_enabled=False, extended_photos=False
             return False
         if _FRESH_RECORD.search(value):
             return False
-        if _PLAN_OR_REMINDER.search(value):
+        if _PLAN_OR_REMINDER.search(_DEFERRED_FIELD.sub('', value)):
             return False
         if any(draft.get('_draft_conflicts') for draft in prior['drafts']):
             return not _LOOKUP_RECORD.search(value)
@@ -470,6 +520,14 @@ def recent_record_dialogue(tools, principal, meta):
     return _dialogue_rows(rows)
 
 
+_REVIEW_MEAL_PHOTO = '请帮我分析这次吃的食物，并记为一条饮食记录。先分析，再给建议，不确定的地方再问我。'
+
+
+def _review_meal_photo(latest):
+    return (isinstance(latest,list) and user_text(latest)==_REVIEW_MEAL_PHOTO
+            and any(isinstance(p,dict) and p.get('type')=='image_url' for p in latest))
+
+
 def extraction_context(latest, prior, *, dialogue_enabled=False, recent=None):
     snapshot = []
     for draft in prior.get('drafts', []):
@@ -490,6 +548,7 @@ def extraction_context(latest, prior, *, dialogue_enabled=False, recent=None):
         'current_time_beijing': datetime.now(BEIJING).isoformat(timespec='seconds'),
         'previous_incomplete_drafts': snapshot, 'prior_user_request': prior.get('user', ''),
         'current_meal_photo_shortcut': photo_meal,
+        **({'review_meal_photo_shortcut':True} if dialogue_enabled and _review_meal_photo(latest) else {}),
         **({'dialogue_form': True, 'recent_dialogue': prior.get('active_record_context', recent or []),
             **({'record_start': prior['record_start']} if prior.get('record_start') else {}),
             **({'record_start_at': prior['record_start_at']} if prior.get('record_start_at') else {})}
@@ -591,7 +650,46 @@ def previous_turn(tools, principal, meta, *, dialogue_enabled=False):
             **({'optional_ready': optional, 'optional_followup': True} if optional else {})}
 
 
-def changes(response):
+_SLEEP_FEELINGS = r'非常好|非常差|不太好|相当好|挺不错|还不错|不太理想|不踏实|不安稳|不太踏实|不太安稳|断断续续|良好|尚可|很好|挺好|较好|不错|一般|较差|不好|很差|差|好|踏实|安稳'
+_SLEEP_ASSESSMENT = re.compile(
+    r'(?:睡眠质量|主观感受|主观评价|睡眠感受|睡眠感觉|睡得)[：:「“\s]*'
+    r'(?P<replace>改为|改成|改作|更正为|调整为|应为|实际是)?(?:感觉|是|为|写成)?'
+    r'[「“"\s]*(?P<feeling>'+_SLEEP_FEELINGS+r')[」”"]?(?=[。！？!?，,；;\s]|$)')
+
+
+def _sleep_description(text_value):
+    if not isinstance(text_value, str) or re.search(r'还是|或者|[?？]|(?:别|不要|不用)(?:再)?(?:修改?|调整)(?:睡眠质量|主观感受)', text_value):
+        return None
+    matches = list(_SLEEP_ASSESSMENT.finditer(text_value))
+    corrected = [m for m in matches if m['replace']]
+    selected = corrected if corrected else matches
+    return selected[0] if len(selected) == 1 else None
+
+
+def recover_explicit_sleep_edit(utterance):
+    """Rebuild only a fully scoped subjective edit from the source after malformed model output."""
+    if not isinstance(utterance,str) or len(utterance)>160:
+        return None
+    pattern = (r'(?:请)?(?:帮我)?(?:修改|更正)(?P<day>\d{4}-\d{2}-\d{2}|今天|昨天|前天)'
+               r'(?P<period>凌晨|早上|上午|下午|晚上|中午)?(?P<clock>(?:[0-2]?\d):[0-5]\d|[零两一二三四五六七八九十\d]{1,3}点(?:半)?)'
+               r'(?:的)?(?:那条|这条|原来的|旧)?睡眠记录[，,。；;]?\s*(?:请)?(?:把)?'
+               r'(?P<item>(?:睡眠质量|主观感受|睡眠感受)(?:改成|改为|更正为|调整为)[「“]?'
+               r'(?:'+_SLEEP_FEELINGS+r')[」”]?)[。！!，,；;]?\s*'
+               r'(?:(?:数字评分|原评分|原备注|其他说明|其他备注)(?:和(?:数字评分|原评分|原备注|其他说明|其他备注))?'
+               r'(?:都)?(?:保留|不变|不动)[。！!]?)?')
+    match = re.fullmatch(pattern,utterance.strip())
+    if not match:
+        return None
+    fact = _sleep_description(match['item'])
+    when = _explicit_time_parts(match['day']+(match['period'] or '')+match['clock'])
+    if not fact or not when.get('record_date') or not when.get('record_time'):
+        return None
+    return {'operation':'update','category':'sleep','content':'','occurred_at':None,
+            'details':{'notes':'睡眠质量'+fact['feeling']},
+            'selector':{'date':when['record_date'],'time':when['record_time']}}
+
+
+def changes(response, *, dialogue_text=None):
     object_args(response, ('changes',), ('changes',))
     rows = response['changes']
     if not isinstance(rows, list) or len(rows) > 3:
@@ -599,11 +697,12 @@ def changes(response):
     result = []
     for row in rows:
         keys = ('operation', 'category', 'occurred_at', 'content', 'details', 'selector')
-        object_args(row, (*keys, 'record_date', 'record_time'), keys)
+        object_args(row, (*keys, 'record_date', 'record_time', *(('sleep_experience',) if dialogue_text is not None else ())), keys)
         operation, category = row['operation'], row['category']
         if operation not in {'create', 'update', 'supplement'} or category not in CATEGORIES:
             raise ToolError('invalid_record_assistant_response', 502)
         patch = {}
+        spoken_quality = ''
         object_args(row['details'], _DETAIL_FIELDS[category])
         for key, value in row['details'].items():
             if type(value) is str:
@@ -611,6 +710,13 @@ def changes(response):
             if operation == 'create' and category == 'diet' and key == 'food' and type(value) is list:
                 value = '、'.join(text(food, 1000) for food in value)
             if value is None or value == '' and key != 'unit':
+                continue
+            if (dialogue_text is not None and category == 'sleep' and key == 'quality' and type(value) is str
+                    and re.fullmatch(_SLEEP_FEELINGS, value)):
+                # A qualitative assessment is not a numeric score. Preserve only an attributed verbatim mention.
+                raw = _sleep_description(dialogue_text)
+                if raw and raw['feeling'] == value:
+                    spoken_quality = '睡眠质量' + value
                 continue
             if key in _STRING_DETAILS:
                 if key != 'unit' or value != '':
@@ -621,6 +727,8 @@ def changes(response):
             elif type(value) not in {int, float} or not math.isfinite(value):
                 raise ToolError('invalid_record_assistant_field')
             patch[key] = value
+        if spoken_quality and spoken_quality not in patch.get('notes',''):
+            patch['notes'] = text('；'.join(v for v in (patch.get('notes'), spoken_quality) if v), 2000)
         selector = {k: v for k, v in object_args(row['selector'], ('date', 'time', 'contains', 'metric_kind')).items()
                     if v is not None and v != ''}
         if operation == 'create' and selector:
@@ -652,6 +760,11 @@ def changes(response):
         if description not in ('', None):
             description = text(description, 2000)
         row = dict(row)
+        quotation = row.pop('sleep_experience', None)
+        if (category == 'sleep' and operation in {'update', 'supplement'} and isinstance(quotation, str)
+                and 1 < len(quotation.strip()) <= 100 and quotation.strip() in (dialogue_text or '')
+                and not re.search(r'[\r\n；;]', quotation)):
+            row['_sleep_experience_quote'] = quotation.strip()
         if row.get('record_date'):
             day = text(row['record_date'], 10)
             if not re.fullmatch(r'[0-9]{4}-[0-9]{2}-[0-9]{2}', day):
@@ -903,6 +1016,12 @@ def _resolve_fact_conflict(conflict, value, spoken_time):
         return 'after'
     if field in _TEMPORAL_FACTS:
         stated = spoken_time.get(field) or (spoken_time.get('record_time_hint') if field == 'record_time' else None)
+        if field == 'record_time' and not re.search(r'还是|或者|[?？]', value):
+            correction = re.search(r'(?:记错|说错|搞错)(?:了)?[，,。；;\s]*(?:我)?(?:确认|确定|实际(?:上)?|应该是)\s*(.+)', value)
+            if correction:
+                chosen = _explicit_time_parts(correction[1]).get('record_time')
+                if chosen:
+                    stated = chosen
         matches = [side for side, option in (('before', before), ('after', after))
                    if stated and _normalized_fact(field, option) == _normalized_fact(field, stated)]
     else:
@@ -1269,6 +1388,46 @@ def _snapshot(category, row):
     return details, row['occurred_at'], row['content']
 
 
+def _sleep_notes_patch(old, proposed, latest, quote=None, operation='supplement'):
+    """Merge one expressed assessment into the notes of a version-checked existing row."""
+    value = user_text(latest)
+    stated = _sleep_description(value)
+    if re.search(r'(?:备注|说明)[^，。；;]{0,4}(?:整体|全部|替换|清空|改为|改成|删除)', value):
+        return None
+    if stated and (stated['feeling'] in (proposed or '') or stated['feeling'] in (quote or '')):
+        feeling,replace = stated['feeling'],bool(stated['replace'])
+        phrase = '睡眠质量' + feeling
+    elif quote and quote in value and not re.search(r'[?？]|还是|或者',value):
+        feeling,replace = quote, operation == 'update' and bool(_REPLACE_EXISTING.search(value))
+        if '「' in quote or '」' in quote:
+            return False
+        phrase = '睡眠感受：「' + quote + '」'
+    else:
+        return None
+    base = old or ''
+    if not base:
+        return phrase
+    if phrase in base and not replace:
+        return base
+    # Restrict replacement to a stand-alone qualitative clause. Numerical scores and
+    # unrelated observations in the same notes field must survive verbatim.
+    prior = list(re.finditer(r'(?:^|(?<=[。；;，,\n]))\s*(?:睡眠感受：「[^「」\n]{1,100}」(?=[。；;，,\n]|$)|(?:睡眠质量|睡得|主观感受|睡眠感受)(?:是|为|[：:])?'
+                             r'\s*(?:'+_SLEEP_FEELINGS+r')(?=[。；;，,\n]|$))', base))
+    # Older, freely written notes have no closing marker. A comma may introduce a distinct
+    # observation. Never infer the end of an unrecognized old phrase or absorb a later one.
+    for label in re.finditer(r'(?:^|(?<=[。；;，,\n]))\s*睡眠感受[：:]', base):
+        if not any(p.start() == label.start() for p in prior):
+            return False
+    if replace and len(prior) == 1:
+        part = prior[0]
+        result = base[:part.start()] + phrase + base[part.end():]
+    elif prior and any(feeling not in match[0] for match in prior):
+        return False
+    else:
+        result = base if phrase in base else base + '；' + phrase
+    return result if len(result) <= 2000 else False
+
+
 def _refused(latest, missing):
     value = user_text(latest)
     if not missing or not _REFUSAL.search(value):
@@ -1300,21 +1459,37 @@ def compose(row, *, previous=None, target_row=None, target_message='', latest=''
             prior_time = previous['occurred_at']
     patch = _merge_record_details(prior_patch, row['details'])
     old, old_time, old_content = _snapshot(category, target_row)
-    if target_row and re.search(r'原(?:来(?:的)?)?备注(?:保持)?不(?:动|变|改)|(?:保留|沿用)原(?:来(?:的)?)?备注', user_text(latest)):
+    preserve_old_notes = bool(target_row and re.search(r'原(?:来(?:的)?)?备注(?:保持)?不(?:动|变|改)|(?:保留|沿用)原(?:来(?:的)?)?备注', user_text(latest)))
+    if preserve_old_notes and not (dialogue_enabled and category == 'sleep' and _sleep_description(user_text(latest))):
         patch.pop('notes', None)
     if category == 'activity' and not patch.get('activity') and patch.get('activity_type'):
         patch['activity'] = patch['activity_type']
     if category == 'metric' and target_row:
         # Observation kind is fixed by its underlying API. It is an identity, not a patchable value.
         patch.pop('kind', None)
-    details = _merge_record_details(old, patch, supplement=(operation == 'supplement'))
+    requested_operation = operation
+    subjective = None
+    if dialogue_enabled and target_row and category == 'sleep' and operation != 'create':
+        subjective = _sleep_notes_patch(old.get('notes'), patch.get('notes'), latest,
+                                        row.get('_sleep_experience_quote'), operation)
+        if subjective is False:
+            return None, '原记录里的主观描述与这次说法需要核对。请说明要修改哪一段原说明，其余内容会保留。'
+        if isinstance(subjective, str):
+            patch['notes'] = subjective
+            if old.get('notes') and subjective != old['notes']:
+                # Mobile supplement may only fill empty fields. Appending to existing notes needs
+                # a version-checked update which is still shown for explicit confirmation.
+                operation = 'update'
+    details = _merge_record_details(old, patch, supplement=(requested_operation == 'supplement'))
+    if isinstance(subjective, str):
+        details['notes'] = subjective
     if category == 'metric' and details.get('kind') in FIXED_UNIT:
         details.setdefault('unit', FIXED_UNIT[details['kind']])
     elif category == 'metric' and details.get('kind') == 'custom':
         details.setdefault('unit', '')
-    occurred_at = old_time if target_row and operation == 'supplement' else row['occurred_at'] or prior_time or old_time
+    occurred_at = old_time if target_row and requested_operation == 'supplement' else row['occurred_at'] or prior_time or old_time
     partial_time = {}
-    if dialogue_enabled and not (target_row and operation == 'supplement'):
+    if dialogue_enabled and not (target_row and requested_operation == 'supplement'):
         if new_time_required:
             old_time = None
         occurred_at, partial_time = _form_time(row, previous, old_time, allow_same_day_future=allow_same_day_future)
@@ -1356,7 +1531,7 @@ def compose(row, *, previous=None, target_row=None, target_message='', latest=''
     elif category in ('medical', 'activity') and details.get('name' if category == 'medical' else 'activity'):
         content = details['name' if category == 'medical' else 'activity']
     # Incorporate existing notes/fields; supplement never changes a populated summary.
-    if operation == 'supplement' and old_content:
+    if (requested_operation == 'supplement' or isinstance(subjective,str)) and old_content:
         content = old_content
     if meal_edit is not None:
         occurred_at, content, details = (meal_edit[key] for key in ('occurred_at', 'content', 'details'))
@@ -1482,6 +1657,40 @@ def _respect_photo_request(row, text):
     return {**row, 'operation': operation, 'details': details}
 
 
+_PHOTO_MEAL_APPEND = re.compile(
+    r'(?:请)?(?:帮我)?(?:再)?把(?:这张|这幅)(?:补拍的?|新拍的?)?(?:照片|图片|餐照)(?:也|一并)?'
+    r'(?:补充到|补到|追加到|添加到|附到|加到|保存到|存入|放进)'
+    r'(?P<when>[^，,。；;？?]{1,28}?)(?:的)?(?:那条|这条)'
+    r'(?P<food>[\u4e00-\u9fffA-Za-z0-9·]{0,28}?)(?P<meal>早餐|午餐|晚餐|早饭|午饭|晚饭|加餐)'
+    r'(?:的)?(?:旧|原有|已有)?记录'
+    r'(?:[，,；;]\s*(?:其他(?:已核对的)?(?:信息|内容)(?:和原来的照片)?|原(?:来的)?照片(?:和其他(?:信息|内容))?)'
+    r'(?:都|全部|也)?(?:保留|不变))?[。！!\s]*')
+
+
+def _photo_meal_selector(value, reference):
+    """Recover a single fully expressed photo-only edit if extraction returned no fields."""
+    value = re.sub(r'[。；;，,]\s*如果(?:和原(?:来(?:的)?)?(?:照片|图)一样|已是同一张)(?:就)?'
+                   r'(?:不用|不必|无需)重复(?:保存|存|添加)[。！!\s]*$', '', value.strip())
+    match = _PHOTO_MEAL_APPEND.fullmatch(value)
+    if not match or re.search(r'或|还是|分别|另一|以及|还有|不要|不必|别|除了|[和与]', match['when']):
+        return None
+    when = match['when']
+    # Every locator word must either be verified below or make the request ineligible.
+    remainder = _EXPLICIT_DAY.sub('', _RELATIVE_DAY.sub('', when))
+    remainder = _EXPLICIT_CLOCK.sub('', _SPOKEN_CLOCK.sub('', _TIME_PERIOD.sub('', remainder)))
+    if remainder.strip(' 的\t') or any(_ambiguous_temporal_values(when)):
+        return None
+    known = _explicit_time_parts(when, reference=reference)
+    if 'record_date' not in known or 'record_time' not in known:
+        return None
+    meal = {'早饭': '早餐', '午饭': '午餐', '晚饭': '晚餐'}.get(match['meal'], match['meal'])
+    food = match['food']
+    if re.search(r'或者|还是|分别|不是|除了|另一', food):
+        return None
+    selector = {'date': known['record_date'], 'time': known['record_time'], 'contains': food or meal}
+    return selector, meal, food
+
+
 def _plan_record_photos(tools, principal, row, target, previous, latest, current, *,
                         extended, multiple):
     """Retain the prior record and draft references. The confirmed list is complete."""
@@ -1504,11 +1713,24 @@ def _plan_record_photos(tools, principal, row, target, previous, latest, current
         return (), False, '这次照片可能对应多条记录。请每次指定一条记录并发送对应的照片。'
     if attach and current is None:
         return (), False, '这张原图暂时无法关联，请重新发送原图后再核对。'
-    identifiers = list(dict.fromkeys([*existing, *inherited, *(current if attach else ())]))
+    try:
+        additions = photo_ids(list(current)) if attach else []
+        candidates = list(dict.fromkeys([*existing, *photo_ids(list(inherited)), *additions]))
+    except (TypeError, ValueError):
+        return (), False, '有一张原图暂时无法核对归属，请到记录页检查照片后再试。'
+    verified = _owned_photo_fingerprints(tools, principal, candidates) if candidates else {}
+    if candidates and not verified:
+        return (), False, '有一张原图暂时无法核对归属，请到记录页检查照片后再试。'
+    # Preserve every saved reference, even legacy duplicates. Only deduplicate newly attached bytes.
+    identifiers = list(existing)
+    seen = {verified[identifier] for identifier in existing}
+    for identifier in candidates:
+        fingerprint = verified[identifier]
+        if fingerprint not in seen:
+            identifiers.append(identifier)
+            seen.add(fingerprint)
     if len(identifiers) > 4:
         return (), False, '这条记录最多保留四张照片，原有照片按原样保留。'
-    if identifiers and not _owned_record_photos(tools, principal, identifiers):
-        return (), False, '有一张原图暂时无法核对归属，请到记录页检查照片后再试。'
     return identifiers, identifiers != existing, ''
 
 
@@ -1538,7 +1760,7 @@ def make_drafts(changes_list, *, tools, principal, personal, prior, latest, diet
     continuation = previous_drafts[0] if dialogue_enabled and len(previous_drafts) == 1 else None
     prior_period = continuation.get('record_time_hint') if continuation else None
     value = user_text(latest)
-    if dialogue_enabled and _PLAN_OR_REMINDER.search(value) and not _COMPLETED_EVENT.search(value):
+    if dialogue_enabled and _PLAN_OR_REMINDER.search(_DEFERRED_FIELD.sub('', value)) and not _COMPLETED_EVENT.search(value):
         return [], [], []
     correction = dialogue_enabled and _corrects_pending_time(value, prior)
     explicit_old_change = (extended_photos and continuation and continuation.get('target')
@@ -1559,6 +1781,19 @@ def make_drafts(changes_list, *, tools, principal, personal, prior, latest, diet
     ambiguous_day, ambiguous_clock = (_ambiguous_temporal_values(value)
                                       if dialogue_enabled and not optional_followup and len(changes_list) <= 1
                                       else (False, False))
+    if (dialogue_enabled and not optional_followup and len(changes_list) == 1
+            and changes_list[0]['category'] == 'sleep' and changes_list[0]['operation'] == 'create'):
+        clauses = re.split(r'[，,。；;！？!?]', value)
+        waking = [s for s in clauses if re.search(r'醒来|醒了|起床', s)]
+        if len(waking) == 1 and not re.search(r'还没|没能|准备|打算|可能|计划|如果|还未', waking[0]):
+            other = '，'.join(s for s in clauses if s != waking[0])
+            wake = _explicit_time_parts(waking[0], reference=reference)
+            if (wake.get('record_date') and wake.get('record_time') and not _EXPLICIT_CLOCK.search(other)
+                    and not _SPOKEN_CLOCK.search(other) and not any(_ambiguous_temporal_values(waking[0]))):
+                # "Today 7am I woke up, last night I slept seven hours" has one stated event clock.
+                spoken_time = stated_time = wake
+                ambiguous_day = ambiguous_clock = False
+                changes_list = [{**changes_list[0], 'occurred_at': None}]
     waiting_for_new_time = (extended_photos and continuation and continuation['operation'] == 'update'
                             and continuation.get('target') and awaiting.intersection({'record_date', 'record_time'}))
     photo_followup = (extended_photos and continuation and diet_photos != () and explicit_photo_retention(latest))
@@ -1567,7 +1802,7 @@ def make_drafts(changes_list, *, tools, principal, personal, prior, latest, diet
                         and 'target' in awaiting and ('record_date' in stated_time or 'record_time' in stated_time))
     answers_create_time = bool(continuation and continuation['operation'] == 'create'
                                and (awaiting.intersection({'record_date', 'record_time'}) or correction)
-                               and not _PLAN_OR_REMINDER.search(value))
+                               and not _PLAN_OR_REMINDER.search(_DEFERRED_FIELD.sub('', value)))
     exact_user_time = answers_create_time and bool(stated_time.get('record_time'))
     estimated_period = None
     if answers_create_time and 'record_time' in awaiting and not exact_user_time and _TIME_ESTIMATE_REQUEST.search(value):
@@ -1602,6 +1837,23 @@ def make_drafts(changes_list, *, tools, principal, personal, prior, latest, diet
         changes_list = [{'operation': continuation['operation'], 'category': continuation['category'], 'details': {},
                          'occurred_at': None, 'content': '', 'selector': {}}]
     replaced = set()
+    recovered_meal = None
+    if extended_photos and dialogue_enabled and not previous_drafts and _review_meal_photo(latest):
+        matched=[row for row in changes_list if row['operation']=='create' and row['category']=='diet']
+        row = dict(matched[0]) if len(matched)==1 else {
+            'operation':'create','category':'diet','details':{},'selector':{},'content':''}
+        # Selecting the meal photo says nothing about when the food was eaten.
+        row.update(occurred_at=None,record_date=None,record_time=None)
+        changes_list=[row]
+    if (len(changes_list) <= 1 and extended_photos and dialogue_enabled and not previous_drafts
+            and diet_photos and explicit_photo_retention(latest)):
+        recovered = _photo_meal_selector(value, reference)
+        if recovered and (not changes_list or changes_list[0]['category'] == 'diet'):
+            # The extraction model may combine the food and meal kind into one search string.
+            # Search for the food and verify the meal kind separately against the actual row.
+            recovered_meal = recovered
+            changes_list = [{'operation': 'supplement', 'category': 'diet', 'occurred_at': None,
+                             'details': {}, 'content': '', 'selector': recovered_meal[0]}]
     for row in changes_list:
         if extended_photos and len(changes_list) == 1 and explicit_photo_retention(latest):
             row = _respect_photo_request(row, value)
@@ -1678,6 +1930,13 @@ def make_drafts(changes_list, *, tools, principal, personal, prior, latest, diet
                 try:
                     target, proof, target_message = lookup(tools, principal, category, row['selector'],
                                                           (previous or {}).get('target'))
+                    if target and recovered_meal:
+                        selected = target.get('details') or {}
+                        old_meal = selected.get('meal_type') or selected.get('meal')
+                        old_meal = MEAL_LABELS.get(old_meal, old_meal)
+                        if old_meal != recovered_meal[1] or (recovered_meal[2] and
+                                recovered_meal[2].casefold() not in str(selected.get('food') or '').casefold()):
+                            target, proof, target_message = None, None, '没有找到符合指定餐次和食物的原记录，请核对原日期、时间或餐食内容。'
                     if proof:
                         proofs.append(proof)
                     old_values, _, old_content = _snapshot(category, target)
@@ -1731,6 +1990,11 @@ def make_drafts(changes_list, *, tools, principal, personal, prior, latest, diet
                                  allow_same_day_future=exact_user_time and previous is continuation,
                                  record_photos=attached, photos_changed=photos_changed,
                                  new_time_required=new_time_required)
+        if (not draft and target and not photos_changed and not photo_problem and not denied
+                and extended_photos and diet_photos and explicit_photo_retention(latest)
+                and category in PHOTO_CATEGORIES and not _SKIP_PHOTO.search(user_text(latest))
+                and message.startswith('这条记录已有这些内容')):
+            message = '这张原图已在这条记录里，无需重复保存。'
         if draft:
             if photo_problem and not denied:
                 message = photo_problem

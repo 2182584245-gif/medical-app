@@ -1,6 +1,7 @@
 import { bundleManager, common } from '@kit.AbilityKit'
 import { updateManager } from '@kit.AppGalleryKit'
 import type { BusinessError } from '@kit.BasicServicesKit'
+import { requirePrivacy } from './PrivacyChoices'
 
 export type UpdateStatus = 'checking' | 'available' | 'no-offer' | 'opening' | 'opened' | 'error'
 
@@ -12,6 +13,7 @@ export function installedVersion(): string {
 // AppGallery compares the installed phone application with the eligible signed release.
 // Huawei only returns versionName/versionCode in this response for atomic services.
 export async function checkMarketUpdate(context: common.UIAbilityContext): Promise<UpdateStatus> {
+  requirePrivacy()
   const result = await updateManager.checkAppUpdate(context)
   if (result.updateAvailable === updateManager.UpdateAvailableCode.LATER_VERSION_EXIST) return 'available'
   if (result.updateAvailable === updateManager.UpdateAvailableCode.LATER_VERSION_NOT_EXIST) return 'no-offer'
@@ -19,6 +21,7 @@ export async function checkMarketUpdate(context: common.UIAbilityContext): Promi
 }
 
 export async function openMarketUpdate(context: common.UIAbilityContext): Promise<UpdateStatus> {
+  requirePrivacy()
   const result = await updateManager.showUpdateDialog(context)
   if (result === updateManager.ShowUpdateResultCode.SHOW_DIALOG_SUCCESS) return 'opened'
   throw new Error('更新窗口未能打开，请重新检查。')

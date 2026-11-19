@@ -255,9 +255,7 @@ class PlatformAuth:
 
     @_safe_operation
     def register(self, username: str, password: str, *, client_ip: str) -> User:
-        phone_auth=getattr(self,'phone_auth',None)
-        if phone_auth is not None and phone_auth.phone_required:
-            raise PlatformAuthError(422, '请先完成手机号验证码验证后注册。')
+        phone_auth = getattr(self, 'phone_auth', None)
         normalized = normalize_username(username)
         if phone_auth is not None and (normalized=='88888888' or normalized.startswith('__fawnsee_phone_')):
             raise PlatformAuthError(409,'该账号名称不可用于注册。')
@@ -279,6 +277,10 @@ class PlatformAuth:
                 role_code="member",
                 now=timestamp_to_db(utc_now()),
             )
+            if phone_auth is not None:
+                actor = int(row['id'])
+                with self._context(user_id=actor, role_code='member', auth_username=normalized, registering=True):
+                    connection.execute('INSERT INTO password_signup_members (user_id) VALUES (?)', (actor,))
         return user_from_row(row)
 
     @_safe_operation

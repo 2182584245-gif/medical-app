@@ -16,6 +16,7 @@ function component(source, end) {
 }
 const src = [
   'const actorId=()=>db.owner, currentMember=()=>({username:"member-"+db.owner});',
+  'const optionalAllowed=()=>db.healthAllowed!==false;',
   'const rpc=(_service,key,...args)=>db.read(key,...args), expansion=(key,...args)=>db.read(key,...args), cloud=(key,...args)=>db.read(key,...args);',
   reads, parts, component(mineSource,'  @Builder'), component(await page('MineProfile'),'  build(){')
 ].join('\n').replaceAll('export class','class')

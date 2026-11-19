@@ -49,12 +49,9 @@ public final class NativePermissionPolicy11616Test {
         for(int sdk:new int[]{24,25,26,29,31,32})
             assertNull(NativePermissionPolicy11616.nextEntryKind(sdk,false,true,false,true,false,false,false,false));
     }
-    @Test public void permanentlyDeniedNotificationsStillOfferOneSystemSettingsEntry() {
+    @Test public void completedRequestsEndTheQueueForAllowedAndDeniedNotifications() {
+        assertNull(NativePermissionPolicy11616.nextEntryKind(36,true,true,true,true,true,true,false,true));
         assertNull(NativePermissionPolicy11616.nextEntryKind(36,true,true,true,true,false,true,false,true));
-        assertTrue(NativePermissionPolicy11616.notificationSettingsAtEntry(false,false,false));
-        assertFalse(NativePermissionPolicy11616.notificationSettingsAtEntry(true,false,false));
-        assertFalse(NativePermissionPolicy11616.notificationSettingsAtEntry(false,true,false));
-        assertFalse(NativePermissionPolicy11616.notificationSettingsAtEntry(false,false,true));
     }
     @Test public void channelSettingsFailureFallsBackToAppThenDetails() {
         java.util.ArrayList<String> attempted=new java.util.ArrayList<>();

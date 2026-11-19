@@ -72,6 +72,7 @@ def run() -> None:
         "platform_0005",
         "platform_0006_fawnsee_expansion",
         "platform_0007_mobile_11864",
+        "platform_0008_password_signup",
         "base",
     }:
         raise RuntimeError("This pilot environment supports reviewed upgrade/downgrade only.")
@@ -109,6 +110,7 @@ def run() -> None:
                 "head", "platform_0001", "platform_0002", "platform_0003",
                 "platform_0004", "platform_0005", "platform_0006_fawnsee_expansion",
                 "platform_0007_mobile_11864",
+                "platform_0008_password_signup",
             }
             and os.environ.get("SERVER_PLATFORM_CONFIRM") != "medical_app_platform"
         ):

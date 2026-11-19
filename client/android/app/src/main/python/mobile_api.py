@@ -695,7 +695,7 @@ class MobileApplication:
             if (type(auto_login) is not bool or set(params)-{'username','password','auto_login'}
                     or not {'username','password'}<=set(params) or any(type(params[k]) is not str for k in ('username','password'))):
                 return _error('validation', '请填写账号和密码。')
-            if not 1 <= len(params['username']) <= 64 or not 1 <= len(params['password']) <= 256:
+            if not 1 <= len(params['username']) <= 64 or not 1 <= len(params['password']) <= 1024:
                 return _error('validation', '账号或密码长度不符合要求。')
             self._begin_login()
             if action=='auth.register':

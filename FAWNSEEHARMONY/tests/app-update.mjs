@@ -6,7 +6,7 @@ import { test } from 'node:test'
 const source = await readFile(new URL('../entry/src/main/ets/services/AppUpdate.ets', import.meta.url), 'utf8')
 const compiled = stripTypeScriptTypes(source.replace(/^import .*$/gm, ''), {mode: 'transform'}).replace(/^export /gm, '')
 
-function setup(checkResult, dialogResult) {
+function setup(checkResult, dialogResult, agreed = true) {
   const ctx = {}
   let dialogs = 0
   const bundle = {
@@ -28,10 +28,19 @@ function setup(checkResult, dialogResult) {
       return dialogResult
     }
   }
-  const service = Function('bundleManager','updateManager',compiled +
-    '\nreturn {installedVersion,checkMarketUpdate,openMarketUpdate,updateFailure}')(bundle,market)
+  const service = Function('bundleManager','updateManager','requirePrivacy',compiled +
+    '\nreturn {installedVersion,checkMarketUpdate,openMarketUpdate,updateFailure}')(bundle,market,()=>{
+    if (!agreed) throw Error('privacy decision pending')
+  })
   return { ctx, service, dialogs: () => dialogs }
 }
+
+test('market service stays closed until the local privacy choice is accepted', async () => {
+  const {service,ctx,dialogs} = setup({updateAvailable:1},0,false)
+  await assert.rejects(service.checkMarketUpdate(ctx), /privacy decision pending/)
+  await assert.rejects(service.openMarketUpdate(ctx), /privacy decision pending/)
+  assert.equal(dialogs(),0)
+})
 
 test('installed version is read from the running Harmony bundle', () => {
   assert.equal(setup().service.installedVersion(), '1.6.13-test（35101）')

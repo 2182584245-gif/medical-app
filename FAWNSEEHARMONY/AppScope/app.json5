@@ -2,8 +2,8 @@
   "app": {
     "bundleName": "com.fawnsee.health.mobile",
     "vendor": "Fawnsee",
-    "versionCode": 11867,
-    "versionName": "1.6.15-try1.2",
+    "versionCode": 11870,
+    "versionName": "1.6.18",
     "buildVersion": "1",
     "icon": "$media:fawnsee_symbol",
     "label": "$string:app_name"

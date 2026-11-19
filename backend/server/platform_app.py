@@ -19,7 +19,7 @@ from typing import Any
 
 from fastapi import BackgroundTasks, FastAPI, Request
 from fastapi.exceptions import RequestValidationError
-from fastapi.responses import JSONResponse
+from fastapi.responses import FileResponse, JSONResponse
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 
 from ollama_chat_app.services.auth import AuthService
@@ -436,6 +436,11 @@ def create_app(settings=None, *, database=None, ai_proxy_settings=None, ai_trans
 
     application.include_router(create_library_router(auth, application.state.library))
     from pathlib import Path
+    @application.api_route('/v1/public/privacy/harmony-invite', methods=['GET', 'HEAD'], include_in_schema=False)
+    def harmony_invite_privacy():
+        document = Path(__file__).resolve().parent / 'public_documents' / 'fawnsee-privacy.html'
+        return FileResponse(document, media_type='text/html', headers={'X-Content-Type-Options': 'nosniff'})
+
     from .reading_service import create_reading_router
     application.include_router(create_reading_router(auth, Path("/app/reading-presentation")))
     from .reading_service import ReadingPresentation

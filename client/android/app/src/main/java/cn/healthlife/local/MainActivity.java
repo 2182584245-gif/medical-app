@@ -95,7 +95,6 @@ public class MainActivity extends ComponentActivity {
     private JSONObject pendingPermissionRequest;
     private volatile boolean entryPermissionsPending, specialSettingsPending;
     private boolean remindersPrepared;
-    private boolean notificationDeniedAtEntry,notificationSettingsAttemptedAtEntry,notificationRuntimePending;
     private Intent cameraAfterPermission;
     private final AtomicLong voiceAuthEpoch = new AtomicLong();
     private NativeVoiceCapture voiceCapture;
@@ -534,11 +533,11 @@ public class MainActivity extends ComponentActivity {
                         if(Build.VERSION.SDK_INT>=33 && NativePermissionPolicy11616.requestable(
                                 checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS)==PackageManager.PERMISSION_GRANTED,
                                 asked.getBoolean("notifications",false),shouldShowRequestPermissionRationale(Manifest.permission.POST_NOTIFICATIONS))) {
-                            entryPermissionsPending=true;notificationRuntimePending=true;asked.edit().putBoolean("notifications",true).putBoolean("notifications_entry11827",true).apply();
+                            entryPermissionsPending=true;asked.edit().putBoolean("notifications",true).putBoolean("notifications_entry11827",true).apply();
                             requestPermissions(new String[]{Manifest.permission.POST_NOTIFICATIONS},14941);
                         }else openNotificationSettings();
                         success(request,new JSONObject().put("requested",true));
-                    }catch(Exception ignored) {entryPermissionsPending=false;notificationRuntimePending=false;failure(request,"permission_unavailable","请在手机设置中开启凡思通知。");}
+                    }catch(Exception ignored) {entryPermissionsPending=false;failure(request,"permission_unavailable","请在手机设置中开启凡思通知。");}
                 });break;
             }
             case "native.local149.exactAlarms": {
@@ -676,13 +675,6 @@ public class MainActivity extends ComponentActivity {
                 previous.getBoolean("notifications",false),Build.VERSION.SDK_INT>=33&&shouldShowRequestPermissionRationale(Manifest.permission.POST_NOTIFICATIONS),
                 previous.getBoolean("notifications_entry11827",false));
             if(kind==null) {
-                if(NativePermissionPolicy11616.notificationSettingsAtEntry(false,
-                        previous.getBoolean("notification_channel_entry11838",false)||notificationSettingsAttemptedAtEntry,
-                        notificationDeniedAtEntry)) {
-                    // Banner/lockscreen behavior is controlled by the real OS
-                    // channel page, never by an overlay or a fabricated grant.
-                    openNotificationSettings();return;
-                }
                 JSONObject reminders=LocalReminders149.capabilities(this);
                 if(reminders.optBoolean("notifications_enabled")&&NativeReminderDeliveryPolicy11827.requestExactAtEntry(Build.VERSION.SDK_INT,
                         reminders.optBoolean("exact_alarms_enabled"),remindersPrepared&&reminders.optBoolean("scheduled_reminders_present"),
@@ -698,9 +690,9 @@ public class MainActivity extends ComponentActivity {
             // denial does not trigger a new request on every entry or long press.
             String permission="microphone".equals(kind)?Manifest.permission.RECORD_AUDIO:"camera".equals(kind)?Manifest.permission.CAMERA:Manifest.permission.POST_NOTIFICATIONS;
             entryPermissionsPending=true;asked.putBoolean(kind,true);
-            if("notifications".equals(kind)){notificationRuntimePending=true;asked.putBoolean("notifications_entry11827",true);}
+            if("notifications".equals(kind))asked.putBoolean("notifications_entry11827",true);
             asked.apply();requestPermissions(new String[]{permission},APP_PERMISSIONS);
-        }catch(Exception error){entryPermissionsPending=false;specialSettingsPending=false;notificationRuntimePending=false;}
+        }catch(Exception error){entryPermissionsPending=false;specialSettingsPending=false;}
     }
     private void requestAppPermissions(JSONObject request,Set<String> kinds) {
         if(entryPermissionsPending || specialSettingsPending || pendingPermissionRequest!=null || voiceRequest!=null || voiceCapture!=null || voiceStarting || voiceProcessing || pickerBusy) {
@@ -711,16 +703,16 @@ public class MainActivity extends ComponentActivity {
             android.content.SharedPreferences.Editor asked=getSharedPreferences("permission-guide11616",MODE_PRIVATE).edit();
             if(kinds.contains("microphone") && status.optBoolean("microphone_requestable")) {missing.add(Manifest.permission.RECORD_AUDIO);asked.putBoolean("microphone",true);}
             if(kinds.contains("camera") && status.optBoolean("camera_requestable")) {missing.add(Manifest.permission.CAMERA);asked.putBoolean("camera",true);}
-            if(kinds.contains("notifications") && status.optBoolean("notifications_requestable")) {missing.add(Manifest.permission.POST_NOTIFICATIONS);notificationRuntimePending=true;asked.putBoolean("notifications",true).putBoolean("notifications_entry11827",true);}
+            if(kinds.contains("notifications") && status.optBoolean("notifications_requestable")) {missing.add(Manifest.permission.POST_NOTIFICATIONS);asked.putBoolean("notifications",true).putBoolean("notifications_entry11827",true);}
             if(missing.isEmpty()) {success(request,status.put("requested",false));return;}
             // Compatibility hook for an explicit native request; no custom guide.
             pendingPermissionRequest=request;asked.apply();
             requestPermissions(missing.toArray(new String[0]),APP_PERMISSIONS);
-        }catch(Exception ignored){pendingPermissionRequest=null;notificationRuntimePending=false;failure(request,"permission_unavailable","请在手机设置中查看凡思权限。");}
+        }catch(Exception ignored){pendingPermissionRequest=null;failure(request,"permission_unavailable","请在手机设置中查看凡思权限。");}
     }
 
     private void openNotificationSettings() {
-        notificationSettingsAttemptedAtEntry=true;specialSettingsPending=true;
+        specialSettingsPending=true;
         boolean opened=NativePermissionPolicy11616.openNotificationSettings(Build.VERSION.SDK_INT,LocalReminders149.notifications(this),target->{
             Intent intent;
             if("channel".equals(target))intent=new Intent(Settings.ACTION_CHANNEL_NOTIFICATION_SETTINGS).putExtra(Settings.EXTRA_APP_PACKAGE,getPackageName())
@@ -731,8 +723,6 @@ public class MainActivity extends ComponentActivity {
             startActivity(intent);return true;
         });
         if(!opened){specialSettingsPending=false;throw new IllegalStateException("System notification settings unavailable");}
-        // A missing/blocked OEM activity must not consume the persistent once marker.
-        getSharedPreferences("permission-guide11616",MODE_PRIVATE).edit().putBoolean("notification_channel_entry11838",true).apply();
     }
     private void launchCamera(JSONObject request,Intent camera,int pickerCode) {
         if(!isCurrent()||pendingPicker!=request||pendingPickerCode!=pickerCode)return;
@@ -1212,12 +1202,6 @@ public class MainActivity extends ComponentActivity {
     }
     @Override public void onRequestPermissionsResult(int code, String[] permissions, int[] grants) {
         super.onRequestPermissionsResult(code, permissions, grants);
-        if((code==APP_PERMISSIONS||code==14941)&&notificationRuntimePending) {
-            notificationDeniedAtEntry=Build.VERSION.SDK_INT>=33&&checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS)!=PackageManager.PERMISSION_GRANTED;
-            notificationRuntimePending=false;
-        }
-        if(code==APP_PERMISSIONS||code==14941)for(int i=0;i<permissions.length;i++)
-            if(Manifest.permission.POST_NOTIFICATIONS.equals(permissions[i]))notificationDeniedAtEntry=i>=grants.length||grants[i]!=PackageManager.PERMISSION_GRANTED;
         if (code == APP_PERMISSIONS) {
             entryPermissionsPending=false;
             JSONObject request=pendingPermissionRequest;pendingPermissionRequest=null;
@@ -1314,14 +1298,6 @@ public class MainActivity extends ComponentActivity {
         super.onPause();
         // Never start an upload just because the user switches apps or locks the phone.
         if (!awaitingMicPermission && (voiceCapture != null || voiceStarting)) cancelVoice();
-    }
-    @Override protected void onStop() {
-        super.onStop();
-        // Returning from our own permission/media/settings page is still the
-        // same entry. A later genuine foreground entry may offer settings once.
-        if(!entryPermissionsPending&&!specialSettingsPending&&pendingPermissionRequest==null&&!pickerBusy&&!awaitingMicPermission) {
-            notificationDeniedAtEntry=false;notificationSettingsAttemptedAtEntry=false;
-        }
     }
     @Override protected void onResume() {
         super.onResume();

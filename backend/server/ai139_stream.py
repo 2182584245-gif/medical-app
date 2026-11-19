@@ -150,15 +150,17 @@ class AI139Runner:
             return []
         from .assistant_team_try11 import required_specialists
         from .record_assistant_try12 import (
-            explicit_clock_draft_reply, explicit_photo_retention, explicit_request, is_followup, optional_refusal,
-            previous_turn, user_text,
+            declines_whole_record, explicit_clock_draft_reply, explicit_photo_retention, explicit_request, is_followup, optional_refusal,
+            previous_turn, saved_summary_period, user_text,
         )
         names={row['function']['name']for row in schemas}
         record = 'organize_record_drafts'
         guest = callable(getattr(tools, 'guest_schemas', None))
         has_message = bool(self.meta.get('assistant_message_id') and self.meta.get('conversation_id'))
         utterance = user_text(self.latest_user)
-        if self.record_assistant and record in names and has_message and not guest:
+        whole_refusal = declines_whole_record(self.latest_user)
+        self.saved_summary = saved_summary_period(self.latest_user)
+        if self.record_assistant and record in names and has_message and not guest and not whole_refusal and not self.saved_summary:
             dialogue = {'dialogue_enabled': True} if self.record_dialogue else {}
             prior = await self._route_record_task(tools, utterance)
             if prior is None:
@@ -188,7 +190,7 @@ class AI139Runner:
                     accepts_offer(utterance) or declines_offer(utterance)):
                 self.record_offer = await asyncio.to_thread(lookup, self.principal, self.meta)
             accepted = self.record_offer and self.record_offer.get('accepted') is True
-            declined = declines_offer(utterance)
+            declined = whole_refusal or bool(self.saved_summary) or declines_offer(utterance)
             self.record_allowed = not declined and bool(
                 accepted or self.record_prior or explicit_request(self.latest_user) or photo_route
                 or getattr(self, 'record_task_new', False))
@@ -201,6 +203,8 @@ class AI139Runner:
             return [record] if record_route else []
         roles = [name for name in required_specialists(self.latest_user, authorized=True, tools_enabled=True)
                  if name != record]
+        if self.saved_summary and 'analyze_record_trends' not in roles:
+            roles.append('analyze_record_trends')
         if not all(name in names for name in roles):return [record] if record_route else []
         if not roles:return [record] if record_route else []
         def settings():
@@ -353,8 +357,9 @@ class AI139Runner:
         if name == 'analyze_record_trends':
             if not self.meta.get('personal_context'):
                 raise ToolError('personal_context_required', 403)
+            period = getattr(self,'saved_summary',None)
             statistics, proof = await asyncio.to_thread(read_statistics,
-                self.proxy.tool_service, self.principal, args)
+                self.proxy.tool_service, self.principal, args, **({'summary_period': period} if period else {}))
             await self._remember_proof(proof)
         await self.validate(force=True)
         specialist_kwargs = dict(client=client, model=self.payload['model'], material=self.agent_material,

@@ -2,3 +2,10 @@ gradlew text eol=lf
 *.sh text eol=lf
 *.bat text eol=crlf
 
+# Match byte-verified resources across developer platforms.
+FAWNSEEHARMONY/entry/src/main/resources/rawfile/** -text
+client/android/app/src/main/assets/www/app.js -text
+client/android/app/src/main/assets/www/index.html -text
+client/android/app/src/main/python/mobile_api.py -text
+backend/server/platform_app.py -text
+backend/server/platform_ai_proxy.py -text

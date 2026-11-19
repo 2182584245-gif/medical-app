@@ -1,4 +1,6 @@
 import {http} from '@kit.NetworkKit';
+import { optionalAllowed } from '../services/PrivacyChoices';
+import { actorId } from '../services/Cloud';
 interface Place {success:boolean;city:string;latitude:number;longitude:number;}
 interface Details {air_temperature:number;}
 interface Instant {details:Details;}
@@ -13,6 +15,7 @@ let cached:string=missing;
 let expires=0;
 let pending:Promise<string>|null=null;
 async function get<T>(url:string):Promise<T>{
+  if(!optionalAllowed('weather',actorId()))throw Error('天气未开启');
   const conn=http.createHttp();
   try{
     const resp=await conn.request(url,{method:http.RequestMethod.GET,header:{'User-Agent':'FAWNSEE-Harmony/1.0 (+https://39.106.166.15/aliyun)'},connectTimeout:4000,readTimeout:6000,expectDataType:http.HttpDataType.STRING,maxLimit:2*1024*1024});
@@ -40,6 +43,7 @@ async function update():Promise<string>{
   return cached;
 }
 export async function todayWeather():Promise<string>{
+  if(!optionalAllowed('weather',actorId()))return '天气未开启';
   if(Date.now()<expires)return cached;
   if(!pending)pending=update();
   try{return await pending;}finally{pending=null;}

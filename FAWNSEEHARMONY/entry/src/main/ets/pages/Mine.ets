@@ -1,4 +1,5 @@
 import {removeMemberDrafts} from '../services/PrivateData';
+import {optionalAllowed} from '../services/PrivacyChoices';
 import {common} from '@kit.AbilityKit';
 import {notificationManager} from '@kit.NotificationKit';
 import {pasteboard} from '@kit.BasicServicesKit';
@@ -67,7 +68,10 @@ export struct MinePage{
     this.ledger=[];this.page=0;this.total=-1;this.credentials=-1;this.invite=null;
     let parts:Part[]=[];
     switch(this.mineSection()){
-      case 'home': parts=[Part.Profile,Part.Avatar,Part.Membership,Part.Records,Part.Observations,Part.Growth,Part.Posts]; break;
+      case 'home':
+        parts=[Part.Avatar,Part.Membership,Part.Growth,Part.Posts];
+        if(optionalAllowed('health',actorId()))parts.push(Part.Profile,Part.Records,Part.Observations);
+        break;
       case 'membership': parts=[Part.Membership]; break;
       case 'growth': parts=[Part.Growth,Part.Ledger]; break;
       case 'privacy': case 'credentials': parts=[Part.Credentials]; break;
@@ -236,6 +240,8 @@ export struct MinePage{
   @Builder security(){
     this.retryPart(Part.Credentials)
     if(this.mineSection()==='privacy'){
+      TMButton({label:'阅读凡思隐私政策',action:()=>this.onNavigate('privacy/document')})
+      TMButton({label:'管理隐私选择',action:()=>this.onNavigate('privacy/settings')})
       if(this.credentials===0){TMButton({label:'设置用户名/密码',primary:true,action:()=>this.onNavigate('mine/credentials')})}
       TMButton({label:'通知横幅与锁屏设置',primary:true,action:()=>{const ctx=this.getUIContext().getHostContext() as common.UIAbilityContext; notificationManager.openNotificationSettings(ctx).catch((e:Error)=>this.error=e.message);}})
       TMNote({label:'在系统设置中开启通知，并按需要允许横幅和锁屏显示。'})

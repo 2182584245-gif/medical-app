@@ -36,6 +36,7 @@ def initialize_sqlite(database):
         connection.execute(reset_ddl)
         from .phone_credentials_schema11838 import SQLITE_DDL as credentials_ddl
         connection.execute(credentials_ddl)
+        connection.execute('CREATE TABLE password_signup_members (user_id INTEGER PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE)')
 
 
 def postgres_statements():

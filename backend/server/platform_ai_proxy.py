@@ -644,6 +644,14 @@ class PlatformAIProxy:
         material = None
         retriever = getattr(self, 'multimodal_retrieval', None)
         summary_job = value.operation_kind == 'member.memory.conversation.summarize'
+        # An internal category worker supplies its own bounded, owner-scoped evidence JSON.
+        # Searching that JSON as a user question can invert the date range of recent-first rows.
+        category_job = False
+        if value.operation_kind == 'member.ai-profile.categories.summarize':
+            from .member_ai_categories import _CategorySummaryRequest
+            category_job = (isinstance(request,_CategorySummaryRequest)
+                            and request.actor_id == principal.user.id
+                            and request.summary_request_id == value.operation_id)
         if summary_job:
             # Only our in-process worker can bind source proof; no HTTP model
             # field or request header grants this internal capability.
@@ -653,7 +661,7 @@ class PlatformAIProxy:
                 material = {'references': [], 'image_parts': [], 'coverage': {'state': 'summary_sources'},
                     'proof_only11844': True, 'proof': {'schema': 'personal-context11844',
                         'multimodal': None, 'conversation': [proof]}}
-        if meta and meta.get('personal_context') and retriever is not None and not summary_job:
+        if meta and meta.get('personal_context') and retriever is not None and not (summary_job or category_job):
             def personal_material():
                 with self.auth.identity(principal):
                     question = self._personal_question(payload['messages'])
@@ -674,7 +682,7 @@ class PlatformAIProxy:
                 material = {'references': [], 'proof': None, 'image_parts': [],
                     'coverage': {'state': 'unavailable', 'complete_history_search_claim_allowed': False}}
         conversation_memory = getattr(self, 'conversation_memory', None)
-        if meta and meta.get('personal_context') and conversation_memory is not None and not summary_job:
+        if meta and meta.get('personal_context') and conversation_memory is not None and not (summary_job or category_job):
             # This is optional, bounded server-side context. Keep the original
             # client request unchanged until its operation identity is claimed.
             def conversation_material():

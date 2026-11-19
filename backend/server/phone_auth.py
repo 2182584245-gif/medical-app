@@ -133,6 +133,12 @@ class PhoneAuth:
             return
         binding = connection.execute('SELECT phone FROM phone_auth_bindings WHERE user_id=?', (user_id,)).fetchone()
         if binding is None:
+            if role == 'member' and verified_phone is None:
+                password_signup = connection.execute(
+                    'SELECT 1 FROM password_signup_members WHERE user_id=?', (user_id,)
+                ).fetchone()
+                if password_signup is not None:
+                    return
             raise PlatformAuthError(401, '账号尚未绑定手机号，请重新完成手机号验证注册。')
         if verified_phone is not None and not hmac.compare_digest(str(binding['phone']), verified_phone):
             raise PlatformAuthError(401, '账号手机号已改变，请重新验证。')

@@ -496,8 +496,17 @@ async def run_specialist(name, args, *, client, model, material, latest_user, st
         elif record_context.get('required_review'):
             result = {'review': parsed}
         else:
-            from .record_assistant_try12 import changes
-            result = {'changes': changes(parsed)}
+            from .record_assistant_try12 import changes, recover_explicit_sleep_edit, user_text
+            utterance=user_text(latest_user) if record_context.get('dialogue_form') else None
+            try:
+                result = {'changes': changes(parsed, dialogue_text=utterance)}
+            except ToolError as error:
+                # The specialist ran, but its output failed the strict interface. Do not use
+                # any fields from that output. The normal owner/version/confirmation path still applies.
+                recovered = recover_explicit_sleep_edit(utterance) if error.code=='invalid_tool_request' else None
+                if recovered is None:
+                    raise
+                result = {'changes': changes({'changes':[recovered]},dialogue_text=utterance)}
         await check()
         return {**result, '_usage': usage}
     except asyncio.CancelledError:
@@ -591,7 +600,7 @@ def _period_totals(rows, calendar_days):
     return totals
 
 
-def read_statistics(tools, principal, args):
+def read_statistics(tools, principal, args, *, summary_period=None):
     """Read-only complete scan, never a statistic computed from retrieval hits."""
     try:
         _arguments(args)
@@ -601,6 +610,9 @@ def read_statistics(tools, principal, args):
         today = now.astimezone(timezone(timedelta(hours=8))).date()
         end = date.fromisoformat(args['end_date']) if 'end_date' in args else today
         start = date.fromisoformat(args['start_date']) if 'start_date' in args else end - timedelta(days=6)
+        if summary_period in {'day','week','routine'}:
+            end = today
+            start = today if summary_period=='day' else today-timedelta(days=6)
         if not 0 <= (end-start).days <= 365:
             raise ToolError('tool_date_range_too_large')
         start, end = start.isoformat(), end.isoformat()

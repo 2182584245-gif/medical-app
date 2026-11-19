@@ -1,105 +1,169 @@
-import { RECORD_ICONS } from './RecordIcons'
-import { RecordsScreen } from './Records'
-import { TodayPage } from './Today'
-import { MinePage } from './Mine'
-import { AssistantPage } from './Assistant'
-import { CommunityPage } from './Community'
-import { AuthPage } from './Auth'
-import { MeetPage } from './Meet'
-import { actorId,restoreSession } from '../services/Cloud'
-import { cancelVoice } from '../services/Voice'
 import { common } from '@kit.AbilityKit'
+import { actorId, restoreSession } from '../services/Cloud'
+import { cancelVoice } from '../services/Voice'
 import { clearDeviceReminders, syncDeviceReminders } from '../services/DeviceReminders'
+import { registerHybridConsent } from '../services/HybridConsent'
+import { requestHybridPermissionsOnce } from '../services/HybridPermissions'
+import { acceptPrivacy, optionalAllowed, OptionalUse, privacyAccepted, readPrivacy, setOptional } from '../services/PrivacyChoices'
+import { PrivacyDocument, PrivacyNotice, useDetail, useTitle } from './Privacy'
+import { HybridWeb, hybridBack, hybridSessionExpired, hybridVisibility } from './HybridWeb'
 
-class TabEntry {
-  id:string; label:string
-  constructor(id:string,label:string){this.id=id;this.label=label}
-}
-const tabs:TabEntry[]=[new TabEntry('today','今日'),new TabEntry('records','记录'),new TabEntry('ai','助手'),new TabEntry('community','社区'),new TabEntry('mine','我的')]
-const tabTints:Map<string,string>=new Map([['today','#FFF0CA'],['records','#D7EFEA'],['ai','#EDDEF6'],['community','#DCECF8'],['mine','#F8E1D8']])
-const tabEdges:Map<string,string>=new Map([['today','#E5D7A8'],['records','#B9DCD0'],['ai','#D8C4E6'],['community','#C2D9EC'],['mine','#E8CBBA']])
-function tabFor(route:string):string {
-  const section=route.split('/')[0]
-  return ['form','edit','detail','voice','trends'].includes(section)?'records':section
-}
 @Entry
 @Component
 struct Index {
-  @State route:string='boot'
-  @State startupError:string=''
-  @StorageProp('keyboardVisible') keyboardVisible:boolean=false
-  @StorageLink('sessionExpired') @Watch('expired') expiredFlag:boolean=false
-  history:string[]=[]
-  aboutToAppear(){this.boot()}
-  aboutToDisappear(){cancelVoice().catch(()=>{})}
-  onPageShow(){
-    if(actorId())syncDeviceReminders(this.getUIContext().getHostContext() as common.UIAbilityContext,false).catch(()=>{})
+  @State phase: string = 'boot'
+  @State documentOpen: boolean = false
+  @State settingsOpen: boolean = false
+  @State use: OptionalUse = 'ai'
+  @State promptOpen: boolean = false
+  @State busy: boolean = false
+  @State error: string = ''
+  @State choices: boolean[] = [false, false, false]
+  @StorageLink('sessionExpired') @Watch('expired') expiredFlag: boolean = false
+  private owner: number = 0
+  private settle?: (allowed: boolean) => void
+
+  private context(): common.UIAbilityContext {
+    return this.getUIContext().getHostContext() as common.UIAbilityContext
   }
-  async boot(){
-    this.startupError=''
+
+  aboutToAppear(): void {
+    registerHybridConsent((use: OptionalUse, owner: number) => this.askUse(use, owner))
+    this.boot()
+  }
+  aboutToDisappear(): void {
+    registerHybridConsent()
+    this.finish(false)
+    cancelVoice().catch(() => {})
+  }
+
+  private async boot(): Promise<void> {
+    this.error = ''
     try {
-      const member=await restoreSession()
-      this.route=member?'meet':'ai'
-      if(member)syncDeviceReminders(this.getUIContext().getHostContext() as common.UIAbilityContext,false).catch(()=>{})
-      else clearDeviceReminders(this.getUIContext().getHostContext() as common.UIAbilityContext).catch(()=>{})
-    }catch(e){this.startupError=(e as Error).message}
+      if (!readPrivacy(this.context())) { this.phase = 'welcome'; return }
+      this.phase = 'boot'
+      await requestHybridPermissionsOnce(this.context())
+      const member = await restoreSession()
+      this.phase = 'web'
+      if (member) this.syncReminders()
+      else clearDeviceReminders(this.context()).catch(() => {})
+    } catch (e) { this.error = (e as Error).message }
   }
-  expired(){if(this.expiredFlag){clearDeviceReminders(this.getUIContext().getHostContext() as common.UIAbilityContext).catch(()=>{});this.history=[];this.route='auth/phone';this.expiredFlag=false}}
-  navigate(raw:string):void{
-    let next=raw.replace(/^#/,'')
-    if(next==='signed-in'){this.history=[];this.route='meet';syncDeviceReminders(this.getUIContext().getHostContext() as common.UIAbilityContext,false).catch(()=>{});return}
-    if(next==='guest'){this.history=[];this.route='ai';return}
-    if(next==='login'||next==='auth'){if(!actorId())clearDeviceReminders(this.getUIContext().getHostContext() as common.UIAbilityContext).catch(()=>{});this.history=[];this.route='auth/phone';return}
-    if(!actorId()&&!next.startsWith('auth/')&&!next.startsWith('ai')){
-      this.history.push(this.route);this.route='auth/phone';return
+
+  private syncReminders(): void {
+    if (privacyAccepted() && actorId() && optionalAllowed('health', actorId())) {
+      syncDeviceReminders(this.context(), false).catch(() => {})
     }
-    if(next.startsWith('records/new/'))next='form/'+next.split('/')[2]
-    if(next===this.route)return
-    if(tabs.some((t:TabEntry)=>t.id===next)){this.history=[]}
-    else if(this.history[this.history.length-1]===next){this.history.pop()}
-    else {this.history.push(this.route)}
-    this.route=next
   }
-  onBackPress():boolean{
-    if(this.history.length){this.route=this.history.pop()||'ai';return true}
-    if(this.route==='meet')return true
-    if(this.route!=='ai'&&this.route!=='boot'){this.route='ai';return true}
-    return false
+  onPageShow(): void { hybridVisibility(true); if (this.phase === 'web') this.syncReminders() }
+  onPageHide(): void { hybridVisibility(false) }
+  expired(): void {
+    if (!this.expiredFlag) return
+    this.expiredFlag = false
+    this.finish(false)
+    if (this.phase === 'web') {
+      this.settingsOpen = false
+      clearDeviceReminders(this.context()).catch(() => {})
+      hybridSessionExpired()
+    }
   }
-  @Builder Mark(id:string,active:boolean){
-    Row(){
-      Shape(){Path({commands:RECORD_ICONS.get(id)||''}).fill(Color.Transparent).stroke(active?'#607B67':'#768878').strokeWidth('1.8px').strokeLineCap(LineCapStyle.Round).strokeLineJoin(LineJoinStyle.Round)}
-        .width(23).height(23).viewPort({x:0,y:0,width:'24px',height:'24px'})
-    }.height(27).width(46).justifyContent(FlexAlign.Center).borderRadius(23)
-    .linearGradient({angle:140,colors:active?[['#FFFFFF',0],[tabTints.get(id)||'#D7EFEA',1]]:[['#00FFFFFF',0],['#00FFFFFF',1]]})
-    .shadow({radius:active?1:0,offsetY:active?3:0,color:active?(tabEdges.get(id)||'#B9DCD0'):'#00000000'})
+  private async agreeWelcome(): Promise<void> {
+    if (this.busy) return
+    this.busy = true
+    try { await acceptPrivacy(); await this.boot() }
+    catch (e) { this.error = (e as Error).message }
+    finally { this.busy = false }
   }
-  @Builder Bottom(){
-    Row(){
-      ForEach(tabs,(t:TabEntry)=>{
-        Column({space:3}){
-          this.Mark(t.id,tabFor(this.route)===t.id)
-          Text(t.label).fontSize(16).lineHeight(21.6).fontColor(tabFor(this.route)===t.id?'#436653':'#768878').fontWeight(tabFor(this.route)===t.id?FontWeight.Bold:FontWeight.Regular)
-        }.id('tab-'+t.id).height('100%').layoutWeight(1).justifyContent(FlexAlign.Center).onClick(()=>this.navigate(t.id))
-      },(t:TabEntry)=>t.id)
-    }.height(60).width('100%').padding({left:7,right:7}).backgroundColor('#FDFBF7').border({width:{top:1},color:'#F1EFE8'})
+  private askUse(use: OptionalUse, owner: number): Promise<boolean> {
+    this.use = use
+    this.owner = owner
+    this.error = ''
+    this.promptOpen = true
+    return new Promise<boolean>((resolve) => { this.settle = resolve })
   }
-  build(){
-    Stack(){
-      Column(){
-        Stack(){
-          if(this.route==='boot'){
-            Column({space:16}){Image($r('app.media.records_logo')).height(78).width(78);if(this.startupError){Text(this.startupError);Button('重试').onClick(()=>this.boot())}else{LoadingProgress().width(28)}}
-          }else if(this.route==='meet'){MeetPage({onDone:():void=>{this.history=[];this.route='ai'},onOffline:():void=>{this.history=[];this.route='records'}})}
-          else if(this.route.startsWith('auth/')){AuthPage({route:this.route,onNavigate:(v:string):void=>this.navigate(v)})}
-          else if(tabFor(this.route)==='records'){RecordsScreen({route:this.route,onNavigate:(v:string):void=>this.navigate(v)})}
-          else if(tabFor(this.route)==='today'){TodayPage({route:this.route,onNavigate:(v:string):void=>this.navigate(v)})}
-          else if(tabFor(this.route)==='community'){CommunityPage({route:this.route,onNavigate:(v:string):void=>this.navigate(v)})}
-          else if(tabFor(this.route)==='mine'){MinePage({route:this.route,onNavigate:(v:string):void=>this.navigate(v)})}
-          else if(tabFor(this.route)==='ai'){AssistantPage({route:this.route,onNavigate:(v:string):void=>this.navigate(v)})}
-        }.width('100%').layoutWeight(1)
-        if((tabs.some((t:TabEntry)=>t.id===this.route)||this.route.startsWith('records/day/'))&&!(this.route==='ai'&&this.keyboardVisible)){this.Bottom()}
-      }.width('100%').constraintSize({maxWidth:430}).height('100%')
+  private finish(allowed: boolean): void {
+    const resolve = this.settle
+    this.settle = undefined
+    this.promptOpen = false
+    if (resolve) resolve(allowed)
+  }
+  private async saveChoice(use: OptionalUse, owner: number, enabled: boolean): Promise<boolean> {
+    if (actorId() !== owner) return false
+    await setOptional(use, owner, enabled)
+    if (actorId() !== owner) return false
+    this.refreshChoices()
+    if (use === 'health' && owner) {
+      if (enabled) this.syncReminders()
+      else clearDeviceReminders(this.context()).catch(() => {})
+    }
+    return true
+  }
+  private async agreeUse(): Promise<void> {
+    if (this.busy) return
+    this.busy = true
+    try { this.finish(await this.saveChoice(this.use, this.owner, true)) }
+    catch (e) { this.error = (e as Error).message }
+    finally { this.busy = false }
+  }
+  private refreshChoices(): void {
+    this.choices = [optionalAllowed('health', actorId()), optionalAllowed('ai', actorId()), optionalAllowed('weather', actorId())]
+  }
+  private openPrivacy(settings: boolean): void {
+    if (settings) { this.refreshChoices(); this.error = ''; this.settingsOpen = true }
+    else this.documentOpen = true
+  }
+  private toggle(use: OptionalUse): void {
+    const owner = actorId()
+    const enabled = optionalAllowed(use, owner)
+    this.getUIContext().showAlertDialog({title:useTitle(use), message:enabled?'关闭后，下次使用这项功能时您可以重新选择。':useDetail(use),
+      primaryButton:{value:'取消',action:()=>{}}, secondaryButton:{value:enabled?'关闭':'同意开启',action:()=>{
+        this.saveChoice(use, owner, !enabled).catch((e: Error) => { this.error = e.message })
+      }}})
+  }
+  @Builder Setting(use: OptionalUse, index: number) {
+    Row() {
+      Text(useTitle(use)).fontSize(17).layoutWeight(1)
+      Button(this.choices[index]?'已开启':'未开启').id('privacy-setting-'+use).onClick(()=>this.toggle(use))
+    }.width('100%').padding({top:8,bottom:8})
+  }
+  @Builder Settings() {
+    Column({space:12}) {
+      Button('返回').id('privacy-settings-back').onClick(()=>{this.settingsOpen=false})
+      Text('隐私选择').fontSize(26).fontWeight(FontWeight.Bold)
+      this.Setting('health', 0)
+      this.Setting('ai', 1)
+      this.Setting('weather', 2)
+      Button('阅读隐私政策').onClick(()=>{this.documentOpen=true})
+      if (this.error) { Text(this.error).fontColor('#944639') }
+    }.padding(22).width('100%').height('100%').backgroundColor('#FDFBF7').alignItems(HorizontalAlign.Start)
+  }
+  onBackPress(): boolean {
+    if (this.documentOpen) { this.documentOpen = false; return true }
+    if (this.settingsOpen) { this.settingsOpen = false; return true }
+    if (this.promptOpen) { this.finish(false); return true }
+    return this.phase === 'web' && hybridBack()
+  }
+  build() {
+    Stack() {
+      if (this.phase === 'web') {
+        HybridWeb({onPrivacy:(settings:boolean):void => this.openPrivacy(settings)})
+          .visibility(this.documentOpen || this.settingsOpen || this.promptOpen ? Visibility.Hidden : Visibility.Visible)
+      } else if (this.phase === 'welcome') {
+        PrivacyNotice({busy:this.busy,error:this.error,onRead:()=>{this.documentOpen=true},onAgree:()=>{this.agreeWelcome()},
+          onDecline:()=>{this.context().terminateSelf().catch(()=>{this.error='请使用系统返回键退出。'})}})
+      } else {
+        Column({space:16}) {
+          Image($r('app.media.records_logo')).height(78).width(78)
+          if (this.error) { Text(this.error); Button('重试').onClick(()=>this.boot()) }
+          else { LoadingProgress().width(28) }
+        }
+      }
+      if (this.promptOpen) {
+        PrivacyNotice({kind:'optional',use:this.use,busy:this.busy,error:this.error,onRead:()=>{this.documentOpen=true},
+          onAgree:()=>{this.agreeUse()},onDecline:()=>this.finish(false)})
+      }
+      if (this.settingsOpen) { this.Settings() }
+      if (this.documentOpen) { PrivacyDocument({onBack:()=>{this.documentOpen=false}}) }
     }.width('100%').height('100%').backgroundColor('#FDFBF7')
   }
 }

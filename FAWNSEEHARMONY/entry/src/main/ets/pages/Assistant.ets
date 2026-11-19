@@ -1,4 +1,6 @@
 import { AssistantAnswer } from './AssistantAnswer'
+import { optionalAllowed,setOptional } from '../services/PrivacyChoices'
+import { useDetail } from './Privacy'
 import { AppUpdatePanel } from './AppUpdatePanel'
 import { common } from '@kit.AbilityKit'
 import { KeyboardAvoidMode } from '@kit.ArkUI'
@@ -267,6 +269,18 @@ export struct AssistantPage {
   }
   private async act(draft:Data,mid:number,save:boolean):Promise<void>{
     if(this.pending)return
+    if(save&&!optionalAllowed('health',this.owner)){
+      const owner=this.owner, conversation=this.conversation
+      this.getUIContext().showAlertDialog({title:'保存健康记录',message:useDetail('health'),
+        primaryButton:{value:'保留草稿',action:()=>{}},
+        secondaryButton:{value:'同意并保存',action:()=>{
+          if(owner!==actorId()||conversation!==this.conversation)return
+          setOptional('health',owner,true).then(()=>{
+            if(owner===actorId()&&conversation===this.conversation)this.act(draft,mid,true)
+          }).catch((e:Error)=>{this.error=e.message})
+        }}})
+      return
+    }
     this.pending=true;this.error=''
     try{await decideRecord(mid,stringValue(draft,'id'),save,this.ctx());const copy=new Map(this.receipts);copy.set(stringValue(draft,'id'),save?'saved':'cancelled');this.receipts=copy;this.taskSummary()
       if(save)syncDeviceReminders(this.ctx(),false).catch(()=>{})

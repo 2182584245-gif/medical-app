@@ -10,10 +10,3 @@
 /.clang-tidy
 **/.test
 /.appanalyzer
-*.hap
-*.app
-*.cer
-*.p7b
-*.p12
-*.csr
-/signing/

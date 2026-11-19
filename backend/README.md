@@ -1,6 +1,6 @@
-# 凡思 try1.2 / 11864 云端源码
+# 凡思移动端共享后端
 
-该目录对应手机版 11864 的云端接口源码。相对线上 11863 镜像，11864 的实际发布覆盖了 `server/ai139_stream.py`、`server/ai139_tools.py`、`server/platform_ai_proxy.py` 和 `server/record_tasks11864.py`。这里也保留这四个文件依赖的记录意图、必填复核、照片处理、数据库与会员业务模块。Qwen ASR 的生产实例地址改为部署时提供的 `QWEN_ASR_ENDPOINT`，私有配置中的地址须一致，模型和服务端域名校验仍保留。
+该目录包含两端使用的云端 API。11868 加入无需手机号的会员注册和隐私政策入口。11870 修复向旧记录追加照片、口语补答及冲突字段保留。相对线上 11863 镜像，11864 的实际发布覆盖了 `server/ai139_stream.py`、`server/ai139_tools.py`、`server/platform_ai_proxy.py` 和 `server/record_tasks11864.py`。这里也保留这四个文件依赖的记录意图、必填复核、照片处理、数据库与会员业务模块。Qwen ASR 的生产实例地址改为部署时提供的 `QWEN_ASR_ENDPOINT`，私有配置中的地址须一致，模型和服务端域名校验仍保留。
 
 ## 本地回归
 
@@ -21,7 +21,7 @@ python -m pytest -q
 
 ### 初始化新库
 
-Alembic 迁移链从 `pilot_0001` 到 `platform_0007_mobile_11864`。最后一版补齐会员记忆和 AI 偏好、资料向量、多模态向量、会话分段、手机认证及其他移动端依赖的表和权限。
+Alembic 迁移链从 `pilot_0001` 到 `platform_0008_password_signup`。0008 创建免手机号注册会员标记及其访问策略。0007 补齐会员记忆和 AI 偏好、资料向量、多模态向量、会话分段、手机认证及其他移动端依赖的表和权限。
 
 在空 PostgreSQL 17 数据库上准备 pgvector 0.8.7 扩展文件，并由数据库管理员预先配置独立的 `medical_app_platform_runtime` 角色。该角色需保持 `NOSUPERUSER`、`NOBYPASSRLS`，由迁移角色作为 schema 所有者执行下列审核后的 SQL。迁移会启用并强制执行相关表的行级安全。
 
@@ -30,7 +30,7 @@ PYTHONPATH=src:. python -m alembic -c server/alembic.ini upgrade head --sql > mo
 psql -X -v ON_ERROR_STOP=1 -f mobile-11864.sql
 ```
 
-将 `psql` 的连接参数指向待初始化的空库。迁移后应在 `medical_app_private.alembic_version` 中看到 `platform_0007_mobile_11864`。
+将 `psql` 的连接参数指向待初始化的空库。迁移后应在 `medical_app_private.alembic_version` 中看到 `platform_0008_password_signup`。
 
 原阿里云服务通过独立流程初始化和升级，恢复或升级既有数据库前须核对实际的迁移履历、结构及权限。直接在其上重放空库脚本可能触发已有结构冲突。迁移带事务和结构检查，避免采用重建方式覆盖现有会员数据。
 
